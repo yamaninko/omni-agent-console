@@ -183,7 +183,7 @@ export class StudioPage implements OnInit, OnDestroy {
       skillIds.length > 0 ? { workspacePath: workspace, skillIds } : { workspacePath: workspace });
 
     this.api.createTask(prompt, contextJson).subscribe({
-      next: async (task) => {
+      next: (task) => {
         this.prompt.set('');
         this.autoSuggestedIds.set([]);
         this.dismissedAutoIds.set([]);
@@ -192,10 +192,10 @@ export class StudioPage implements OnInit, OnDestroy {
         this.activeTaskId.set(task.id);
         this.router.navigate([], { queryParams: { task: task.id }, queryParamsHandling: 'merge' });
         this.loadRecentTasks();
-        await this.consoleStream.connect(task.id);
-        this.api.getTaskEvents(task.id).subscribe({
-          next: (events) => this.consoleStream.setEvents(events)
-        });
+
+        // Queue the run first — never block dispatch on SignalR connect.
+        // (A failed/hanging hub handshake previously left tasks stuck in Pending
+        // with only "Task created" and no worker message.)
         this.api.runTask(task.id).subscribe({
           complete: () => {
             this.applyRunFlags(onRunTaskAccepted());
@@ -206,6 +206,19 @@ export class StudioPage implements OnInit, OnDestroy {
             this.applyRunFlags(onRunTaskError());
             this.loadUsage();
           }
+        });
+
+        void this.consoleStream.connect(task.id).then(() => {
+          this.api.getTaskEvents(task.id).subscribe({
+            next: (events) => this.consoleStream.setEvents(events),
+            error: () => { }
+          });
+        }).catch(() => {
+          // Live stream optional; status polling still refreshes the console.
+          this.api.getTaskEvents(task.id).subscribe({
+            next: (events) => this.consoleStream.setEvents(events),
+            error: () => { }
+          });
         });
       },
       error: () => this.applyRunFlags(onCreateTaskError())
