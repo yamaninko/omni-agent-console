@@ -159,7 +159,7 @@ public sealed class WorkspaceProjectRunner : IWorkspaceProjectRunner
                 ok ? "starting" : "failed",
                 ok
                     ? $"Project {verb}. Health: {detect.HealthUrl}"
-                    : "docker command failed.",
+                    : SummarizeDockerFailure(result.Output, wasRunning),
                 Truncate(result.Output));
         }
         finally
@@ -555,6 +555,38 @@ public sealed class WorkspaceProjectRunner : IWorkspaceProjectRunner
         {
             return "unreachable";
         }
+    }
+
+    private static string SummarizeDockerFailure(string output, bool wasRunning)
+    {
+        var hint = wasRunning
+            ? "Rebuild/recreate failed (existing stack may still be running). "
+            : "Start failed. ";
+
+        // Prefer the last ERROR line from docker build/compose output.
+        string? errorLine = null;
+        foreach (var line in output.Split('\n'))
+        {
+            if (line.Contains("ERROR:", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("failed to solve", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("address already in use", StringComparison.OrdinalIgnoreCase))
+            {
+                errorLine = line.Trim();
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(errorLine))
+        {
+            return hint + "See logs below.";
+        }
+
+        if (errorLine.Length > 280)
+        {
+            errorLine = errorLine[^280..];
+        }
+
+        return hint + errorLine;
     }
 
     private static string? Truncate(string? value)
