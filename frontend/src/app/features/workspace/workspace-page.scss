@@ -468,6 +468,39 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+.web-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  border: 1px solid #1a2532;
+  border-radius: 8px;
+  background: #06090d;
+  overflow: hidden;
+}
+
+.web-preview-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #1a2532;
+  color: #e6edf3;
+
+  strong {
+    font-size: 12px;
+  }
+}
+
+.web-preview-frame {
+  width: 100%;
+  min-height: 420px;
+  height: 48vh;
+  border: 0;
+  background: #fff;
+}
+
 /* Editor Panel */
 .editor-panel {
   background: #06090d;

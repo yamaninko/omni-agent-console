@@ -1,4 +1,6 @@
 import { Component, OnDestroy, OnInit, inject, signal, computed } from '@angular/core';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { Router } from '@angular/router';
 import {
   LucideAngularModule,
   Folder,
@@ -14,7 +16,8 @@ import {
   Rocket,
   Send,
   ChevronsDown,
-  ChevronsUp
+  ChevronsUp,
+  Wrench
 } from 'lucide-angular';
 import { TaskApiClient } from '../../core/api/task-api-client';
 import {
@@ -22,6 +25,7 @@ import {
   ProjectProxyResponse,
   ProjectRunStatusResponse,
   ProjectRouteHint,
+  SkillDefinition,
   WorkspaceNode
 } from '../../core/models';
 
@@ -40,6 +44,8 @@ export interface FlatNode {
 })
 export class WorkspacePage implements OnInit, OnDestroy {
   private readonly api = inject(TaskApiClient);
+  private readonly router = inject(Router);
+  private readonly sanitizer = inject(DomSanitizer);
 
   protected readonly icons = {
     folder: Folder,
@@ -55,7 +61,8 @@ export class WorkspacePage implements OnInit, OnDestroy {
     rocket: Rocket,
     send: Send,
     expandAll: ChevronsDown,
-    collapseAll: ChevronsUp
+    collapseAll: ChevronsUp,
+    wrench: Wrench
   };
 
   protected readonly files = signal<WorkspaceNode[]>([]);
@@ -70,6 +77,9 @@ export class WorkspacePage implements OnInit, OnDestroy {
   protected readonly projectBusy = signal(false);
   protected readonly projectMessage = signal<string | null>(null);
   protected readonly copyFlash = signal(false);
+  protected readonly lastStartFailed = signal(false);
+  protected readonly lastStartLog = signal<string | null>(null);
+  protected readonly fixBusy = signal(false);
   private statusPoll?: ReturnType<typeof setInterval>;
 
   // API tester
@@ -88,6 +98,27 @@ export class WorkspacePage implements OnInit, OnDestroy {
   protected readonly showOpenWeb = computed(() => {
     const kind = this.projectInfo()?.projectKind;
     return kind === 'web' || kind === 'hybrid';
+  });
+
+  /** In-page preview when a web stack is healthy/running. */
+  protected readonly showWebPreview = computed(() => {
+    if (!this.showOpenWeb()) {
+      return false;
+    }
+    const st = this.projectStatus();
+    return st?.state === 'running';
+  });
+
+  protected readonly previewUrl = computed(() => {
+    return this.projectInfo()?.openUrl || this.projectStatus()?.healthUrl?.replace(/\/health$/, '/') || null;
+  });
+
+  protected readonly safePreviewUrl = computed((): SafeResourceUrl | null => {
+    const url = this.previewUrl();
+    if (!url || !/^https?:\/\/localhost(:\d+)?(\/|$)/i.test(url)) {
+      return null;
+    }
+    return this.sanitizer.bypassSecurityTrustResourceUrl(url);
   });
 
   protected readonly methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
@@ -197,6 +228,8 @@ export class WorkspacePage implements OnInit, OnDestroy {
     }
 
     this.projectBusy.set(true);
+    this.lastStartFailed.set(false);
+    this.lastStartLog.set(null);
     const recreating = this.projectStatus()?.state === 'running';
     this.projectMessage.set(
       recreating
@@ -206,20 +239,111 @@ export class WorkspacePage implements OnInit, OnDestroy {
     this.api.workspaceProjectUp(info.projectRoot).subscribe({
       next: (res) => {
         this.projectBusy.set(false);
-        this.projectMessage.set(res.message + (res.logsTail ? `\n\n${res.logsTail}` : ''));
+        const log = res.message + (res.logsTail ? `\n\n${res.logsTail}` : '');
+        this.projectMessage.set(log);
+        if (!res.ok) {
+          this.lastStartFailed.set(true);
+          this.lastStartLog.set(log);
+        } else {
+          this.lastStartFailed.set(false);
+          this.lastStartLog.set(null);
+        }
         this.refreshProjectStatus(info.projectRoot);
         this.startStatusPoll(info.projectRoot);
       },
       error: (err) => {
         this.projectBusy.set(false);
         const body = err?.error;
-        this.projectMessage.set(
+        const log =
           typeof body?.message === 'string'
             ? body.message + (body.logsTail ? `\n\n${body.logsTail}` : '')
-            : 'Failed to start project.'
-        );
+            : 'Failed to start project.';
+        this.projectMessage.set(log);
+        this.lastStartFailed.set(true);
+        this.lastStartLog.set(log);
       }
     });
+  }
+
+  /**
+   * Opens a new Studio task that asks the Coder to fix Docker packaging using
+   * the last Start error log (e.g. missing package-lock.json COPY).
+   */
+  protected fixPackagingWithAi(): void {
+    const info = this.projectInfo();
+    const log = this.lastStartLog() || this.projectMessage();
+    if (!info || !log || this.fixBusy()) {
+      return;
+    }
+
+    this.fixBusy.set(true);
+    this.projectMessage.set('Creating packaging fix task…');
+
+    this.api.listSkills().subscribe({
+      next: (skills) => {
+        const skillIds = this.pickFixSkillIds(skills);
+        const workspacePath = `/workspace/${info.projectRoot === '.' ? '' : info.projectRoot}`.replace(
+          /\/$/,
+          ''
+        ) || '/workspace';
+        const prompt = this.buildPackagingFixPrompt(info.projectRoot, log);
+        const contextJson = JSON.stringify({ workspacePath, skillIds });
+
+        this.api.createTask(prompt, contextJson).subscribe({
+          next: (task) => {
+            this.api.runTask(task.id).subscribe({
+              complete: () => {
+                this.fixBusy.set(false);
+                this.lastStartFailed.set(false);
+                void this.router.navigate(['/studio'], { queryParams: { task: task.id } });
+              },
+              error: () => {
+                this.fixBusy.set(false);
+                this.projectMessage.set(
+                  `Fix task created (${task.id}) but run failed — open Studio and press Run.`
+                );
+                void this.router.navigate(['/studio'], { queryParams: { task: task.id } });
+              }
+            });
+          },
+          error: () => {
+            this.fixBusy.set(false);
+            this.projectMessage.set('Could not create packaging fix task.');
+          }
+        });
+      },
+      error: () => {
+        this.fixBusy.set(false);
+        this.projectMessage.set('Could not load skills for fix task.');
+      }
+    });
+  }
+
+  private pickFixSkillIds(skills: SkillDefinition[]): string[] {
+    const want = ['Dockerized Service', 'Angular Frontend', 'React Frontend'];
+    return skills
+      .filter((s) => s.enabled && want.some((n) => s.name.includes(n.split(' ')[0]) || s.name === n))
+      .map((s) => s.id)
+      .slice(0, 4);
+  }
+
+  private buildPackagingFixPrompt(projectRoot: string, dockerLog: string): string {
+    const trimmedLog = dockerLog.length > 6000 ? dockerLog.slice(-6000) : dockerLog;
+    return (
+      `Workspace projesinin Docker packaging hatasını düzelt. Proje kökü: ${projectRoot}\n\n` +
+      `SORUN: Workspace "Start (docker)" başarısız oldu. Aşağıdaki docker build/compose logunu oku ve ` +
+      `yalnızca packaging dosyalarını (Dockerfile, docker-compose.yml, .dockerignore, nginx.conf, package.json) ` +
+      `düzelt — uygulama kodunu gereksiz yere yeniden yazma.\n\n` +
+      `Yaygın kurallar:\n` +
+      `- package-lock.json yoksa Dockerfile asla zorunlu COPY package-lock.json yapmasın; ` +
+      `  \`COPY package.json package-lock.json* ./\` ve \`npm ci\` yoksa \`npm install\` kullan.\n` +
+      `- COPY ettiğin her dosya diskte olmalı (list_files ile doğrula).\n` +
+      `- SPA: multi-stage node → nginx:alpine, /health 200, compose service adı app, ` +
+      `  ports "\${HOST_PORT:-18080}:80", named volume tercih et, host bind mount kullanma.\n` +
+      `- container_name sabitleme; obsolete compose version: koyma.\n\n` +
+      `DOCKER LOG:\n\`\`\`\n${trimmedLog}\n\`\`\`\n\n` +
+      `write_file ile düzeltmeleri uygula; bitince list_files ile Dockerfile ve docker-compose.yml olduğunu doğrula.`
+    );
   }
 
   protected stopProject(): void {

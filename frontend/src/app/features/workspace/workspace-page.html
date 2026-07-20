@@ -122,6 +122,12 @@
                   Open Swagger
                 </button>
               }
+              @if (lastStartFailed()) {
+                <button type="button" class="run-btn secondary" (click)="fixPackagingWithAi()" [disabled]="fixBusy()">
+                  <lucide-icon [img]="icons.wrench" size="14"></lucide-icon>
+                  {{ fixBusy() ? 'Opening fix task…' : 'Fix packaging with AI' }}
+                </button>
+              }
             </div>
           } @else {
             <p class="run-hint">{{ project.message || 'Select a project folder that contains Dockerfile or docker-compose.yml.' }}</p>
@@ -129,6 +135,23 @@
 
           @if (projectMessage()) {
             <pre class="run-log">{{ projectMessage() }}</pre>
+          }
+
+          @if (showWebPreview() && safePreviewUrl(); as safeUrl) {
+            <div class="web-preview">
+              <div class="web-preview-header">
+                <strong>In-page preview</strong>
+                <span class="run-hint">{{ previewUrl() }}</span>
+                <button type="button" class="run-btn secondary" (click)="openWeb()">
+                  <lucide-icon [img]="icons.external" size="14"></lucide-icon>
+                  Open in browser
+                </button>
+              </div>
+              <iframe class="web-preview-frame" [src]="safeUrl" title="Project preview"></iframe>
+              <p class="run-hint">
+                Some apps block iframe embedding (X-Frame-Options). If the frame is blank, use Open in browser.
+              </p>
+            </div>
           }
         </div>
 

@@ -541,12 +541,12 @@ static List<SkillDefinition> BuildSeedSkills()
         Skill("Angular Frontend", "Frontend",
             "Angular app with standalone components, routing, and services.",
             "angular,angularjs,angular 21",
-            "Produce a complete Angular application: package.json, angular.json, standalone components under src/app/features/, routing, typed services under src/app/core/, environments, README.md. Use signals or RxJS consistently. ALSO REQUIRED for Workspace run: multi-stage Dockerfile (node build → nginx:alpine serving dist), nginx.conf with SPA try_files + GET /health → 200, docker-compose.yml service app with ports \"${HOST_PORT:-18080}:80\" and healthcheck, .dockerignore that does not exclude files you COPY."),
+            "Produce a complete Angular application: package.json, angular.json, standalone components under src/app/features/, routing, typed services under src/app/core/, environments, README.md. Use signals or RxJS consistently. ALSO REQUIRED for Workspace run: multi-stage Dockerfile (node build → nginx:alpine serving dist). In Dockerfile use `COPY package.json package-lock.json* ./` and `npm ci` only if lockfile exists else `npm install` — never COPY a missing package-lock.json. Include nginx.conf (SPA try_files + GET /health → 200), docker-compose.yml service app ports \"${HOST_PORT:-18080}:80\" + healthcheck, safe .dockerignore."),
 
         Skill("React Frontend", "Frontend",
             "React (Vite) app with component/hook structure and typed API layer.",
             "react,reactjs,react.js,vite,next.js,nextjs,jsx,tsx,spa,web sitesi,website,web site,web sayfa,web sayfasi,frontend,arayuz,arayüz,landing,landing page,pazarlama sitesi,kurumsal site,ui,web ui",
-            "Produce a complete React + TypeScript Vite app: package.json, vite.config.ts, index.html, src/main.tsx, src/App.tsx, components/hooks/api layers, .env.example, README.md. Functional components only. ALSO REQUIRED for Workspace run: multi-stage Dockerfile (node build → nginx:alpine), nginx.conf with SPA try_files + /health, docker-compose.yml service app ports \"${HOST_PORT:-18080}:80\" + healthcheck, .dockerignore that does not exclude files you COPY."),
+            "Produce a complete React + TypeScript Vite app: package.json, vite.config.ts, index.html, src/main.tsx, src/App.tsx, components/hooks/api layers, .env.example, README.md. Functional components only. ALSO REQUIRED: multi-stage Dockerfile (node → nginx:alpine). COPY package.json package-lock.json* ./ and use npm ci only when lockfile exists, else npm install. nginx.conf with SPA try_files + /health, docker-compose.yml service app ports \"${HOST_PORT:-18080}:80\" + healthcheck, safe .dockerignore."),
 
         Skill("Flutter App", "Frontend",
             "Flutter mobile app with widget/state-management structure.",
@@ -566,7 +566,7 @@ static List<SkillDefinition> BuildSeedSkills()
         Skill("Dockerized Service", "Packaging",
             "Production-grade Dockerfile and compose wiring — required for Workspace one-click run.",
             "docker,dockerize,dockerfile,docker-compose,container,containerize,compose",
-            "ALWAYS include Dockerfile + docker-compose.yml + .dockerignore at the deployable root (even single-service). Compose service name MUST be app; ports \"${HOST_PORT:-18080}:<containerPort>\"; healthcheck GET /health. Prefer multi-stage builds, non-root, EXPOSE. Use named volumes for data — never ./data:/data host binds (Workspace runner uses Docker socket from another container). SPA/Angular/React: node build stage + nginx:alpine, EXPOSE 80, nginx location /health. API: expose app port (8000/8080). Document compose up and health URL in README. Never finish without these packaging files."),
+            "ALWAYS include Dockerfile + docker-compose.yml + .dockerignore at the deployable root (even single-service). Compose service name MUST be app (avoid fixed container_name); ports \"${HOST_PORT:-18080}:<containerPort>\"; healthcheck GET /health; no obsolete compose version key. Prefer multi-stage builds, non-root, EXPOSE. Named volumes only — never ./data:/data host binds. SPA/Angular/React/Vite: node build → nginx:alpine, EXPOSE 80, /health. Node Dockerfiles: COPY package.json package-lock.json* ./ then `if [ -f package-lock.json ]; then npm ci; else npm install; fi` — NEVER require package-lock.json unless write_file created it. Same for yarn.lock/pnpm-lock. API: expose app port. Document compose up + health URL. list_files before finish; every COPY path must exist."),
 
         Skill("PostgreSQL + Migrations", "Data",
             "PostgreSQL schema with migration scripts and safe query practices.",

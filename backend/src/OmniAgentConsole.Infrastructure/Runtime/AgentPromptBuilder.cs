@@ -193,16 +193,22 @@ internal static class AgentPromptBuilder
 
         1. **Dockerfile**
            - API: multi-stage when possible; run the HTTP server; EXPOSE the app port; HEALTHCHECK hits GET /health.
-           - Angular / React / Vite / static SPA: stage 1 `node` build (`npm ci && npm run build`), stage 2 `nginx:alpine`, copy dist into `/usr/share/nginx/html`, provide `nginx.conf` with `try_files` for SPA routing and `location = /health { return 200 'ok'; add_header Content-Type text/plain; }`, EXPOSE 80.
+           - Angular / React / Vite / static SPA: stage 1 `node` build, stage 2 `nginx:alpine`, copy dist into `/usr/share/nginx/html`, provide `nginx.conf` with `try_files` for SPA routing and `location = /health { return 200 'ok'; add_header Content-Type text/plain; }`, EXPOSE 80.
+           - **Never COPY package-lock.json unless you also write_file it.** Prefer:
+             `COPY package.json package-lock.json* ./`
+             then `RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi`
+             or simply `COPY package.json ./` + `RUN npm install` if no lockfile.
+           - Same for yarn.lock / pnpm-lock.yaml — only COPY files that exist in the workspace.
         2. **docker-compose.yml**
-           - Service name MUST be `app`.
+           - Service name MUST be `app` (do not set a fixed container_name that conflicts across restarts).
            - Ports: `"${HOST_PORT:-18080}:80"` for nginx/SPA or `"${HOST_PORT:-18080}:<apiPort>"` for APIs.
            - healthcheck on /health.
            - Prefer **named volumes** for persistent data — do NOT bind-mount host paths like `./data:/data` (breaks Workspace runner via Docker socket).
-        3. **.dockerignore** — do not exclude files the Dockerfile COPYs (e.g. do not blanket-ignore `*.md` if you COPY README.md).
+           - Do not put obsolete `version:` key.
+        3. **.dockerignore** — do not exclude files the Dockerfile COPYs (e.g. do not blanket-ignore `*.md` if you COPY README.md; do not ignore package.json).
         4. **README.md** — document `docker compose up -d --build` and the health URL.
 
-        Before your final summary, call list_files (or equivalent) and confirm Dockerfile and docker-compose.yml exist. If either is missing, write them before finishing.
+        Before your final summary, call list_files and confirm Dockerfile and docker-compose.yml exist and that every COPY source in the Dockerfile is present on disk. If anything is missing, write it before finishing.
         """;
 
     private static string TrimForPrompt(string value, int maxLength)
