@@ -40,7 +40,7 @@ public sealed class ExportCodeBlocksTests : IDisposable
             "<!-- filepath: README.md -->",
             "# JWT Auth API");
 
-        var (written, skipped) = AgentOrchestratorService.ExportCodeBlocks(content, root);
+        var (written, skipped) = CodeBlockExporter.Export(content, root);
 
         Assert.Equal(4, written);
         Assert.Equal(0, skipped);
@@ -64,7 +64,7 @@ public sealed class ExportCodeBlocksTests : IDisposable
             "{ \"name\": \"demo\" }",
             "```");
 
-        var (written, skipped) = AgentOrchestratorService.ExportCodeBlocks(content, root);
+        var (written, skipped) = CodeBlockExporter.Export(content, root);
 
         Assert.Equal(2, written);
         Assert.Equal(0, skipped);
@@ -82,7 +82,7 @@ public sealed class ExportCodeBlocksTests : IDisposable
             "// filepath: src/ok.ts",
             "fine();");
 
-        var (written, skipped) = AgentOrchestratorService.ExportCodeBlocks(content, root);
+        var (written, skipped) = CodeBlockExporter.Export(content, root);
 
         Assert.Equal(1, written);
         Assert.Equal(1, skipped);
@@ -103,7 +103,7 @@ public sealed class ExportCodeBlocksTests : IDisposable
             "plain text block",
             "```");
 
-        var (written, skipped) = AgentOrchestratorService.ExportCodeBlocks(content, root);
+        var (written, skipped) = CodeBlockExporter.Export(content, root);
 
         Assert.Equal(2, written);
         Assert.Equal(0, skipped);
@@ -118,7 +118,7 @@ public sealed class ExportCodeBlocksTests : IDisposable
             "// filepath: src/main.ts",
             "const only = true;");
 
-        var (written, skipped) = AgentOrchestratorService.ExportCodeBlocks(content, root);
+        var (written, skipped) = CodeBlockExporter.Export(content, root);
 
         Assert.Equal(1, written);
         Assert.Equal(0, skipped);
