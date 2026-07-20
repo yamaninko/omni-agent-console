@@ -36,6 +36,8 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.Configure<OmniAgentConsole.Application.Configuration.SharedLabOptions>(
+    builder.Configuration.GetSection(OmniAgentConsole.Application.Configuration.SharedLabOptions.SectionName));
 
 var redisConnection = builder.Configuration.GetConnectionString("Redis");
 if (!string.IsNullOrWhiteSpace(redisConnection))
@@ -49,6 +51,12 @@ if (builder.Services.All(x => x.ServiceType != typeof(IConsoleEventPublisher)))
 }
 
 var app = builder.Build();
+
+// Fail-fast: a shared-lab deployment without an admin key must not start
+// (see docs/ROADMAP.md §1 — SHARED_LAB contract).
+OmniAgentConsole.Application.Runtime.SharedLabPolicy.ValidateStartup(
+    app.Configuration.GetValue<bool>("SharedLab:Enabled"),
+    app.Configuration["Console:ApiKey"] ?? Environment.GetEnvironmentVariable("CONSOLE_API_KEY"));
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

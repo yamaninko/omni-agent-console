@@ -1,4 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using OmniAgentConsole.Api.Middleware;
+using OmniAgentConsole.Application.Configuration;
 using OmniAgentConsole.Application.Runtime;
 using System.IO;
 using System.Linq;
@@ -14,15 +17,33 @@ public class WorkspaceController : ControllerBase
 {
     private const string WorkspaceRoot = "/workspace";
 
+    private readonly SharedLabOptions sharedLab;
+
+    public WorkspaceController(IOptions<SharedLabOptions> sharedLab)
+    {
+        this.sharedLab = sharedLab.Value;
+    }
+
+    // In the shared-lab profile every student session gets its own effective
+    // root; paths cannot resolve outside it even with traversal attempts,
+    // because WorkspacePathGuard anchors resolution to this root.
+    private string EffectiveRoot =>
+        sharedLab.Enabled
+        && !SharedLabHttp.IsAdmin(HttpContext)
+        && SharedLabHttp.GetSessionId(HttpContext) is { } sessionId
+            ? SharedLabPolicy.SessionRoot(WorkspaceRoot, sessionId)
+            : WorkspaceRoot;
+
     [HttpGet("files")]
     public IActionResult GetFiles()
     {
-        if (!Directory.Exists(WorkspaceRoot))
+        var root = EffectiveRoot;
+        if (!Directory.Exists(root))
         {
             return Ok(new List<WorkspaceNode>());
         }
 
-        var nodes = BuildTree(WorkspaceRoot, "");
+        var nodes = BuildTree(root, "");
         return Ok(nodes);
     }
 
@@ -34,7 +55,7 @@ public class WorkspaceController : ControllerBase
             return BadRequest("Path is required.");
         }
 
-        if (!WorkspacePathGuard.TryResolve(WorkspaceRoot, path, out var fullPath))
+        if (!WorkspacePathGuard.TryResolve(EffectiveRoot, path, out var fullPath))
         {
             return BadRequest("Invalid path.");
         }
@@ -56,12 +77,13 @@ public class WorkspaceController : ControllerBase
             return BadRequest("Path is required.");
         }
 
-        if (!WorkspacePathGuard.TryResolve(WorkspaceRoot, path, out var fullPath))
+        var root = EffectiveRoot;
+        if (!WorkspacePathGuard.TryResolve(root, path, out var fullPath))
         {
             return BadRequest("Invalid path.");
         }
 
-        if (string.Equals(fullPath, WorkspacePathGuard.NormalizeRoot(WorkspaceRoot), System.StringComparison.Ordinal))
+        if (string.Equals(fullPath, WorkspacePathGuard.NormalizeRoot(root), System.StringComparison.Ordinal))
         {
             return BadRequest("Cannot delete the workspace root.");
         }

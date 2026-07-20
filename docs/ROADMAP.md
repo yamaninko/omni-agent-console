@@ -12,7 +12,7 @@
 | 3 | Poison message infinite requeue | ✅ Kapandı | Redelivered → 2. fail = Failed+ACK |
 | 4a | Açık infra portları | ✅ Kapandı | `INFRA_BIND_ADDRESS=127.0.0.1` |
 | 4b | Credential at-rest (Vault secret-ref) | 🔲 Açık | §4 |
-| 5 | Tenant / sınıf izolasyonu | 🟡 Karar verildi, MVP bekliyor | §1 — dual deployment: laptop default, shared-lab opt-in (`SHARED_LAB`) |
+| 5 | Tenant / sınıf izolasyonu | ✅ Kapandı (2026-07-20) | §1 — dual deployment uygulandı: laptop default, shared-lab `SHARED_LAB=true` ile; iki-path canlı doğrulama yapıldı |
 | 6 | InputSanitizer darlığı | ✅ Kapandı (kısmi, doğası gereği) | Genişletildi; pattern-dışı secret teorik risk |
 | 7 | Orchestrator god-class | 🔲 Açık | §2 |
 | 8 | Reasoning-only boş content | ✅ Kapandı | `reasoning_content`/`reasoning` fallback |
@@ -69,7 +69,13 @@ Güvenlik varsayılanı ilkesi: sıkı kurallar (fail-fast) **yalnız shared-lab
 
 **Kapsam dışı (MVP)**: OAuth/LDAP, disk quota, session expiry, per-user API quota.
 
-**Effort**: docs-only aşama ~yarım gün *(bu belge + README ile tamam)*; flag'li MVP ~1.5–2.5 gün. **Kabul**: flag off → davranış birebir bugünkü; flag on → iki session izolasyonu + fail-fast; README'de iki deployment modeli.
+**UYGULANDI (2026-07-20)** — kabul kriterlerinin tamamı canlıda doğrulandı:
+- ✅ Flag OFF: session header'sız task list/create birebir eski davranış (200/201)
+- ✅ Flag ON: header'sız istek 400; öğrenci B, öğrenci A'nın task'ını göremez/iptal edemez (404); B'nin listesi boş; workspacePath `/workspace/sessions/{sid}/...`'e map edildi (DB'de doğrulandı); öğrenci credential write 403; skill suggest 200 (açık); admin key ile tüm task'lar görünür
+- ✅ Fail-fast: `SHARED_LAB=true` + boş `CONSOLE_API_KEY` → startup exception, API servis vermiyor
+- ✅ 113 unit test (SharedLabPolicy: session id charset, path mapping idempotency, yabancı session prefix'i reddi, admin-gate matrisi, fail-fast)
+
+Uygulama parçaları: `SharedLabPolicy` + `SharedLabOptions` (Application), `ApiKeyMiddleware` profil-farkındalı (admin kimliği + session zorunluluğu + write kilidi), `TaskRun.OwnerSessionId` (migration `SharedLabTaskOwnership`), TasksController owner filtreleri, WorkspaceController effective root, ConsoleHub SubscribeTask ownership, frontend session kimliği (localStorage + interceptor + hub query).
 
 ---
 
@@ -153,8 +159,8 @@ Kod fallback'i eklendi; README listesi temkinli uyarı taşıyor. İş: 2 modell
 
 | Sprint | İçerik | Süre |
 |--------|--------|------|
-| A1 ✅ | Dual-deployment kararını belgele (bu belge + README) | yarım gün — tamam |
-| A2 | `SHARED_LAB` flag'li Tenant MVP (session + ownership + prefix + fail-fast) | 1.5–2.5 gün |
+| A1 ✅ | Dual-deployment kararını belgele (bu belge + README) | tamam |
+| A2 ✅ | `SHARED_LAB` flag'li Tenant MVP (session + ownership + prefix + fail-fast) | tamam (2026-07-20) — 113 test + iki-path canlı doğrulama |
 | B | Orchestrator PR-R1→R3 (+R4) | 1.5–3 gün |
 | C | Frontend test altyapısı + spec 1–4 + CI | 1.5–2.5 gün |
 | D | Vault dual-read → migrate → drop plaintext | 2–3.5 gün |

@@ -1,5 +1,9 @@
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using OmniAgentConsole.Api.Middleware;
+using OmniAgentConsole.Application.Configuration;
 using OmniAgentConsole.Application.Runtime;
 using OmniAgentConsole.Application.Tasks;
 using OmniAgentConsole.Domain.Entities;
@@ -17,19 +21,66 @@ public sealed class TasksController : ControllerBase
     private readonly ITaskRunQueue taskRunQueue;
     private readonly ITaskCancellationRegistry cancellationRegistry;
     private readonly ITaskCancellationBroadcast cancellationBroadcast;
+    private readonly SharedLabOptions sharedLab;
 
     public TasksController(
         AgentConsoleDbContext dbContext,
         IConsoleEventService consoleEvents,
         ITaskRunQueue taskRunQueue,
         ITaskCancellationRegistry cancellationRegistry,
-        ITaskCancellationBroadcast cancellationBroadcast)
+        ITaskCancellationBroadcast cancellationBroadcast,
+        IOptions<SharedLabOptions> sharedLab)
     {
         this.dbContext = dbContext;
         this.consoleEvents = consoleEvents;
         this.taskRunQueue = taskRunQueue;
         this.cancellationRegistry = cancellationRegistry;
         this.cancellationBroadcast = cancellationBroadcast;
+        this.sharedLab = sharedLab.Value;
+    }
+
+    // True when the caller is a shared-lab student session (not the instructor).
+    private bool SessionScoped => sharedLab.Enabled && !SharedLabHttp.IsAdmin(HttpContext);
+
+    private string? CallerSessionId => SharedLabHttp.GetSessionId(HttpContext);
+
+    // Ownership mismatches return 404 (not 403) so foreign task ids leak nothing.
+    private bool IsForeignTask(TaskRun taskRun) =>
+        SessionScoped
+        && !string.Equals(taskRun.OwnerSessionId, CallerSessionId, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Rewrites the context's workspacePath into the caller's session subtree
+    /// (e.g. "/workspace/foo" → "/workspace/sessions/{sid}/foo"). Unparseable
+    /// context is returned unchanged — the orchestrator will not export for it.
+    /// </summary>
+    private static string? MapContextWorkspacePath(string? inputContextJson, string sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(inputContextJson))
+        {
+            return inputContextJson;
+        }
+
+        try
+        {
+            if (JsonNode.Parse(inputContextJson) is not JsonObject context)
+            {
+                return inputContextJson;
+            }
+
+            var workspacePath = context["workspacePath"]?.GetValue<string>();
+            if (!string.IsNullOrWhiteSpace(workspacePath))
+            {
+                context["workspacePath"] = SharedLabPolicy.MapWorkspacePath(
+                    WorkspacePathGuard.DefaultRoot, sessionId, workspacePath);
+            }
+
+            return context.ToJsonString();
+        }
+        catch
+        {
+            return inputContextJson;
+        }
     }
 
     [HttpPost]
@@ -48,6 +99,12 @@ public sealed class TasksController : ControllerBase
             Status = TaskRunStatus.Pending
         };
 
+        if (SessionScoped && CallerSessionId is { } sessionId)
+        {
+            taskRun.OwnerSessionId = sessionId;
+            taskRun.InputContextJson = MapContextWorkspacePath(taskRun.InputContextJson, sessionId);
+        }
+
         dbContext.TaskRuns.Add(taskRun);
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -65,8 +122,14 @@ public sealed class TasksController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<TaskSummaryDto>>> List(CancellationToken cancellationToken)
     {
-        var tasks = await dbContext.TaskRuns
-            .AsNoTracking()
+        var query = dbContext.TaskRuns.AsNoTracking();
+        if (SessionScoped)
+        {
+            var sessionId = CallerSessionId;
+            query = query.Where(x => x.OwnerSessionId == sessionId);
+        }
+
+        var tasks = await query
             .OrderByDescending(x => x.CreatedAt)
             .Take(100)
             .Select(x => ToSummary(x))
@@ -86,14 +149,14 @@ public sealed class TasksController : ControllerBase
             .Include(x => x.ModelCallLogs.OrderBy(modelCall => modelCall.CreatedAt))
             .FirstOrDefaultAsync(x => x.Id == taskRunId, cancellationToken);
 
-        return taskRun is null ? NotFound() : Ok(ToDetail(taskRun));
+        return taskRun is null || IsForeignTask(taskRun) ? NotFound() : Ok(ToDetail(taskRun));
     }
 
     [HttpPost("{taskRunId:guid}/run")]
     public async Task<IActionResult> Run(Guid taskRunId, CancellationToken cancellationToken)
     {
         var taskRun = await dbContext.TaskRuns.FirstOrDefaultAsync(x => x.Id == taskRunId, cancellationToken);
-        if (taskRun is null)
+        if (taskRun is null || IsForeignTask(taskRun))
         {
             return NotFound();
         }
@@ -153,7 +216,7 @@ public sealed class TasksController : ControllerBase
     public async Task<IActionResult> Cancel(Guid taskRunId, CancellationToken cancellationToken)
     {
         var taskRun = await dbContext.TaskRuns.FirstOrDefaultAsync(x => x.Id == taskRunId, cancellationToken);
-        if (taskRun is null)
+        if (taskRun is null || IsForeignTask(taskRun))
         {
             return NotFound();
         }
@@ -187,6 +250,20 @@ public sealed class TasksController : ControllerBase
     [HttpGet("{taskRunId:guid}/events")]
     public async Task<ActionResult<IReadOnlyList<ConsoleEventDto>>> GetEvents(Guid taskRunId, CancellationToken cancellationToken)
     {
+        if (SessionScoped)
+        {
+            var owner = await dbContext.TaskRuns
+                .AsNoTracking()
+                .Where(x => x.Id == taskRunId)
+                .Select(x => x.OwnerSessionId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (!string.Equals(owner, CallerSessionId, StringComparison.Ordinal))
+            {
+                return NotFound();
+            }
+        }
+
         var events = await dbContext.ConsoleEvents
             .AsNoTracking()
             .Where(x => x.TaskRunId == taskRunId)
@@ -200,7 +277,7 @@ public sealed class TasksController : ControllerBase
     public async Task<IActionResult> UpdateTitle(Guid taskRunId, [FromBody] UpdateTitleRequest request, CancellationToken cancellationToken)
     {
         var taskRun = await dbContext.TaskRuns.FirstOrDefaultAsync(x => x.Id == taskRunId, cancellationToken);
-        if (taskRun is null)
+        if (taskRun is null || IsForeignTask(taskRun))
         {
             return NotFound();
         }
@@ -214,7 +291,7 @@ public sealed class TasksController : ControllerBase
     public async Task<IActionResult> Delete(Guid taskRunId, CancellationToken cancellationToken)
     {
         var taskRun = await dbContext.TaskRuns.FirstOrDefaultAsync(x => x.Id == taskRunId, cancellationToken);
-        if (taskRun is null)
+        if (taskRun is null || IsForeignTask(taskRun))
         {
             return NotFound();
         }

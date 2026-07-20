@@ -135,11 +135,18 @@ This file records the execution history, features implemented, and architectural
 - **InputSanitizer widened**: Anthropic `sk-ant-`, Google `AIza`, GitHub `ghp_`/`github_pat_`, Slack `xox*`, JWTs, and key=value/JSON assignments (`PASSWORD=`, `JWT_SECRET=`, `"api_key": "..."`) — value-only redaction keeps keys readable; prose about secrets is left untouched (tested).
 - **Reasoning-content fallback**: when `content` is empty, the provider now reads `reasoning_content`/`reasoning` — reasoning-only Nemotron variants produce usable output instead of "empty response" failures.
 
+### 22. 🏫 Dual Deployment Profiles — Shared-Lab Tenant MVP
+- **Decision**: not "laptop OR shared-server" but both — same codebase, profile chosen by `SHARED_LAB` env (default `false` = today's single-user behavior, byte-for-byte).
+- **Shared-lab mode** (`SHARED_LAB=true`): browser-generated session id (`X-Studio-Session-Id` header / `session_id` query for WebSockets); `TaskRun.OwnerSessionId` (migration `SharedLabTaskOwnership`) with owner-filtered task endpoints (foreign task → 404, no info leak, including ConsoleHub SubscribeTask); workspace confined per session via effective guard root `/workspace/sessions/{id}/` (task-create rewrites workspacePath; WorkspaceController scopes tree/read/delete); config writes (credentials/agents/skills/settings/providers) 403 for students with `/api/skills/suggest` exempt; console API key = instructor credential.
+- **Fail-fast**: `SHARED_LAB=true` without `CONSOLE_API_KEY` refuses to start — anonymous shared deployment impossible by mistake.
+- **Verified live, both paths**: flag off = legacy behavior (200/201 without headers); flag on = 400 without session, A/B isolation (404s, empty list), workspacePath mapped in DB, 403 on credential write, suggest open, admin sees all; fail-fast confirmed (API not serving).
+- New `SharedLabPolicy` (pure, unit-tested: id charset, path-map idempotency, foreign-prefix rejection, admin-gate matrix, startup guard) + frontend session identity (localStorage + interceptor + hub query).
+
 ---
 
 ## 📈 Verification Status
 
-- **Unit Tests**: 79 tests build and pass (path guard, export splitting, workspace tools, requeue decision, skill suggestion, model fallback chain, sanitizer incl. widened patterns, token usage).
+- **Unit Tests**: 113 tests build and pass (path guard, export splitting, workspace tools, requeue decision, skill suggestion, model fallback chain, sanitizer incl. widened patterns, shared-lab policy, token usage).
 - **Frontend Compiler**: Angular 21 builds successfully (only pre-existing SCSS budget warnings).
 - **Docker Compose**: All containers (Postgres, RabbitMQ, Redis, Vault, API, Frontend, Worker) built and running under the `omni-agent-console` project name.
 - **Live E2E**: masked credentials round-trip, path traversal 400s, shutdown NACK/requeue + user-cancel ACK, 12-file project export with skills, model catalog sync, prompt-based skill auto-suggestion, model fallback chain (404 primary → fallback completed the run) — all verified against the running stack.

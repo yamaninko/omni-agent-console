@@ -131,7 +131,7 @@ Aynı kod tabanı iki profili destekler; davranış ortam değişkeniyle seçili
 - **Laptop-only**: flag kapalı, ekstra kimlik/oturum sürtünmesi yok. Infra portları zaten `127.0.0.1`'e bind'lidir.
 - **Shared-lab**: `SHARED_LAB=true` ile session header'ı zorunlu olur, task'lar oturum sahibine filtrelenir, workspace oturum köküne kilitlenir ve Settings/Credentials yazma uçları kilitlenir (eğitmen `CONSOLE_API_KEY` ile yönetir). Flag açıkken `CONSOLE_API_KEY` boşsa uygulama **fail-fast** ile açılmaz — anonim paylaşımlı kurulum kazara mümkün değildir.
 
-> ⚠️ **Durum**: Shared-lab profili tasarım olarak kilitlendi, implementasyonu [docs/ROADMAP.md](docs/ROADMAP.md) Sprint A2'dedir (`SHARED_LAB` davranış şeması dahil). Bu sürümde ortak sunucuya kurulum yapacaksanız en azından `CONSOLE_API_KEY` set edin ve kullanıcıların birbirinin task/workspace'ine erişebildiğini bilin.
+> ✅ **Durum**: Shared-lab profili uygulandı ve canlı doğrulandı (2026-07-20): iki farklı oturum birbirinin task'ını göremez/iptal edemez (404), workspace `/workspace/sessions/{id}/` altına kilitlenir, öğrenci credential/agent/skill/settings yazamaz (403, skill auto-suggest açık), `SHARED_LAB=true` + boş `CONSOLE_API_KEY` kombinasyonunda uygulama açılmaz. Kullanım: `.env`'de `SHARED_LAB=true` ve `CONSOLE_API_KEY=<eğitmen-anahtarı>` set edip stack'i yeniden başlatın; eğitmen UI'da Settings → Console API Key alanına anahtarı girerek admin yetkisi kazanır.
 
 ## Docker ile çalıştırma
 

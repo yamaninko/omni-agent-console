@@ -34,8 +34,10 @@ public sealed class AgentConsoleDbContext : DbContext
             entity.Property(x => x.InputContextJson).HasColumnType("jsonb");
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
             entity.Property(x => x.ErrorMessage).HasMaxLength(4000);
+            entity.Property(x => x.OwnerSessionId).HasMaxLength(64);
             entity.HasIndex(x => x.CreatedAt);
             entity.HasIndex(x => x.Status);
+            entity.HasIndex(x => x.OwnerSessionId);
         });
 
         modelBuilder.Entity<AgentRun>(entity =>

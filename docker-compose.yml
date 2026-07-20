@@ -28,6 +28,7 @@ services:
       Providers__OmniAgent__ApiKeySecretName: ${OMNIAGENT_API_KEY_SECRET_NAME:-secret/providers/omniagent#apiKey}
       OMNIAGENT_API_KEY: ${OMNIAGENT_API_KEY:-}
       Console__ApiKey: ${CONSOLE_API_KEY:-}
+      SharedLab__Enabled: ${SHARED_LAB:-false}
       Vault__Enabled: "true"
       Vault__Address: http://vault:8200
       Vault__Token: ${VAULT_DEV_ROOT_TOKEN_ID:-dev-root-token}

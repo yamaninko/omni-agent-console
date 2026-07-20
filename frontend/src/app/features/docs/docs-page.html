@@ -395,6 +395,11 @@
         <p>
           Some reasoning models write their entire answer into a <code>reasoning</code> / <code>reasoning_content</code> field and leave <code>content</code> empty. When <code>content</code> comes back blank, the provider now falls back to those fields, so reasoning-only models produce usable output instead of failing the run with an "empty response" error.
         </p>
+
+        <h3>10. Deployment Profiles: Laptop vs Shared-Lab</h3>
+        <p>
+          The same codebase supports two profiles selected by the <code>SHARED_LAB</code> environment variable. <strong>Off (default)</strong>: today's single-user behavior — one tenant, global workspace. <strong>On</strong>: classroom mode for one shared server — every browser generates a local session id (<code>X-Studio-Session-Id</code>); tasks are owned by their session (foreign task ids answer 404 everywhere, including the SignalR console stream), each session's workspace is confined to <code>/workspace/sessions/&#123;id&#125;/</code> as its effective path-guard root, and configuration writes (credentials, agents, skills, settings, providers) answer 403 for students — the skill auto-suggest endpoint stays open. The console API key becomes the <em>instructor credential</em>: it bypasses session scoping and unlocks settings. As a fail-safe, the API refuses to start with <code>SHARED_LAB=true</code> and no <code>CONSOLE_API_KEY</code>, so an anonymous shared deployment cannot happen by mistake.
+        </p>
       </section>
 
       <!-- Section 3: Cost and Token Analytics -->

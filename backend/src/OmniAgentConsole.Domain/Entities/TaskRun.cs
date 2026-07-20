@@ -18,6 +18,10 @@ public sealed class TaskRun
     public long TotalLatencyMs { get; set; }
     public string? ErrorMessage { get; set; }
 
+    // Shared-lab profile: the browser session that created the task. Null for
+    // tasks created in the single-user (laptop) profile or by the instructor.
+    public string? OwnerSessionId { get; set; }
+
     public ICollection<AgentRun> AgentRuns { get; set; } = new List<AgentRun>();
     public ICollection<ModelCallLog> ModelCallLogs { get; set; } = new List<ModelCallLog>();
     public ICollection<ConsoleEvent> ConsoleEvents { get; set; } = new List<ConsoleEvent>();
