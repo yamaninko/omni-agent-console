@@ -610,11 +610,27 @@ export class StudioPage implements OnInit, OnDestroy {
       this.api.getTask(taskId).subscribe({
         next: (task) => {
           this.activeTask.set(task);
+          // Keep sidebar Recent Tasks in sync while running (status icon).
+          this.recentTasks.update((list) =>
+            list.map((t) =>
+              t.id === task.id
+                ? {
+                    ...t,
+                    status: task.status,
+                    totalTokens: task.totalTokens,
+                    totalLatencyMs: task.totalLatencyMs,
+                    completedAt: task.completedAt
+                  }
+                : t
+            )
+          );
           if (task.status !== 'Running' && task.status !== 'Pending') {
             this.applyRunFlags(onTaskTerminalStatus());
             this.stopStatusPolling();
             this.loadUsage();
             this.consoleStream.setEvents(task.consoleEvents);
+            // Full refresh so order/title and any new fields stay correct.
+            this.loadRecentTasks();
           }
         },
         error: () => {
