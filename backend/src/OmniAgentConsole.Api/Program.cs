@@ -456,12 +456,17 @@ static async Task EnsureSkillDefinitionsExistAsync(AgentConsoleDbContext dbConte
                     changed = true;
                 }
 
-                // Contract skills: keep instructions in sync with seed so Workspace
-                // run/test requirements propagate on upgrade without wiping user edits
-                // for other skills.
-                if ((string.Equals(seed.Name, "Dockerized Service", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(seed.Name, "Swagger / OpenAPI", StringComparison.OrdinalIgnoreCase))
-                    && current.Instructions != seed.Instructions)
+                // Contract / discovery skills: keep seed text + keywords in sync so
+                // Studio auto-suggest and Workspace run/test contracts stay current.
+                var forceSync =
+                    string.Equals(seed.Name, "Dockerized Service", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(seed.Name, "Swagger / OpenAPI", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(seed.Category, "Frontend", StringComparison.OrdinalIgnoreCase);
+
+                if (forceSync
+                    && (current.Instructions != seed.Instructions
+                        || current.Keywords != seed.Keywords
+                        || current.Description != seed.Description))
                 {
                     current.Instructions = seed.Instructions;
                     current.Description = seed.Description;
@@ -526,17 +531,17 @@ static List<SkillDefinition> BuildSeedSkills()
 
         Skill("Angular Frontend", "Frontend",
             "Angular app with standalone components, routing, and services.",
-            "angular",
+            "angular,angularjs,angular 21",
             "Produce a complete Angular application: package.json, angular.json, standalone components under src/app/features/, routing configuration, typed services for API access under src/app/core/, environment files, and README.md. Use signals or RxJS consistently and keep API URLs in environment configuration."),
 
         Skill("React Frontend", "Frontend",
             "React (Vite) app with component/hook structure and typed API layer.",
-            "react,vite,next.js,nextjs,jsx,tsx",
+            "react,reactjs,react.js,vite,next.js,nextjs,jsx,tsx,spa,web sitesi,website,web site,web sayfa,web sayfasi,frontend,arayuz,arayüz,landing,landing page,pazarlama sitesi,kurumsal site,ui,web ui",
             "Produce a complete React + TypeScript application (Vite): package.json with scripts, vite.config.ts, index.html, src/main.tsx, src/App.tsx, feature components under src/components/ or src/features/, custom hooks under src/hooks/, a typed API client under src/api/, .env.example for the API base URL, and README.md. Use functional components with hooks only; keep fetch/axios calls out of components."),
 
         Skill("Flutter App", "Frontend",
             "Flutter mobile app with widget/state-management structure.",
-            "flutter,dart",
+            "flutter,dart,mobil,mobile,android,ios,iphone,uygulama",
             "Produce a complete Flutter application: pubspec.yaml with dependency versions, lib/main.dart (bootstrap only), lib/screens/, lib/widgets/, lib/services/ for API access, lib/models/ with typed model classes, and README.md with flutter run instructions. Use a clear state-management approach (Provider or Riverpod), const constructors where possible, and keep business logic out of widgets."),
 
         Skill("JWT Authentication", "Security",

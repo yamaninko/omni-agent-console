@@ -60,6 +60,31 @@ export class StudioPage implements OnInit, OnDestroy {
   protected readonly promptPlaceholder = 'Bu API dokumanina gore client SDK tasarla.';
   protected readonly workspacePath = signal('/workspace/proje');
   protected readonly skills = signal<SkillDefinition[]>([]);
+  /** Skills grouped by category for the Studio chip panel (Frontend first). */
+  protected readonly skillsByCategory = computed(() => {
+    const order = ['Frontend', 'Backend', 'Packaging', 'Data', 'Security', 'Quality'];
+    const groups = new Map<string, SkillDefinition[]>();
+    for (const skill of this.skills()) {
+      const list = groups.get(skill.category) ?? [];
+      list.push(skill);
+      groups.set(skill.category, list);
+    }
+    const ranked = order
+      .filter((cat) => groups.has(cat))
+      .map((category) => ({
+        category,
+        skills: (groups.get(category) ?? []).slice().sort((a, b) => a.name.localeCompare(b.name))
+      }));
+    for (const [category, list] of groups) {
+      if (!order.includes(category)) {
+        ranked.push({
+          category,
+          skills: list.slice().sort((a, b) => a.name.localeCompare(b.name))
+        });
+      }
+    }
+    return ranked;
+  });
   private readonly manualSkillIds = signal<string[]>([]);
   private readonly dismissedAutoIds = signal<string[]>([]);
   protected readonly autoSuggestedIds = signal<string[]>([]);

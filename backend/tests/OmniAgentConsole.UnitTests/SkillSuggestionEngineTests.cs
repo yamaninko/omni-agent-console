@@ -15,6 +15,9 @@ public sealed class SkillSuggestionEngineTests
         Make("Go REST API", "Backend", "go,golang,gin,fiber,chi"),
         Make("Python FastAPI Service", "Backend", "fastapi,python,uvicorn,pydantic"),
         Make("Java Spring Boot API", "Backend", "java,spring,spring boot"),
+        Make("Angular Frontend", "Frontend", "angular,angularjs"),
+        Make("React Frontend", "Frontend", "react,reactjs,vite,web sitesi,website,frontend,landing"),
+        Make("Flutter App", "Frontend", "flutter,dart,mobil,mobile,android,ios"),
         Make("JWT Authentication", "Security", "jwt,json web token,bcrypt,login,giris,kayit"),
         Make("Input Validation (Zod/Joi)", "Quality", "validation,joi,zod,dogrulama,input validation"),
         Make("Dockerized Service", "Packaging", "docker,dockerize,dockerfile,docker-compose"),
@@ -105,6 +108,30 @@ public sealed class SkillSuggestionEngineTests
 
         Assert.Contains("Python FastAPI Service", names);
         Assert.Contains("Swagger / OpenAPI", names);
+    }
+
+    [Fact]
+    public void WebsitePrompt_SuggestsReactFrontend()
+    {
+        var names = SuggestNames(
+            "Quantum islemci satan firmanin modern kurumsal web sitesini yaz, landing page olsun.");
+
+        Assert.Contains("React Frontend", names);
+        Assert.DoesNotContain("Flutter App", names);
+    }
+
+    [Fact]
+    public void AngularKeyword_SuggestsAngularFrontend()
+    {
+        var names = SuggestNames("Angular ile kurumsal bir dashboard arayuzu olustur.");
+        Assert.Contains("Angular Frontend", names);
+    }
+
+    [Fact]
+    public void MobilePrompt_SuggestsFlutter()
+    {
+        var names = SuggestNames("Flutter ile mobil android ve ios uygulamasi yaz.");
+        Assert.Contains("Flutter App", names);
     }
 
     [Fact]
