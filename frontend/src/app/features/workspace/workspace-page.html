@@ -1,0 +1,136 @@
+<section class="workspace-page">
+  <div class="workspace-layout">
+    
+    <!-- Sidebar: File Explorer (VS Code Style) -->
+    <aside class="explorer-panel">
+      <div class="explorer-header">
+        <h2>WORKSPACE EXPLORER</h2>
+        <button class="icon-btn" (click)="refreshFiles()" [disabled]="loading()" title="Refresh Files">
+          <lucide-icon [img]="icons.refresh" size="14" [class.spin]="loading()"></lucide-icon>
+        </button>
+      </div>
+
+      <div class="explorer-tree">
+        @if (loading() && files().length === 0) {
+          <div class="tree-loading">Loading workspace...</div>
+        } @else {
+          @for (node of getFlatNodes(); track node.path) {
+            <div 
+              class="tree-node"
+              [class.directory]="node.isDirectory"
+              [class.file]="!node.isDirectory"
+              [class.active]="selectedFilePath() === node.path || projectFocusPath() === node.path"
+              [style.padding-left.px]="node.level * 16 + 12"
+              (click)="node.isDirectory ? toggleFolder(node.path, $event) : selectFile(node.path)"
+            >
+              @if (node.isDirectory) {
+                <lucide-icon 
+                  [img]="isFolderExpanded(node.path) ? icons.folderOpen : icons.folder" 
+                  size="16" 
+                  class="folder-icon"
+                ></lucide-icon>
+              } @else {
+                <lucide-icon 
+                  [img]="isCodeFile(node.name) ? icons.fileCode : icons.fileText" 
+                  size="16" 
+                  class="file-icon"
+                ></lucide-icon>
+              }
+              <span class="node-name">{{ node.name }}</span>
+              <button class="delete-node-btn" type="button" (click)="deleteNode(node, $event)" title="Delete {{ node.isDirectory ? 'Folder' : 'File' }}" style="background: transparent; border: none; padding: 4px; min-height: unset; height: auto; border-radius: 4px; cursor: pointer; color: #8da1b4; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; margin-left: auto; opacity: 0;">
+                <lucide-icon [img]="icons.trash" size="13"></lucide-icon>
+              </button>
+            </div>
+          } @empty {
+            <div class="tree-empty">Workspace is empty. Create a task to generate files.</div>
+          }
+        }
+      </div>
+    </aside>
+
+    <!-- Main Content: Editor + Run panel -->
+    <main class="editor-panel">
+      @if (projectInfo(); as project) {
+        <div class="run-panel">
+          <div class="run-panel-header">
+            <lucide-icon [img]="icons.rocket" size="16"></lucide-icon>
+            <div class="run-title">
+              <strong>Project run</strong>
+              <span class="run-root">{{ project.projectRoot }}</span>
+            </div>
+            <span class="run-badge" [class.ok]="project.runnable" [class.bad]="!project.runnable">
+              {{ project.runnable ? 'runnable' : 'not runnable' }}
+            </span>
+            @if (projectStatus(); as st) {
+              <span class="run-badge state" [class.running]="st.state === 'running'">{{ st.state }}</span>
+              @if (st.healthStatus) {
+                <span class="run-badge health" [class.ok]="st.healthStatus === 'healthy'">{{ st.healthStatus }}</span>
+              }
+            }
+          </div>
+
+          @if (project.runnable) {
+            <div class="run-meta">
+              <span>port <code>{{ project.suggestedHostPort }}</code></span>
+              <span>compose <code>{{ project.composeProjectName }}</code></span>
+              <span>
+                health
+                <a href="javascript:void(0)" (click)="openHealth()">{{ project.healthUrl }}</a>
+              </span>
+            </div>
+
+            <div class="run-command-row">
+              <code class="run-command">{{ project.upCommand }}</code>
+              <button type="button" class="run-btn secondary" (click)="copyUpCommand()" [title]="copyFlash() ? 'Copied' : 'Copy'">
+                <lucide-icon [img]="icons.copy" size="14"></lucide-icon>
+                {{ copyFlash() ? 'Copied' : 'Copy' }}
+              </button>
+            </div>
+
+            <div class="run-actions">
+              <button type="button" class="run-btn primary" (click)="startProject()" [disabled]="projectBusy()">
+                <lucide-icon [img]="icons.play" size="14"></lucide-icon>
+                Start (docker)
+              </button>
+              <button type="button" class="run-btn secondary" (click)="stopProject()" [disabled]="projectBusy()">
+                <lucide-icon [img]="icons.stop" size="14"></lucide-icon>
+                Stop
+              </button>
+              <button type="button" class="run-btn secondary" (click)="openHealth()">
+                <lucide-icon [img]="icons.external" size="14"></lucide-icon>
+                Open /health
+              </button>
+            </div>
+          } @else {
+            <p class="run-hint">{{ project.message || 'Select a project folder that contains Dockerfile or docker-compose.yml.' }}</p>
+          }
+
+          @if (projectMessage()) {
+            <pre class="run-log">{{ projectMessage() }}</pre>
+          }
+        </div>
+      }
+
+      @if (selectedFilePath()) {
+        <div class="editor-header">
+          <div class="tab active">
+            <lucide-icon [img]="isCodeFile(selectedFilePath() ?? '') ? icons.fileCode : icons.fileText" size="14"></lucide-icon>
+            <span>{{ selectedFilePath() }}</span>
+          </div>
+        </div>
+        <div class="editor-body">
+          <pre class="code-viewer"><code>{{ selectedFileContent() }}</code></pre>
+        </div>
+      } @else if (!projectInfo()) {
+        <div class="editor-empty">
+          <div class="empty-prompt">
+            <lucide-icon [img]="icons.fileCode" size="48" style="color: #1f2d3d; margin-bottom: 16px; display: block; margin-left: auto; margin-right: auto;"></lucide-icon>
+            <h3>No File Open</h3>
+            <p>Select a project folder to see run commands, or a file to view its content.</p>
+          </div>
+        </div>
+      }
+    </main>
+
+  </div>
+</section>

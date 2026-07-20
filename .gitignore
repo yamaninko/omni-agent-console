@@ -11,5 +11,5 @@
 # memanto session memory cache — never commit
 MEMORY.md
 
-# runtime-generated agent workspace output
-workspace/
+# runtime-generated agent workspace output (repo root only — not frontend feature folders)
+/workspace/

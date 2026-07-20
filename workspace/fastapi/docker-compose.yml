@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    ports:
+      - "${HOST_PORT:-18080}:8000"
+    environment:
+      NOTES_DATA_FILE: /data/notes.json
+    volumes:
+      - notes-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  notes-data:
