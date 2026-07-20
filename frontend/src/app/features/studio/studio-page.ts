@@ -6,6 +6,22 @@ import { TaskApiClient } from '../../core/api/task-api-client';
 import { ConsoleStreamService } from '../../core/realtime/console-stream.service';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ConsoleEvent, RuntimeAgent, UsageSummary, TaskDetail, TaskSummary, SkillDefinition } from '../../core/models';
+import {
+  DebouncedAction,
+  SKILL_SUGGEST_DEBOUNCE_MS,
+  shouldRequestSkillSuggestions
+} from './debounced-action';
+import { applySkillToggle, isAutoSuggestedSkill, mergeSelectedSkillIds } from './skill-selection';
+import {
+  beginCreateOrRerun,
+  onCancelAccepted,
+  onCancelError,
+  onCreateTaskError,
+  onRunTaskAccepted,
+  onRunTaskError,
+  onStatusPollError,
+  onTaskTerminalStatus
+} from './studio-run-state';
 
 @Component({
   selector: 'app-studio-page',
@@ -49,15 +65,15 @@ export class StudioPage implements OnInit, OnDestroy {
   protected readonly autoSuggestedIds = signal<string[]>([]);
   protected readonly suggestQuestions = signal<string[]>([]);
   protected readonly skillInfo = signal<SkillDefinition | null>(null);
-  private suggestTimer?: any;
+  private readonly skillSuggestDebounce = new DebouncedAction(
+    SKILL_SUGGEST_DEBOUNCE_MS,
+    (value) => this.fetchSkillSuggestions(value)
+  );
 
   // Effective selection = manual picks + prompt-based suggestions the user hasn't dismissed.
-  protected readonly selectedSkillIds = computed(() => {
-    const manual = this.manualSkillIds();
-    const dismissed = new Set(this.dismissedAutoIds());
-    const auto = this.autoSuggestedIds().filter(id => !dismissed.has(id) && !manual.includes(id));
-    return [...manual, ...auto];
-  });
+  protected readonly selectedSkillIds = computed(() =>
+    mergeSelectedSkillIds(this.manualSkillIds(), this.autoSuggestedIds(), this.dismissedAutoIds())
+  );
   protected readonly showRecentTasks = signal(true);
   protected readonly showAgents = signal(false);
   protected readonly showActiveTaskCollapse = signal(true);
@@ -146,7 +162,7 @@ export class StudioPage implements OnInit, OnDestroy {
     if (this.timeInterval) {
       clearInterval(this.timeInterval);
     }
-    clearTimeout(this.suggestTimer);
+    this.skillSuggestDebounce.cancel();
   }
 
   protected startTask(): void {
@@ -156,8 +172,7 @@ export class StudioPage implements OnInit, OnDestroy {
       return;
     }
 
-    this.pending.set(true);
-    this.running.set(false);
+    this.applyRunFlags(beginCreateOrRerun());
     this.userScrolledUp = false;
     this.activeTask.set(null);
     this.consoleStream.reset();
@@ -183,32 +198,29 @@ export class StudioPage implements OnInit, OnDestroy {
         });
         this.api.runTask(task.id).subscribe({
           complete: () => {
-            this.pending.set(false);
-            this.running.set(true);
+            this.applyRunFlags(onRunTaskAccepted());
             this.startStatusPolling(task.id);
             this.loadUsage();
           },
           error: () => {
-            this.pending.set(false);
-            this.running.set(false);
+            this.applyRunFlags(onRunTaskError());
             this.loadUsage();
           }
         });
       },
-      error: () => this.pending.set(false)
+      error: () => this.applyRunFlags(onCreateTaskError())
     });
   }
 
   protected updatePrompt(event: Event): void {
     const value = (event.target as HTMLTextAreaElement).value;
     this.prompt.set(value);
-    clearTimeout(this.suggestTimer);
-    this.suggestTimer = setTimeout(() => this.fetchSkillSuggestions(value), 600);
+    this.skillSuggestDebounce.schedule(value);
   }
 
   private fetchSkillSuggestions(prompt: string): void {
     const trimmed = prompt.trim();
-    if (trimmed.length < 12) {
+    if (!shouldRequestSkillSuggestions(trimmed)) {
       this.autoSuggestedIds.set([]);
       this.suggestQuestions.set([]);
       return;
@@ -226,16 +238,14 @@ export class StudioPage implements OnInit, OnDestroy {
   protected toggleSkill(id: string): void {
     this.skillInfo.set(this.skills().find(s => s.id === id) ?? null);
 
-    const manual = this.manualSkillIds();
-    if (manual.includes(id)) {
-      this.persistManualSkills(manual.filter(x => x !== id));
-    } else if (this.isAutoSuggested(id)) {
-      // Deselecting an auto-suggested chip dismisses it for this prompt.
-      this.dismissedAutoIds.set([...this.dismissedAutoIds(), id]);
-    } else {
-      this.persistManualSkills([...manual, id]);
-      this.dismissedAutoIds.set(this.dismissedAutoIds().filter(x => x !== id));
-    }
+    const next = applySkillToggle(
+      id,
+      this.manualSkillIds(),
+      this.autoSuggestedIds(),
+      this.dismissedAutoIds()
+    );
+    this.persistManualSkills(next.manual);
+    this.dismissedAutoIds.set(next.dismissed);
   }
 
   private persistManualSkills(ids: string[]): void {
@@ -248,9 +258,17 @@ export class StudioPage implements OnInit, OnDestroy {
   }
 
   protected isAutoSuggested(id: string): boolean {
-    return this.autoSuggestedIds().includes(id)
-      && !this.manualSkillIds().includes(id)
-      && !this.dismissedAutoIds().includes(id);
+    return isAutoSuggestedSkill(
+      id,
+      this.manualSkillIds(),
+      this.autoSuggestedIds(),
+      this.dismissedAutoIds()
+    );
+  }
+
+  private applyRunFlags(flags: { pending: boolean; running: boolean }): void {
+    this.pending.set(flags.pending);
+    this.running.set(flags.running);
   }
 
   protected autoSuggestedCount(): number {
@@ -302,11 +320,11 @@ export class StudioPage implements OnInit, OnDestroy {
         this.consoleStream.setEvents(task.consoleEvents);
         
         if (task.status === 'Running' || task.status === 'Pending') {
-          this.running.set(true);
+          this.applyRunFlags(onRunTaskAccepted());
           await this.consoleStream.connect(taskId);
           this.startStatusPolling(taskId);
         } else {
-          this.running.set(false);
+          this.applyRunFlags(onTaskTerminalStatus());
         }
       }
     });
@@ -457,13 +475,13 @@ export class StudioPage implements OnInit, OnDestroy {
 
     this.api.cancelTask(taskId).subscribe({
       complete: () => {
-        this.running.set(false);
+        this.applyRunFlags(onCancelAccepted());
         this.stopStatusPolling();
         this.loadUsage();
       },
       // Cancel request failed → the task is still running; keep the running
       // state so the user can retry instead of throwing an unhandled error.
-      error: () => { }
+      error: () => this.applyRunFlags(onCancelError({ pending: this.pending(), running: this.running() }))
     });
   }
 
@@ -473,8 +491,7 @@ export class StudioPage implements OnInit, OnDestroy {
       return;
     }
 
-    this.pending.set(true);
-    this.running.set(false);
+    this.applyRunFlags(beginCreateOrRerun());
     this.userScrolledUp = false;
     const currentEvents = this.consoleStream.events();
     const promptEvent = currentEvents.find(e => e.eventType === 'TaskStarted');
@@ -487,15 +504,13 @@ export class StudioPage implements OnInit, OnDestroy {
 
     this.api.runTask(taskId).subscribe({
       complete: () => {
-        this.pending.set(false);
-        this.running.set(true);
+        this.applyRunFlags(onRunTaskAccepted());
         this.startStatusPolling(taskId);
         this.loadUsage();
         this.loadRecentTasks();
       },
       error: () => {
-        this.pending.set(false);
-        this.running.set(false);
+        this.applyRunFlags(onRunTaskError());
         this.loadUsage();
       }
     });
@@ -558,14 +573,14 @@ export class StudioPage implements OnInit, OnDestroy {
         next: (task) => {
           this.activeTask.set(task);
           if (task.status !== 'Running' && task.status !== 'Pending') {
-            this.running.set(false);
+            this.applyRunFlags(onTaskTerminalStatus());
             this.stopStatusPolling();
             this.loadUsage();
             this.consoleStream.setEvents(task.consoleEvents);
           }
         },
         error: () => {
-          this.running.set(false);
+          this.applyRunFlags(onStatusPollError());
           this.stopStatusPolling();
         }
       });

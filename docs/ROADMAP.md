@@ -16,13 +16,13 @@
 | 6 | InputSanitizer darlığı | ✅ Kapandı (kısmi, doğası gereği) | Genişletildi; pattern-dışı secret teorik risk |
 | 7 | Orchestrator god-class | ✅ Kapandı (2026-07-20) | §2 — R1–R4 dilimleri uygulandı; 1442 → 487 satır, davranış değişmedi |
 | 8 | Reasoning-only boş content | ✅ Kapandı | `reasoning_content`/`reasoning` fallback |
-| 9 | Frontend test yok | 🔲 Açık | §3 |
+| 9 | Frontend test yok | ✅ Kapandı (2026-07-20) | §3 — Vitest + 27 frontend unit test |
 | 10 | İlk commit | ✅ Kapandı | `4fd390c` |
 | 11 | Docs drift (agent.md) | ✅ Kapandı | §14–15 historical, §21 eklendi |
 | — | Reviewer→Coder fix loop | ⭐ Opsiyonel | §5.1 |
 | — | OpenSearch entegrasyonu | 🔮 Future | Profil arkasında, log ship yok |
 
-**Önerilen öncelik**: ~~lab modeli kararı~~ *(verildi: dual profile, bkz. §1)* → Tenant MVP (flag arkasında) → Orchestrator refactor → Frontend specs → Vault secret-ref → (opsiyonel) Fix loop.
+**Önerilen öncelik**: ~~A1/A2/B/C~~ → **D** Vault secret-ref → (opsiyonel) **E** Fix loop.
 
 ---
 
@@ -79,9 +79,9 @@ Uygulama parçaları: `SharedLabPolicy` + `SharedLabOptions` (Application), `Api
 
 ---
 
-## 2. Orchestrator refactor (god-class)
+## 2. Orchestrator refactor (god-class) — ✅ KAPANDI (2026-07-20, Sprint B)
 
-**Durum**: `AgentOrchestratorService.cs` ~1450 satır; task lifecycle + pipeline + tool loop + model chain + prompt building + export + telemetri tek sınıfta.
+**Durum (önce)**: `AgentOrchestratorService.cs` ~1450 satır; task lifecycle + pipeline + tool loop + model chain + prompt building + export + telemetri tek sınıfta.
 
 **İlkeler**: davranış değişikliği YOK (feature eklemek yasak); public static test yüzeyi korunur (`ExportCodeBlocks`, `BuildModelChain`, `ShouldFallbackToNextModel`, `ShouldRequeueAfterCancellation`); küçük PR dilimleri.
 
@@ -107,22 +107,39 @@ Uygulama parçaları: `SharedLabPolicy` + `SharedLabOptions` (Application), `Api
 
 ---
 
-## 3. Frontend testleri
+## 3. Frontend testleri — ✅ KAPANDI (2026-07-20, Sprint C)
 
-**Durum**: Angular 21, `ng test` script'i var, fiilen 0 spec. Studio ~660 satır (debounce, skill merge, run/cancel, poll). Geçmiş bug sınıfı: error path'te spinner kilitlenmesi.
+**Durum**: Angular 21 + `@angular/build:unit-test` (Vitest, jsdom). `npm test` → **27/27 yeşil**.
 
-**Altyapı** (bir kerelik, 0.5–1 gün): CLI default runner + TestBed + `HttpTestingController` + SignalR stub.
+**Altyapı**:
+- `angular.json` → `test` target (`runner: vitest`, `watch: false`)
+- `package.json`: `test` / `test:watch`; devDeps: `vitest`, `jsdom`, `@angular/platform-browser-dynamic`
+- `tsconfig.spec.json` + localStorage mock helper (`src/test-localstorage.ts`) for Node env
 
-**MVP spec seti** (öncelik sırasıyla):
-1. **Skill auto-suggest debounce** — 600ms öncesi çağrı yok; ardışık yazımda yalnız son değer; API error'da UI kilitlenmez.
-2. **selectedSkillIds merge** — manual+auto unique; auto dismiss manual'ı korur. *(En yüksek ROI, en düşük flake.)*
-3. **Run task error path** — create OK + run 500 → `pending=false, running=false` (stuck spinner kilidi).
-4. **Rerun/cancel error path** — state tutarlı, throw yok.
-5. *(ops.)* apiKeyInterceptor; 6. *(ops.)* ConsoleStreamService.
+**Davranış çıkarımları (Studio flake'siz pure helpers)** — component hâlâ aynı UI; kurallar test edilebilir:
 
-**Test edilmeyecek**: SCSS/layout, icon render, tam SignalR E2E (Playwright ayrı faz — akademi için lüks).
+| Helper | Sorumluluk |
+|--------|------------|
+| `skill-selection.ts` | mergeSelectedSkillIds, applySkillToggle, isAutoSuggestedSkill |
+| `debounced-action.ts` | DebouncedAction (600ms), shouldRequestSkillSuggestions (≥12 char) |
+| `studio-run-state.ts` | pending/running transitions (create/run/cancel/rerun/poll) |
 
-**CI**: `dotnet test` + `cd frontend && npm ci && npm test -- --watch=false` (headless). **Effort**: ~1.5–2.5 gün.
+**MVP spec seti (hepsi yazıldı)**:
+1. ✅ Debounce — 600ms öncesi yok; ardışık yazımda yalnız son değer; cancel
+2. ✅ Skill merge — manual+auto unique; dismiss; toggle matrisi
+3. ✅ Run/create error path state — stuck spinner kilidi (`onRunTaskError` / `onCreateTaskError`)
+4. ✅ Cancel/rerun path — cancel error flags korur; rerun error flags temizler
+5. ✅ apiKeyInterceptor — session header her zaman; X-Api-Key opsiyonel
+6. ✅ ConsoleStreamService — setEvents / reset (SignalR connect bilinçli test dışı)
+7. ✅ studio-session — path-safe id üretimi + reuse
+
+**Test edilmeyecek (bilinçli)**: SCSS/layout, icon render, tam SignalR E2E / Playwright.
+
+**CI komutu**:
+```bash
+dotnet test backend/tests/OmniAgentConsole.UnitTests/OmniAgentConsole.UnitTests.csproj
+cd frontend && npm ci && npm test
+```
 
 ---
 
@@ -168,12 +185,12 @@ Kod fallback'i eklendi; README listesi temkinli uyarı taşıyor. İş: 2 modell
 |--------|--------|------|
 | A1 ✅ | Dual-deployment kararını belgele (bu belge + README) | tamam |
 | A2 ✅ | `SHARED_LAB` flag'li Tenant MVP (session + ownership + prefix + fail-fast) | tamam (2026-07-20) — 113 test + iki-path canlı doğrulama |
-| B | Orchestrator PR-R1→R3 (+R4) | 1.5–3 gün |
-| C | Frontend test altyapısı + spec 1–4 + CI | 1.5–2.5 gün |
+| B ✅ | Orchestrator PR-R1→R4 | tamam (2026-07-20) — 1442→487 satır, 113 test, canlı smoke |
+| C ✅ | Frontend test altyapısı + MVP specs | tamam (2026-07-20) — Vitest, 27 frontend test |
 | D | Vault dual-read → migrate → drop plaintext | 2–3.5 gün |
 | E (ops.) | Reviewer→Coder fix loop | 1 gün |
 
-A2 shared-lab kullanımından önce şart; yalnız laptop kullanılıyorsa ertelenebilir (flag zaten default kapalı olacak). Çekirdek B+C ≈ 3–5.5 gün.
+Kalan çekirdek: **D** (Vault). E eğitim wow için opsiyonel.
 
 ---
 
@@ -182,8 +199,8 @@ A2 shared-lab kullanımından önce şart; yalnız laptop kullanılıyorsa ertel
 | Kalem | Gerekçe |
 |-------|---------|
 | Tenant | ~~Deployment modeline bağlı karar~~ → **Karar verildi (2026-07-20): dual profile** — default laptop-only, shared-lab `SHARED_LAB=true` ile opt-in; MVP implementasyonu Sprint A2 |
-| Orchestrator split | Davranış değişikliği + büyük refactor aynı turda = regresyon riski; sınırlar netleşti, güvenle yapılabilir |
-| Frontend specs | Altyapı + flake maliyeti; backend 79 test önce geldi |
+| Orchestrator split | ~~Regresyon riski ertelemesi~~ → **Sprint B tamam (2026-07-20)**: 1442→487 satır, 4 dilim commit |
+| Frontend specs | ~~Altyapı + flake~~ → **Sprint C tamam (2026-07-20)**: pure helpers + Vitest 27 test |
 | Vault credential path | Loopback bind ile lab riski düşürüldü; production checklist kalemi |
 | Full DLQ | Redelivered×2 lab için yeterli; `x-dead-letter-exchange` üstüne eklenebilir |
 | Full OAuth | Akademi scope dışı |

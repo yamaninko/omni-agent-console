@@ -212,6 +212,7 @@ Test/build:
 ```bash
 dotnet build OmniAgentConsole.slnx
 dotnet test backend/tests/OmniAgentConsole.UnitTests/OmniAgentConsole.UnitTests.csproj
+cd frontend && npm test          # Vitest unit tests (27)
 cd frontend && npm run build
 ```
 
@@ -227,4 +228,4 @@ cd frontend && npm run build
 
 ## Yol haritası
 
-Açık kalemler ve tam uygulama planları [docs/ROADMAP.md](docs/ROADMAP.md) dosyasındadır: shared-lab profili / `SHARED_LAB` flag'li Tenant MVP (karar verildi — dual deployment, bkz. yukarıdaki "Deployment modelleri"), orchestrator refactor (4 PR dilimi), frontend test altyapısı + kritik spec seti, credential'ların Vault secret-ref modeline taşınması ve opsiyonel Reviewer→Coder fix loop. Kapanmış inceleme bulgularının arşivi de aynı belgede.
+Açık kalemler ve tam uygulama planları [docs/ROADMAP.md](docs/ROADMAP.md) dosyasındadır. Tamamlananlar: dual deployment / shared-lab tenant MVP, orchestrator refactor, frontend Vitest MVP specs. Kalan çekirdek: credential'ların Vault secret-ref modeline taşınması; opsiyonel Reviewer→Coder fix loop. Kapanmış inceleme bulgularının arşivi de aynı belgede.

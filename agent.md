@@ -147,11 +147,18 @@ This file records the execution history, features implemented, and architectural
 - Target architecture now matches docs/ROADMAP.md §2.4: RunTaskAsync is a thin coordinator — Coder+workspace → CoderToolLoopRunner, else RunAgentAsync → ModelChainExecutor.
 - 113 tests green with unchanged asserts (export/fallback tests retargeted); live tool-loop smoke on the deployed stack.
 
+### 24. 🧪 Frontend Unit Tests (Sprint C)
+- Angular 21 `@angular/build:unit-test` with **Vitest** (jsdom); `npm test` / `npm run test:watch`.
+- Studio critical rules extracted to pure helpers (behavior-preserving wiring in `StudioPage`): `skill-selection` (merge/toggle/dismiss), `debounced-action` (600ms skill suggest), `studio-run-state` (pending/running transitions — stuck-spinner lock).
+- **27 frontend tests**: skill merge, debounce (fake timers), run/create/cancel/rerun state machine, `apiKeyInterceptor` (session + optional console key), `ConsoleStreamService` buffer, `getStudioSessionId`.
+- SignalR live connect and Playwright E2E intentionally out of scope (academy MVP).
+
 ---
 
 ## 📈 Verification Status
 
-- **Unit Tests**: 113 tests build and pass (path guard, export splitting, workspace tools, requeue decision, skill suggestion, model fallback chain, sanitizer incl. widened patterns, shared-lab policy, token usage).
+- **Unit Tests (backend)**: 113 tests build and pass (path guard, export splitting, workspace tools, requeue decision, skill suggestion, model fallback chain, sanitizer incl. widened patterns, shared-lab policy, token usage).
+- **Unit Tests (frontend)**: 27 Vitest tests pass (`cd frontend && npm test`).
 - **Frontend Compiler**: Angular 21 builds successfully (only pre-existing SCSS budget warnings).
 - **Docker Compose**: All containers (Postgres, RabbitMQ, Redis, Vault, API, Frontend, Worker) built and running under the `omni-agent-console` project name.
 - **Live E2E**: masked credentials round-trip, path traversal 400s, shutdown NACK/requeue + user-cancel ACK, 12-file project export with skills, model catalog sync, prompt-based skill auto-suggestion, model fallback chain (404 primary → fallback completed the run) — all verified against the running stack.
