@@ -88,7 +88,7 @@
         <h3>4. Controlling Executions</h3>
         <ul>
           <li>
-            <strong>Cancellation:</strong> Cancel halts the active run; the task is finalized as <em>Cancelled</em>.
+            <strong>Cancellation:</strong> Cancel halts the active run within about a second — the request reaches the worker over Redis and aborts even an in-flight model call; the task is finalized as <em>Cancelled</em>.
           </li>
           <li>
             <strong>Rerunning:</strong> Failed/cancelled tasks show a <strong>Rerun</strong> button that clears prior logs and restarts fresh.
@@ -216,6 +216,9 @@
           </li>
           <li>
             <strong>Agents page:</strong> Per-agent model, two fallback models, system prompt, temperature, timeout, retry, credential link, and max tokens (up to 200,000).
+          </li>
+          <li>
+            <strong>Network exposure:</strong> Infrastructure ports (Postgres, Redis, RabbitMQ, Vault, OpenSearch) bind to <code>127.0.0.1</code> by default (<code>INFRA_BIND_ADDRESS</code> in <code>.env</code>) — only the frontend (4210) and API (5080) are reachable from other machines.
           </li>
         </ul>
       </section>
@@ -347,13 +350,22 @@
         <p>
           RabbitMQ consumption uses manual acknowledgements. The orchestrator distinguishes <em>user cancellation</em> (task finalized as Cancelled → message ACK'ed) from <em>host shutdown</em> (task left Running, exception rethrown → message <strong>NACK'ed and requeued</strong>, so the run re-executes when the worker returns). Ack/nack always goes through the exact channel that delivered the message — delivery tags are channel-scoped, and a dead channel means the broker already requeued. Dangling agent runs from an interrupted attempt are closed on redelivery.
         </p>
+        <ul>
+          <li><strong>Poison-message guard:</strong> a redelivered message that fails unexpectedly a second time is finalized as Failed and ACK'ed instead of requeueing forever — effectively max two delivery attempts.</li>
+          <li><strong>Startup recovery scoping:</strong> the API's "mark Running tasks as Failed" recovery runs only in single-process mode (no RabbitMQ). With a separate worker, an API restart never touches live runs — genuinely dead runs are covered by queue redelivery.</li>
+        </ul>
 
-        <h3>3. Model Fallback Chains</h3>
+        <h3>3. Cross-Process Cancellation</h3>
+        <p>
+          The API and the worker are separate processes, so an in-memory cancellation token registry alone cannot stop a run. Cancel now works in two layers: the API writes <code>Cancelled</code> to the database <em>first</em>, then publishes the task id to the Redis <code>task-cancellations</code> channel; the worker's <code>RedisTaskCancelSubscriber</code> cancels the local token, aborting the in-flight model HTTP call within a second (verified live). Writing the status before firing the token ensures the worker classifies the interruption as a user cancel (ACK) rather than a shutdown (NACK/requeue). As a belt-and-braces fallback, the Coder tool loop also re-checks the task status from the database at every iteration.
+        </p>
+
+        <h3>4. Model Fallback Chains</h3>
         <p>
           Each agent's model list is resolved into a chain (<code>BuildModelChain</code>): the primary <code>DefaultModel</code> followed by up to two comma-separated <code>FallbackModels</code>, de-duplicated case-insensitively. On a <code>ProviderException</code> the orchestrator advances to the next model for every error code except <code>Unauthorized</code> (<code>ShouldFallbackToNextModel</code>) — timeouts, rate limits, 404/InvalidModel, and provider outages are all model-specific, while a 401 would fail identically across the chain. Each switch updates the model call log and emits a <em>"Model X failed (code); falling back to Y"</em> console event, so the run history always shows which model actually produced the output. Per-model retries (with exponential backoff) still apply before the chain advances.
         </p>
 
-        <h3>4. Agentic Tool Loop (Coder)</h3>
+        <h3>5. Agentic Tool Loop (Coder)</h3>
         <p>
           The Coder no longer produces the whole project in a single completion. It runs a <strong>tool-calling loop</strong> (the same pattern agentic CLIs like Claude Code use): the model is given three function tools — <code>write_file(path, content)</code>, <code>read_file(path)</code>, <code>list_files(path?)</code> — via the OpenAI-compatible <code>tools</code> parameter. Each iteration is one short chat completion; when the model requests tool calls, the worker executes them (<code>AgentWorkspaceTools</code>), streams a <code>🔧</code> console event per call, feeds the results back as <code>tool</code> messages, and continues. When the model answers without tool calls, that answer is the final summary. Hard limits: 24 iterations, 50 files per task, 1M chars per file.
         </p>
@@ -364,19 +376,24 @@
           <li><strong>Legacy fallback:</strong> models without function-calling support still work — their final answer goes through the old fence/<code>filepath:</code> exporter, and blocks with no detectable filename land in an <code>output/</code> subfolder.</li>
         </ul>
 
-        <h3>5. Workspace Path Guard & Code Export</h3>
+        <h3>6. Workspace Path Guard & Code Export</h3>
         <p>
           Every filesystem path — the user-supplied workspace folder, browser file reads/deletes, tool-call paths from the agentic loop, and even filenames extracted from model output — is resolved through <code>WorkspacePathGuard</code>, which confines it to the <code>/workspace</code> root: <code>..</code> traversal, out-of-root absolute paths, backslash tricks, and symlinked components (including dangling symlinks) are rejected. The legacy exporter understands both fenced markdown blocks and fence-less <code>// filepath:</code> annotated streams, splitting them into real files (max 50 files per export, 1M chars per file; skipped blocks are reported in the console).
         </p>
 
-        <h3>6. Skill Injection & Auto-Suggestion</h3>
+        <h3>7. Skill Injection & Auto-Suggestion</h3>
         <p>
           Selected skill IDs travel in the task's context JSON. The orchestrator loads the enabled skills and appends their instructions to <em>every</em> agent's system prompt as a mandatory-conventions block. Suggestions come from <code>SkillSuggestionEngine</code>: whole-word keyword matching (letter/number lookarounds, so "go" never matches "django") plus follow-up questions when no Backend/Frontend skill matches or a database is mentioned without a specific Data skill.
         </p>
 
-        <h3>7. API Authentication & Secret Handling</h3>
+        <h3>8. API Authentication & Secret Handling</h3>
         <p>
-          <code>ApiKeyMiddleware</code> validates <code>X-Api-Key</code>, Bearer, or SignalR <code>?access_token</code> credentials using SHA-256 + <code>FixedTimeEquals</code> (timing-safe, no length leak). Provider credentials are write-only through the API — responses carry only <code>apiKeyConfigured</code> and a masked preview, and an empty key on update keeps the stored secret. The regex-based <code>InputSanitizer</code> redacts secrets/PII from prompts, outputs, and error messages before they reach PostgreSQL logs.
+          <code>ApiKeyMiddleware</code> validates <code>X-Api-Key</code>, Bearer, or SignalR <code>?access_token</code> credentials using SHA-256 + <code>FixedTimeEquals</code> (timing-safe, no length leak). Provider credentials are write-only through the API — responses carry only <code>apiKeyConfigured</code> and a masked preview, and an empty key on update keeps the stored secret. The regex-based <code>InputSanitizer</code> redacts secrets from prompts, outputs, and error messages before they reach PostgreSQL logs: NVIDIA/OpenAI/Anthropic (<code>sk-ant-</code>)/Google (<code>AIza</code>)/GitHub (<code>ghp_</code>, <code>github_pat_</code>)/Slack tokens, JWTs, Bearer headers, and <code>PASSWORD=</code> / <code>"api_key": "…"</code> style assignments (value-only, keys stay readable). Infrastructure ports (Postgres, Redis, RabbitMQ, Vault, OpenSearch) bind to <code>127.0.0.1</code> by default via <code>INFRA_BIND_ADDRESS</code>, keeping secret-carrying services off the local network.
+        </p>
+
+        <h3>9. Reasoning-Model Compatibility</h3>
+        <p>
+          Some reasoning models write their entire answer into a <code>reasoning</code> / <code>reasoning_content</code> field and leave <code>content</code> empty. When <code>content</code> comes back blank, the provider now falls back to those fields, so reasoning-only models produce usable output instead of failing the run with an "empty response" error.
         </p>
       </section>
 

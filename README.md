@@ -10,6 +10,9 @@ Bir prompt girersiniz; Planner → Research → Coder → Reviewer → Ops Monit
 - .NET 10 API + ayrı `OmniAgentConsole.Worker` süreci (task execution API process'inden bağımsız; API restart'ı çalışan task'ı öldürmez)
 - PostgreSQL persistence ve EF Core migration
 - RabbitMQ task queue: manual ack/nack ile **at-least-once teslimat** — host shutdown'da mesaj NACK'lenip requeue edilir, worker geri gelince task yeniden koşar; kullanıcı iptali ise ACK'lenir (canlı kesinti senaryosuyla doğrulandı)
+- **Poison message koruması**: redelivered bir mesaj ikinci kez beklenmeyen hatayla düşerse task Failed + ACK yapılır — sonsuz requeue döngüsü olmaz (efektif max 2 teslimat)
+- **Cross-process cancel**: iptal, Redis `task-cancellations` kanalıyla worker'a anında iletilir ve süren model HTTP çağrısı kesilir (canlıda <1 sn doğrulandı, 2026-07-20). DB'ye `Cancelled` token'dan önce yazılır ki worker iptali "user cancel" (ACK) olarak sınıflandırsın; Coder tool loop ek emniyet olarak her iterasyonda DB durumunu da kontrol eder
+- API startup recovery yalnız **tek-süreç modunda** (RabbitMQ yokken) çalışır — ayrı worker varken API restart'ı canlı Running task'lara dokunmaz; ölü run'lar kuyruk redelivery ile kurtarılır
 - SignalR realtime console stream; worker → API event akışı Redis pub/sub üzerinden
 - Docker Compose ile frontend, API, agent-worker, PostgreSQL, Redis, RabbitMQ ve Vault; optional OpenSearch profili
 - **Agentic tool loop (Coder)**: Coder ajanı Claude Code tarzı bir araç döngüsüyle çalışır — model `write_file` / `read_file` / `list_files` araçlarını çağırarak projeyi dosya dosya, kısa iterasyonlarla kurar (OpenAI-uyumlu function calling). Her tool call console'a canlı düşer, her iterasyon ayrı model çağrısı olarak usage'a işlenir; araç kullanmayan modeller için markdown fence export'u fallback olarak devrededir
@@ -29,7 +32,8 @@ Bir prompt girersiniz; Planner → Research → Coder → Reviewer → Ops Monit
 - Console API Key middleware: `CONSOLE_API_KEY` set edilirse tüm API + SignalR erişimi key ister (X-Api-Key, Bearer veya SignalR için `access_token` query); karşılaştırma timing-safe. Set edilmezse local dev için anonim erişim
 - API Credentials Manager: sağlayıcı API key'leri UI'dan yönetilir; **API yanıtlarında raw key asla dönmez** (maskelenmiş önizleme + `apiKeyConfigured` bayrağı); update'te boş key mevcut key'i korur
 - Workspace path guard: tüm dosya okuma/yazma/silme işlemleri `/workspace` köküne kilitlidir — `..` traversal, kök dışı mutlak path, backslash hilesi ve symlink kaçışları reddedilir; model çıktısından gelen dosya adları da aynı korumadan geçer
-- Prompt/response redaction: `InputSanitizer` ile temel PII/secret maskeleme
+- Prompt/response redaction: `InputSanitizer` — NVIDIA/OpenAI/Anthropic (`sk-ant-`)/Google (`AIza`)/GitHub (`ghp_`, `github_pat_`)/Slack token'ları, JWT'ler, Bearer header'ları ve `PASSWORD=` / `JWT_SECRET=` / `"api_key": "..."` tarzı key=value atamaları maskelenir (yalnız değer; anahtar okunur kalır). Pattern-dışı serbest metin secret'ları teorik olarak kaçabilir — secret'ları prompt'a yazmayın
+- **Infra portları varsayılan loopback**: Postgres/Redis/RabbitMQ/Vault/OpenSearch host portları `127.0.0.1`'e bind edilir (`INFRA_BIND_ADDRESS` ile değiştirilebilir, bkz. `.env.example`) — düz metin credential taşıyan servisler yerel ağa açılmaz
 
 ### Studio ve çıktılar
 - Coder dosyaları **doğrudan workspace'e yazar** (tool loop, max 24 iterasyon / 50 dosya / dosya başına 1M karakter); tüm path'ler WorkspacePathGuard'dan geçer
@@ -53,7 +57,7 @@ Katalogdaki adaylar gerçek çağrılarla test edildi (gecikme + çıktı format
 **Kaçının** (test bulgusu):
 - `qwen/qwen3.5-122b-a10b` — katalogdan kaldırıldı, endpoint **410 Gone** dönüyor (2026-07-20'de tespit edildi; önceki sürümlerde Coder primary'siydi)
 - `moonshotai/kimi-k2.6`, `nvidia/nemotron-nano-3-30b-a3b` — katalogda listeleniyor ama endpoint **404** dönüyor (deploy edilmemiş)
-- `nvidia/llama-3.3-nemotron-super-49b-v1.5`, `nvidia/nvidia-nemotron-nano-9b-v2` — cevabı `reasoning` alanına yazıp `content`'i **boş bırakıyor**; orchestrator yalnız `content` okuduğu için boş çıktı üretirler
+- `nvidia/llama-3.3-nemotron-super-49b-v1.5`, `nvidia/nvidia-nemotron-nano-9b-v2` — cevabı `reasoning` alanına yazıp `content`'i **boş bırakıyor**. Provider artık content boşsa `reasoning_content`/`reasoning` alanına düşüyor (2026-07-20), yani bu modeller kullanılabilir hale geldi — yine de canlı doğrulama yapılana kadar primary olarak önermiyoruz
 - `deepseek-ai/deepseek-v4-pro`, `z-ai/glm-5.2`, `mistralai/mistral-medium-3.5-128b` — free tier kuyruğunda 60–90s+ bekletiyor; 120s agent timeout'una sürekli dayanır
 
 Uygulanan zincirler (primary → fallback 1 → fallback 2):
@@ -199,10 +203,14 @@ cd frontend && npm run build
 
 ## Notlar
 
-- Task execution ayrı worker process'indedir; worker restart'ında yarım kalan task'lar NACK/requeue ile otomatik yeniden koşar, API restart'ında `Running` kayıtlar startup recovery ile `Failed` yapılır.
+- Task execution ayrı worker process'indedir; worker restart'ında yarım kalan task'lar NACK/requeue ile otomatik yeniden koşar. API startup recovery'si yalnız tek-süreç modunda (RabbitMQ yokken) devrededir — ayrı worker topolojisinde API restart'ı canlı task'lara dokunmaz.
 - Prompt/response kayıtlarında `InputSanitizer` temel PII/secret maskeleme uygular; provider raw metadata henüz redact edilmeden saklanır.
 - Credentials API'si raw key döndürmez; ancak key'ler veritabanında düz metin saklanır. Production için Vault/secret-reference modeline taşınması planlanmalıdır.
 - Multi-provider desteği OpenAI-compatible endpoint'lerle sınırlıdır (NVIDIA NIM, OpenAI, Gemini'nin OpenAI-compatible endpoint'i, Ollama, Custom). Anthropic native API şeması desteklenmez.
-- Orchestrator model yanıtının yalnız `content` alanını okur; cevabı `reasoning` alanına yazan modeller (yukarıdaki kaçının listesi) boş çıktı üretir.
+- Provider, `content` boş geldiğinde `reasoning_content`/`reasoning` alanına düşer; reasoning-only modeller artık boş çıktı yerine kullanılabilir sonuç üretir.
 - Schema tamamen EF migration'lardadır (`InitialCreate` + `CredentialsSkillsAndFallbacks`); ikinci migration idempotent yazıldığı için hem sıfır veritabanına hem runtime SQL ile yamalanmış eski veritabanlarına temiz uygulanır. Startup kodu artık yalnızca veri seed'ler (credentials, skill'ler, modeller, önerilen model zincirleri — kullanıcı değişikliklerini asla ezmez). Migration üretmek için: `dotnet tool restore && dotnet ef migrations add <Ad> --project backend/src/OmniAgentConsole.Infrastructure --startup-project backend/src/OmniAgentConsole.Api --output-dir Persistence/Migrations`
 - NVIDIA katalog senkronizasyonu context window bilgisi getirmez (`/v1/models` bu alanı sunmaz); kritik modeller için Settings'ten elle girilebilir.
+
+## Yol haritası
+
+Açık kalemler ve tam uygulama planları [docs/ROADMAP.md](docs/ROADMAP.md) dosyasındadır: tenant/sınıf izolasyonu (karar matrisi + Session+Ownership MVP), orchestrator refactor (4 PR dilimi), frontend test altyapısı + kritik spec seti, credential'ların Vault secret-ref modeline taşınması ve opsiyonel Reviewer→Coder fix loop. Kapanmış inceleme bulgularının arşivi de aynı belgede.
