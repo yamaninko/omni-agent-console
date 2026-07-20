@@ -28,6 +28,7 @@
   justify-content: space-between;
   padding: 14px 16px;
   border-bottom: 1px solid #1a2532;
+  gap: 8px;
 
   h2 {
     margin: 0;
@@ -36,6 +37,13 @@
     color: #8fa3b7;
     letter-spacing: 1px;
   }
+}
+
+.explorer-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 .icon-btn {

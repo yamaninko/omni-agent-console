@@ -12,7 +12,9 @@ import {
   Copy,
   ExternalLink,
   Rocket,
-  Send
+  Send,
+  ChevronsDown,
+  ChevronsUp
 } from 'lucide-angular';
 import { TaskApiClient } from '../../core/api/task-api-client';
 import {
@@ -51,7 +53,9 @@ export class WorkspacePage implements OnInit, OnDestroy {
     copy: Copy,
     external: ExternalLink,
     rocket: Rocket,
-    send: Send
+    send: Send,
+    expandAll: ChevronsDown,
+    collapseAll: ChevronsUp
   };
 
   protected readonly files = signal<WorkspaceNode[]>([]);
@@ -102,19 +106,31 @@ export class WorkspacePage implements OnInit, OnDestroy {
       next: (nodes) => {
         this.files.set(nodes);
         this.loading.set(false);
-        const expanded = new Set(this.expandedFolders());
-        for (const n of nodes) {
-          if (n.isDirectory) {
-            expanded.add(n.path);
+        // Default: collapsed. Keep only expansions that still exist after refresh.
+        const valid = this.collectDirectoryPaths(nodes);
+        const kept = new Set<string>();
+        for (const path of this.expandedFolders()) {
+          if (valid.has(path)) {
+            kept.add(path);
           }
         }
-        this.expandedFolders.set(expanded);
+        this.expandedFolders.set(kept);
       },
       error: () => {
         this.files.set([]);
         this.loading.set(false);
       }
     });
+  }
+
+  /** Expand every folder in the tree. */
+  protected expandAllFolders(): void {
+    this.expandedFolders.set(this.collectDirectoryPaths(this.files()));
+  }
+
+  /** Collapse the whole tree (projects closed by default look). */
+  protected collapseAllFolders(): void {
+    this.expandedFolders.set(new Set());
   }
 
   protected toggleFolder(path: string, event: Event): void {
@@ -421,6 +437,22 @@ export class WorkspacePage implements OnInit, OnDestroy {
       }
     }
     return result;
+  }
+
+  private collectDirectoryPaths(nodes: WorkspaceNode[]): Set<string> {
+    const paths = new Set<string>();
+    const walk = (list: WorkspaceNode[]) => {
+      for (const node of list) {
+        if (node.isDirectory) {
+          paths.add(node.path);
+          if (node.children?.length) {
+            walk(node.children);
+          }
+        }
+      }
+    };
+    walk(nodes);
+    return paths;
   }
 
   private refreshProjectStatus(projectRoot: string): void {

@@ -5,9 +5,17 @@
     <aside class="explorer-panel">
       <div class="explorer-header">
         <h2>WORKSPACE EXPLORER</h2>
-        <button class="icon-btn" (click)="refreshFiles()" [disabled]="loading()" title="Refresh Files">
-          <lucide-icon [img]="icons.refresh" size="14" [class.spin]="loading()"></lucide-icon>
-        </button>
+        <div class="explorer-actions">
+          <button class="icon-btn" type="button" (click)="expandAllFolders()" title="Expand all">
+            <lucide-icon [img]="icons.expandAll" size="14"></lucide-icon>
+          </button>
+          <button class="icon-btn" type="button" (click)="collapseAllFolders()" title="Collapse all">
+            <lucide-icon [img]="icons.collapseAll" size="14"></lucide-icon>
+          </button>
+          <button class="icon-btn" type="button" (click)="refreshFiles()" [disabled]="loading()" title="Refresh Files">
+            <lucide-icon [img]="icons.refresh" size="14" [class.spin]="loading()"></lucide-icon>
+          </button>
+        </div>
       </div>
 
       <div class="explorer-tree">
