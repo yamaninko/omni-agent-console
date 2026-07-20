@@ -6,6 +6,7 @@ import { TaskApiClient } from '../../core/api/task-api-client';
 import { ConsoleStreamService } from '../../core/realtime/console-stream.service';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ConsoleEvent, RuntimeAgent, UsageSummary, TaskDetail, TaskSummary, SkillDefinition } from '../../core/models';
+import { DialogService } from '../../core/ui/dialog.service';
 import {
   DebouncedAction,
   SKILL_SUGGEST_DEBOUNCE_MS,
@@ -35,6 +36,7 @@ export class StudioPage implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly dialog = inject(DialogService);
 
   protected readonly icons = {
     bot: Bot,
@@ -703,20 +705,29 @@ export class StudioPage implements OnInit, OnDestroy {
     this.editingTitle.set('');
   }
 
-  protected deleteTask(taskId: string, event: Event): void {
+  protected async deleteTask(taskId: string, event: Event): Promise<void> {
     event.stopPropagation();
-    if (confirm('Are you sure you want to delete this task?')) {
-      this.api.deleteTask(taskId).subscribe({
-        complete: () => {
-          this.loadRecentTasks();
-          if (this.activeTaskId() === taskId) {
-            this.startNewTask();
-          }
-        },
-        // Delete failed → refresh the list so the UI reflects reality.
-        error: () => this.loadRecentTasks()
-      });
+    const ok = await this.dialog.confirm({
+      title: 'Delete task',
+      message: 'Are you sure you want to delete this task? This cannot be undone.',
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      danger: true
+    });
+    if (!ok) {
+      return;
     }
+
+    this.api.deleteTask(taskId).subscribe({
+      complete: () => {
+        this.loadRecentTasks();
+        if (this.activeTaskId() === taskId) {
+          this.startNewTask();
+        }
+      },
+      // Delete failed → refresh the list so the UI reflects reality.
+      error: () => this.loadRecentTasks()
+    });
   }
 
   private scrollToBottomIfNeeded(): void {

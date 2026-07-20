@@ -28,6 +28,7 @@ import {
   SkillDefinition,
   WorkspaceNode
 } from '../../core/models';
+import { DialogService } from '../../core/ui/dialog.service';
 
 export interface FlatNode {
   name: string;
@@ -46,6 +47,7 @@ export class WorkspacePage implements OnInit, OnDestroy {
   private readonly api = inject(TaskApiClient);
   private readonly router = inject(Router);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly dialog = inject(DialogService);
 
   protected readonly icons = {
     folder: Folder,
@@ -523,12 +525,16 @@ export class WorkspacePage implements OnInit, OnDestroy {
     return list;
   }
 
-  protected deleteNode(node: FlatNode, event: Event): void {
+  protected async deleteNode(node: FlatNode, event: Event): Promise<void> {
     event.stopPropagation();
-    const confirmed = confirm(
-      `Are you sure you want to permanently delete "${node.name}"${node.isDirectory ? ' and all its contents' : ''}?`
-    );
-    if (!confirmed) {
+    const ok = await this.dialog.confirm({
+      title: node.isDirectory ? 'Delete folder' : 'Delete file',
+      message: `Permanently delete "${node.name}"${node.isDirectory ? ' and all its contents' : ''}? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      danger: true
+    });
+    if (!ok) {
       return;
     }
 

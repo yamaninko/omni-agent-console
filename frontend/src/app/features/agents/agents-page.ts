@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { Bot, KeyRound, LucideAngularModule, Save, Trash2, Plus, Play, Sparkles, X, ToggleLeft, ToggleRight, Check } from 'lucide-angular';
 import { TaskApiClient } from '../../core/api/task-api-client';
 import { AgentDefinition, ModelDefinition, ApiCredential } from '../../core/models';
+import { DialogService } from '../../core/ui/dialog.service';
 
 @Component({
   selector: 'app-agents-page',
@@ -11,6 +12,7 @@ import { AgentDefinition, ModelDefinition, ApiCredential } from '../../core/mode
 })
 export class AgentsPage implements OnInit {
   private readonly api = inject(TaskApiClient);
+  private readonly dialog = inject(DialogService);
 
   protected readonly icons = {
     bot: Bot,
@@ -246,11 +248,18 @@ export class AgentsPage implements OnInit {
     }
   }
 
-  protected deleteAgent(): void {
+  protected async deleteAgent(): Promise<void> {
     const active = this.selectedAgent();
     if (!active) return;
 
-    if (!confirm(`Are you sure you want to delete agent "${active.name}"?`)) {
+    const ok = await this.dialog.confirm({
+      title: 'Delete agent',
+      message: `Are you sure you want to delete agent "${active.name}"? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      danger: true
+    });
+    if (!ok) {
       return;
     }
 
