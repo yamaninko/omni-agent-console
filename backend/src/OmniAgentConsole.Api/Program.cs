@@ -403,7 +403,16 @@ static async Task SyncAgentSystemPromptsAsync(AgentConsoleDbContext dbContext)
 
     // Coder Agent
     var coder = await dbContext.AgentDefinitions.FindAsync(Guid.Parse("10000000-0000-0000-0000-000000000003"));
-    var coderDefaultPrompt = "You are the Coder Agent. You build complete, production-ready projects directly in the task workspace using your filesystem tools.\n\nTOOLS:\n- write_file(path, content): create or overwrite one file. Call it once per file with the COMPLETE file content - no placeholders, no truncated code, no TODO stubs.\n- read_file(path): re-read a file you wrote earlier.\n- list_files(path?): list what exists in the workspace.\n\nWORKFLOW:\n1. Decide the full file layout for the project.\n2. Write the files one by one with write_file, starting with the most important source files. Keep every file complete and runnable.\n3. Always include README.md, Dockerfile, and docker-compose.yml (service name: app; ports: \"${HOST_PORT:-18080}:<containerPort>\"; healthcheck on GET /health).\n4. When every file is written, reply with a short plain-text summary of what you built (no code blocks in that final answer).\n\nRULES:\n- Use relative paths like src/app.py or cmd/server/main.go.\n- You CANNOT execute code, run tests, or use a shell. Never create scratch, check, or verification scripts; verify your work only by re-reading files with read_file.\n- Write each file once. Rewrite a file only to fix a concrete mistake you found.\n- If no specific version is mentioned, default to the latest stable production versions of all frameworks, libraries, databases, and runtimes.\n- Never print file contents in the chat; deliver them only through write_file.\n- Only if the tools are unavailable in this session, fall back to one fenced code block per file with a first-line comment such as // filepath: path/to/file.go.";
+    var coderDefaultPrompt =
+        "You are the Coder Agent. You build complete, production-ready projects directly in the task workspace using your filesystem tools.\n\n" +
+        "TOOLS:\n- write_file(path, content): create or overwrite one file with COMPLETE content.\n- read_file(path): re-read a file.\n- list_files(path?): list workspace files.\n\n" +
+        "WORKFLOW:\n1. Decide the full file layout.\n2. Write source files with write_file.\n" +
+        "3. ALWAYS write packaging files before finishing: Dockerfile, docker-compose.yml (service name app, ports \"${HOST_PORT:-18080}:PORT\", healthcheck GET /health), .dockerignore, README.md.\n" +
+        "   - Angular/React/Vite SPA: multi-stage node build + nginx:alpine, EXPOSE 80, /health returns 200.\n" +
+        "   - APIs: run the HTTP server, EXPOSE app port, HEALTHCHECK /health.\n" +
+        "   - Prefer named volumes; never rely on host bind mounts like ./data:/data for Workspace runner.\n" +
+        "4. Call list_files and confirm Dockerfile + docker-compose.yml exist, then give a short plain-text summary (no code in the summary).\n\n" +
+        "RULES:\n- Relative paths only.\n- No shell/tests execution; no scratch scripts.\n- Do not finish without Docker packaging files.\n- Latest stable versions when unspecified.\n- Fallback if tools unavailable: fenced blocks with // filepath: comments.";
     if (coder != null && coder.SystemPrompt != coderDefaultPrompt)
     {
         coder.SystemPrompt = coderDefaultPrompt;
@@ -532,12 +541,12 @@ static List<SkillDefinition> BuildSeedSkills()
         Skill("Angular Frontend", "Frontend",
             "Angular app with standalone components, routing, and services.",
             "angular,angularjs,angular 21",
-            "Produce a complete Angular application: package.json, angular.json, standalone components under src/app/features/, routing configuration, typed services for API access under src/app/core/, environment files, and README.md. Use signals or RxJS consistently and keep API URLs in environment configuration."),
+            "Produce a complete Angular application: package.json, angular.json, standalone components under src/app/features/, routing, typed services under src/app/core/, environments, README.md. Use signals or RxJS consistently. ALSO REQUIRED for Workspace run: multi-stage Dockerfile (node build → nginx:alpine serving dist), nginx.conf with SPA try_files + GET /health → 200, docker-compose.yml service app with ports \"${HOST_PORT:-18080}:80\" and healthcheck, .dockerignore that does not exclude files you COPY."),
 
         Skill("React Frontend", "Frontend",
             "React (Vite) app with component/hook structure and typed API layer.",
             "react,reactjs,react.js,vite,next.js,nextjs,jsx,tsx,spa,web sitesi,website,web site,web sayfa,web sayfasi,frontend,arayuz,arayüz,landing,landing page,pazarlama sitesi,kurumsal site,ui,web ui",
-            "Produce a complete React + TypeScript application (Vite): package.json with scripts, vite.config.ts, index.html, src/main.tsx, src/App.tsx, feature components under src/components/ or src/features/, custom hooks under src/hooks/, a typed API client under src/api/, .env.example for the API base URL, and README.md. Use functional components with hooks only; keep fetch/axios calls out of components."),
+            "Produce a complete React + TypeScript Vite app: package.json, vite.config.ts, index.html, src/main.tsx, src/App.tsx, components/hooks/api layers, .env.example, README.md. Functional components only. ALSO REQUIRED for Workspace run: multi-stage Dockerfile (node build → nginx:alpine), nginx.conf with SPA try_files + /health, docker-compose.yml service app ports \"${HOST_PORT:-18080}:80\" + healthcheck, .dockerignore that does not exclude files you COPY."),
 
         Skill("Flutter App", "Frontend",
             "Flutter mobile app with widget/state-management structure.",
@@ -557,7 +566,7 @@ static List<SkillDefinition> BuildSeedSkills()
         Skill("Dockerized Service", "Packaging",
             "Production-grade Dockerfile and compose wiring — required for Workspace one-click run.",
             "docker,dockerize,dockerfile,docker-compose,container,containerize,compose",
-            "ALWAYS include both a Dockerfile and a docker-compose.yml (even for a single service). Compose must define a service named app, map ports as \"${HOST_PORT:-18080}:<containerPort>\", set a HEALTHCHECK (or compose healthcheck) hitting GET /health, and read config from environment variables. Prefer multi-stage Dockerfile, non-root user, EXPOSE, .dockerignore. Document: docker compose up -d --build and curl http://localhost:$HOST_PORT/health. Never omit compose — the OmniAgent Workspace runner depends on it."),
+            "ALWAYS include Dockerfile + docker-compose.yml + .dockerignore at the deployable root (even single-service). Compose service name MUST be app; ports \"${HOST_PORT:-18080}:<containerPort>\"; healthcheck GET /health. Prefer multi-stage builds, non-root, EXPOSE. Use named volumes for data — never ./data:/data host binds (Workspace runner uses Docker socket from another container). SPA/Angular/React: node build stage + nginx:alpine, EXPOSE 80, nginx location /health. API: expose app port (8000/8080). Document compose up and health URL in README. Never finish without these packaging files."),
 
         Skill("PostgreSQL + Migrations", "Data",
             "PostgreSQL schema with migration scripts and safe query practices.",

@@ -103,15 +103,46 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
             .OrderBy(skill => skill.SortOrder)
             .ThenBy(skill => skill.Name)
             .ToListAsync(cancellationToken);
+
+        // Always inject Dockerized Service when building an app so Workspace Project run
+        // gets Dockerfile + compose even if the user forgot the packaging skill.
+        var dockerSkill = await dbContext.SkillDefinitions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                skill => skill.Enabled && skill.Name == "Dockerized Service",
+                cancellationToken);
+        var dockerAutoApplied = false;
+        if (dockerSkill is not null
+            && appliedSkills.All(skill => skill.Id != dockerSkill.Id))
+        {
+            appliedSkills = appliedSkills
+                .Append(dockerSkill)
+                .OrderBy(skill => skill.SortOrder)
+                .ThenBy(skill => skill.Name)
+                .ToList();
+            dockerAutoApplied = true;
+        }
+
         var skillsBlock = AgentPromptBuilder.BuildSkillsBlock(appliedSkills);
 
         if (appliedSkills.Count > 0)
+        {
+            var suffix = dockerAutoApplied ? " (Dockerized Service auto-applied)" : string.Empty;
+            await consoleEvents.WriteAsync(
+                taskRun.Id,
+                null,
+                ConsoleEventType.AgentStep,
+                $"Applied {appliedSkills.Count} skill(s): {string.Join(", ", appliedSkills.Select(skill => skill.Name))}{suffix}",
+                null,
+                cancellationToken);
+        }
+        else if (dockerAutoApplied)
         {
             await consoleEvents.WriteAsync(
                 taskRun.Id,
                 null,
                 ConsoleEventType.AgentStep,
-                $"Applied {appliedSkills.Count} skill(s): {string.Join(", ", appliedSkills.Select(skill => skill.Name))}",
+                "Auto-applied Dockerized Service (required for Workspace Project run).",
                 null,
                 cancellationToken);
         }

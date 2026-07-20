@@ -32,6 +32,10 @@ internal static class AgentPromptBuilder
             systemPromptParts.Add(skillsBlock);
         }
 
+        // Always-on packaging contract so Workspace "Project run" works even when
+        // the model ignores optional skills (seen with Angular/React marketing sites).
+        systemPromptParts.Add(BuildMandatoryPackagingBlock());
+
         systemPromptParts.Add("Respond in the same language as the user prompt unless the user asks otherwise. Keep output concise and actionable.");
 
         var systemPrompt = string.Join("\n\n", systemPromptParts);
@@ -156,8 +160,8 @@ internal static class AgentPromptBuilder
         {
             AgentType.Planner => "Create an execution plan. Include selected agents, ordered steps, assumptions, and model suitability notes.",
             AgentType.Research => "Analyze only supplied prompt/context. Extract useful facts, unknowns, constraints, and follow-up research needs.",
-            AgentType.Coder => "Build the project directly in the workspace using the provided filesystem tools. Call write_file once per file with the complete file content; use list_files/read_file to check your work. Always include README.md, Dockerfile, and docker-compose.yml (service name app, ports \"${HOST_PORT:-18080}:<port>\", healthcheck on GET /health). You cannot execute code, run tests, or use a shell — do not create scratch/check scripts, and do not rewrite a file unless you are fixing a concrete mistake. When every file is written, reply with a short plain-text summary of the project (no code blocks). Only if no tools are available: emit one fenced code block per file, tagged with a first-line comment like // filepath: path/to/file.go.",
-            AgentType.Reviewer => "Review previous outputs for correctness, security, consistency, missing steps, and architectural fit. Always check for Dockerfile + docker-compose.yml + /health, and when API docs skill is applied: Swagger UI + /openapi.json with example request bodies. Return prioritized findings and concrete fixes.",
+            AgentType.Coder => "Build the project directly in the workspace using the provided filesystem tools. Call write_file once per file with the COMPLETE file content. Before finishing you MUST have written at least: README.md, Dockerfile, docker-compose.yml, and .dockerignore at the deployable project root. Compose service name must be app; ports \"${HOST_PORT:-18080}:<containerPort>\"; healthcheck on GET /health. For Angular/React/Vite SPAs use multi-stage Dockerfile (node build → nginx:alpine) exposing 80 with a /health location. For APIs expose the app port (e.g. 8000). Prefer named Docker volumes over host bind mounts. You cannot execute code or use a shell. When every file is written (including Docker files), reply with a short plain-text summary only. Fallback if tools unavailable: fenced blocks with // filepath: comments.",
+            AgentType.Reviewer => "Review previous outputs for correctness, security, consistency, missing steps, and architectural fit. CRITICAL if Dockerfile or docker-compose.yml is missing, incomplete, or would not allow `docker compose up` — list that as a must-fix finding. Also verify GET /health, and when API docs skill is applied: Swagger UI + /openapi.json with example bodies. Return prioritized findings and concrete fixes.",
             AgentType.OpsMonitor => "Summarize execution health, usage signals, latency considerations, and operational risks from the previous outputs.",
             _ => "Complete the assigned agent role using the supplied context."
         };
@@ -169,12 +173,37 @@ internal static class AgentPromptBuilder
         {
             AgentType.Planner => "Produce the MVP execution plan for this task.",
             AgentType.Research => "Produce research notes and relevant context.",
-            AgentType.Coder => "Produce the technical output requested by the user.",
-            AgentType.Reviewer => "Review the previous outputs and suggest corrections.",
+            AgentType.Coder => "Produce the full application the user requested, including Dockerfile + docker-compose.yml so it can be started from Workspace Project run.",
+            AgentType.Reviewer => "Review the previous outputs and suggest corrections. Flag missing Docker packaging as CRITICAL.",
             AgentType.OpsMonitor => "Produce a short operational summary for this run.",
             _ => "Produce the requested agent output."
         };
     }
+
+    /// <summary>
+    /// Hard requirement for every generated app (API or web) so OmniAgent Workspace
+    /// one-click docker run works without relying on the user selecting a skill.
+    /// </summary>
+    public static string BuildMandatoryPackagingBlock() =>
+        """
+        ## MANDATORY Docker packaging (non-negotiable)
+
+        Every application you generate MUST include these files at the project root
+        (or each independently deployable unit's root):
+
+        1. **Dockerfile**
+           - API: multi-stage when possible; run the HTTP server; EXPOSE the app port; HEALTHCHECK hits GET /health.
+           - Angular / React / Vite / static SPA: stage 1 `node` build (`npm ci && npm run build`), stage 2 `nginx:alpine`, copy dist into `/usr/share/nginx/html`, provide `nginx.conf` with `try_files` for SPA routing and `location = /health { return 200 'ok'; add_header Content-Type text/plain; }`, EXPOSE 80.
+        2. **docker-compose.yml**
+           - Service name MUST be `app`.
+           - Ports: `"${HOST_PORT:-18080}:80"` for nginx/SPA or `"${HOST_PORT:-18080}:<apiPort>"` for APIs.
+           - healthcheck on /health.
+           - Prefer **named volumes** for persistent data — do NOT bind-mount host paths like `./data:/data` (breaks Workspace runner via Docker socket).
+        3. **.dockerignore** — do not exclude files the Dockerfile COPYs (e.g. do not blanket-ignore `*.md` if you COPY README.md).
+        4. **README.md** — document `docker compose up -d --build` and the health URL.
+
+        Before your final summary, call list_files (or equivalent) and confirm Dockerfile and docker-compose.yml exist. If either is missing, write them before finishing.
+        """;
 
     private static string TrimForPrompt(string value, int maxLength)
     {
