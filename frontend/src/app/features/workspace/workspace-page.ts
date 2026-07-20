@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject, signal, computed } from '@angular/core';
 import {
   LucideAngularModule,
   Folder,
@@ -11,10 +11,17 @@ import {
   Square,
   Copy,
   ExternalLink,
-  Rocket
+  Rocket,
+  Send
 } from 'lucide-angular';
 import { TaskApiClient } from '../../core/api/task-api-client';
-import { ProjectDetectResponse, ProjectRunStatusResponse, WorkspaceNode } from '../../core/models';
+import {
+  ProjectDetectResponse,
+  ProjectProxyResponse,
+  ProjectRunStatusResponse,
+  ProjectRouteHint,
+  WorkspaceNode
+} from '../../core/models';
 
 export interface FlatNode {
   name: string;
@@ -43,7 +50,8 @@ export class WorkspacePage implements OnInit, OnDestroy {
     stop: Square,
     copy: Copy,
     external: ExternalLink,
-    rocket: Rocket
+    rocket: Rocket,
+    send: Send
   };
 
   protected readonly files = signal<WorkspaceNode[]>([]);
@@ -60,6 +68,26 @@ export class WorkspacePage implements OnInit, OnDestroy {
   protected readonly copyFlash = signal(false);
   private statusPoll?: ReturnType<typeof setInterval>;
 
+  // API tester
+  protected readonly reqMethod = signal('GET');
+  protected readonly reqPath = signal('/health');
+  protected readonly reqHeaders = signal('Content-Type: application/json');
+  protected readonly reqBody = signal('{\n  "title": "demo",\n  "body": "hello"\n}');
+  protected readonly reqSending = signal(false);
+  protected readonly lastResponse = signal<ProjectProxyResponse | null>(null);
+
+  protected readonly showApiTester = computed(() => {
+    const kind = this.projectInfo()?.projectKind;
+    return kind === 'api' || kind === 'hybrid' || kind === 'unknown';
+  });
+
+  protected readonly showOpenWeb = computed(() => {
+    const kind = this.projectInfo()?.projectKind;
+    return kind === 'web' || kind === 'hybrid';
+  });
+
+  protected readonly methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
+
   ngOnInit(): void {
     this.refreshFiles();
   }
@@ -74,7 +102,6 @@ export class WorkspacePage implements OnInit, OnDestroy {
       next: (nodes) => {
         this.files.set(nodes);
         this.loading.set(false);
-        // Expand top-level folders by default for discoverability.
         const expanded = new Set(this.expandedFolders());
         for (const n of nodes) {
           if (n.isDirectory) {
@@ -126,6 +153,15 @@ export class WorkspacePage implements OnInit, OnDestroy {
         if (info.runnable) {
           this.refreshProjectStatus(info.projectRoot);
           this.startStatusPoll(info.projectRoot);
+          // Seed path from first suggested route when switching projects.
+          if (info.suggestedRoutes?.length) {
+            const first = info.suggestedRoutes[0];
+            this.reqMethod.set(first.method);
+            this.reqPath.set(first.path);
+          } else {
+            this.reqPath.set('/health');
+            this.reqMethod.set('GET');
+          }
         } else {
           this.projectStatus.set(null);
           this.stopStatusPoll();
@@ -204,6 +240,91 @@ export class WorkspacePage implements OnInit, OnDestroy {
     }
   }
 
+  protected openWeb(): void {
+    const url = this.projectInfo()?.openUrl;
+    if (url) {
+      window.open(url, '_blank', 'noopener');
+    }
+  }
+
+  protected applyRoute(route: ProjectRouteHint): void {
+    this.reqMethod.set(route.method);
+    this.reqPath.set(route.path);
+  }
+
+  protected setMethod(event: Event): void {
+    this.reqMethod.set((event.target as HTMLSelectElement).value);
+  }
+
+  protected setPath(event: Event): void {
+    this.reqPath.set((event.target as HTMLInputElement).value);
+  }
+
+  protected setHeaders(event: Event): void {
+    this.reqHeaders.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  protected setBody(event: Event): void {
+    this.reqBody.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  protected sendRequest(): void {
+    const info = this.projectInfo();
+    if (!info?.runnable) {
+      return;
+    }
+
+    const path = this.reqPath().trim() || '/';
+    const method = this.reqMethod();
+    const headers = this.parseHeaders(this.reqHeaders());
+    const body =
+      method === 'GET' || method === 'HEAD' || method === 'DELETE'
+        ? null
+        : this.reqBody();
+
+    this.reqSending.set(true);
+    this.lastResponse.set(null);
+    this.api
+      .workspaceProjectProxy({
+        projectPath: info.projectRoot,
+        method,
+        path,
+        headers,
+        body
+      })
+      .subscribe({
+        next: (res) => {
+          this.reqSending.set(false);
+          this.lastResponse.set(res);
+        },
+        error: (err) => {
+          this.reqSending.set(false);
+          const bodyErr = err?.error;
+          this.lastResponse.set({
+            ok: false,
+            statusCode: bodyErr?.statusCode ?? 0,
+            latencyMs: bodyErr?.latencyMs ?? 0,
+            contentType: bodyErr?.contentType,
+            body: bodyErr?.body ?? '',
+            headers: bodyErr?.headers ?? {},
+            error: bodyErr?.error ?? err?.message ?? 'Request failed'
+          });
+        }
+      });
+  }
+
+  protected prettyBody(res: ProjectProxyResponse): string {
+    if (res.error && !res.body) {
+      return res.error;
+    }
+    const raw = res.body ?? '';
+    try {
+      return JSON.stringify(JSON.parse(raw), null, 2);
+    } catch {
+      return raw;
+    }
+  }
+
   protected getFileExtension(name: string): string {
     const parts = name.split('.');
     return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
@@ -258,6 +379,26 @@ export class WorkspacePage implements OnInit, OnDestroy {
         this.refreshFiles();
       }
     });
+  }
+
+  private parseHeaders(raw: string): Record<string, string> {
+    const result: Record<string, string> = {};
+    for (const line of raw.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
+      const idx = trimmed.indexOf(':');
+      if (idx <= 0) {
+        continue;
+      }
+      const key = trimmed.slice(0, idx).trim();
+      const value = trimmed.slice(idx + 1).trim();
+      if (key) {
+        result[key] = value;
+      }
+    }
+    return result;
   }
 
   private refreshProjectStatus(projectRoot: string): void {

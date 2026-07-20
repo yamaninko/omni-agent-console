@@ -253,6 +253,12 @@ export interface WorkspaceNode {
   children?: WorkspaceNode[] | null;
 }
 
+export interface ProjectRouteHint {
+  method: string;
+  path: string;
+  label: string;
+}
+
 export interface ProjectDetectResponse {
   projectRoot: string;
   hasDockerfile: boolean;
@@ -265,6 +271,20 @@ export interface ProjectDetectResponse {
   downCommand: string;
   statusCommand: string;
   message?: string | null;
+  projectKind: 'api' | 'web' | 'hybrid' | 'unknown' | string;
+  baseUrl: string;
+  openUrl: string;
+  suggestedRoutes: ProjectRouteHint[];
+}
+
+export interface ProjectProxyResponse {
+  ok: boolean;
+  statusCode: number;
+  latencyMs: number;
+  contentType?: string | null;
+  body: string;
+  headers: Record<string, string>;
+  error?: string | null;
 }
 
 export interface ProjectRunStatusResponse {

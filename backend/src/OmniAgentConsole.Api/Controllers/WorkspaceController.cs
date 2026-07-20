@@ -122,6 +122,22 @@ public class WorkspaceController : ControllerBase
         return Ok(await projectRunner.StatusAsync(EffectiveRoot, path, sessionId, cancellationToken));
     }
 
+    /// <summary>
+    /// SSRF-safe proxy for the in-console mini Postman: only localhost +
+    /// the workspace runner port range for the selected project.
+    /// </summary>
+    [HttpPost("project/proxy")]
+    public async Task<ActionResult<ProjectProxyResponse>> ProxyProject(
+        [FromBody] ProjectProxyRequest request,
+        CancellationToken cancellationToken)
+    {
+        var sessionId = sharedLab.Enabled && !SharedLabHttp.IsAdmin(HttpContext)
+            ? SharedLabHttp.GetSessionId(HttpContext)
+            : null;
+        var result = await projectRunner.ProxyAsync(EffectiveRoot, request, sessionId, cancellationToken);
+        return result.Ok ? Ok(result) : BadRequest(result);
+    }
+
     [HttpDelete]
     public IActionResult DeleteNode([FromQuery] string path)
     {

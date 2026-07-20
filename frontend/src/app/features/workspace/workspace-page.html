@@ -48,7 +48,7 @@
       </div>
     </aside>
 
-    <!-- Main Content: Editor + Run panel -->
+    <!-- Main Content: Editor + Run + Test panels -->
     <main class="editor-panel">
       @if (projectInfo(); as project) {
         <div class="run-panel">
@@ -61,6 +61,7 @@
             <span class="run-badge" [class.ok]="project.runnable" [class.bad]="!project.runnable">
               {{ project.runnable ? 'runnable' : 'not runnable' }}
             </span>
+            <span class="run-badge kind">{{ project.projectKind || 'unknown' }}</span>
             @if (projectStatus(); as st) {
               <span class="run-badge state" [class.running]="st.state === 'running'">{{ st.state }}</span>
               @if (st.healthStatus) {
@@ -72,6 +73,7 @@
           @if (project.runnable) {
             <div class="run-meta">
               <span>port <code>{{ project.suggestedHostPort }}</code></span>
+              <span>base <code>{{ project.baseUrl }}</code></span>
               <span>compose <code>{{ project.composeProjectName }}</code></span>
               <span>
                 health
@@ -100,6 +102,12 @@
                 <lucide-icon [img]="icons.external" size="14"></lucide-icon>
                 Open /health
               </button>
+              @if (showOpenWeb()) {
+                <button type="button" class="run-btn secondary" (click)="openWeb()">
+                  <lucide-icon [img]="icons.external" size="14"></lucide-icon>
+                  Open in browser
+                </button>
+              }
             </div>
           } @else {
             <p class="run-hint">{{ project.message || 'Select a project folder that contains Dockerfile or docker-compose.yml.' }}</p>
@@ -109,6 +117,75 @@
             <pre class="run-log">{{ projectMessage() }}</pre>
           }
         </div>
+
+        @if (project.runnable && showApiTester()) {
+          <div class="test-panel">
+            <div class="test-panel-header">
+              <strong>API tester</strong>
+              <span class="run-hint">Proxied via backend (localhost + port range only)</span>
+            </div>
+
+            @if (project.suggestedRoutes?.length) {
+              <div class="route-chips">
+                @for (route of project.suggestedRoutes; track route.method + route.path) {
+                  <button type="button" class="chip" (click)="applyRoute(route)">
+                    <span class="chip-method">{{ route.method }}</span> {{ route.path }}
+                  </button>
+                }
+              </div>
+            }
+
+            <div class="req-row">
+              <select class="req-method" [value]="reqMethod()" (change)="setMethod($event)">
+                @for (m of methods; track m) {
+                  <option [value]="m" [selected]="reqMethod() === m">{{ m }}</option>
+                }
+              </select>
+              <div class="req-url">
+                <span class="req-base">{{ project.baseUrl }}</span>
+                <input
+                  type="text"
+                  class="req-path"
+                  [value]="reqPath()"
+                  (input)="setPath($event)"
+                  placeholder="/health"
+                />
+              </div>
+              <button type="button" class="run-btn primary" (click)="sendRequest()" [disabled]="reqSending()">
+                <lucide-icon [img]="icons.send" size="14"></lucide-icon>
+                {{ reqSending() ? 'Sending…' : 'Send' }}
+              </button>
+            </div>
+
+            <div class="req-grid">
+              <label class="req-field">
+                <span>Headers (one per line: Name: value)</span>
+                <textarea rows="3" [value]="reqHeaders()" (input)="setHeaders($event)"></textarea>
+              </label>
+              @if (reqMethod() !== 'GET' && reqMethod() !== 'DELETE') {
+                <label class="req-field">
+                  <span>Body</span>
+                  <textarea rows="5" [value]="reqBody()" (input)="setBody($event)"></textarea>
+                </label>
+              }
+            </div>
+
+            @if (lastResponse(); as res) {
+              <div class="resp-panel">
+                <div class="resp-meta">
+                  <span class="run-badge" [class.ok]="res.ok && res.statusCode >= 200 && res.statusCode < 300" [class.bad]="!res.ok || res.statusCode >= 400">
+                    {{ res.ok ? res.statusCode : (res.error || res.statusCode || 'error') }}
+                  </span>
+                  <span>{{ res.latencyMs }} ms</span>
+                  @if (res.contentType) {
+                    <span>{{ res.contentType }}</span>
+                  }
+                </div>
+                <pre class="resp-body">{{ prettyBody(res) }}</pre>
+              </div>
+            }
+          </div>
+        }
       }
 
       @if (selectedFilePath()) {
@@ -126,7 +203,7 @@
           <div class="empty-prompt">
             <lucide-icon [img]="icons.fileCode" size="48" style="color: #1f2d3d; margin-bottom: 16px; display: block; margin-left: auto; margin-right: auto;"></lucide-icon>
             <h3>No File Open</h3>
-            <p>Select a project folder to see run commands, or a file to view its content.</p>
+            <p>Select a project folder to run and test, or a file to view its content.</p>
           </div>
         </div>
       }

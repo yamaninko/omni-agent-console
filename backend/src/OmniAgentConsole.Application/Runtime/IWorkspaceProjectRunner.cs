@@ -23,4 +23,10 @@ public interface IWorkspaceProjectRunner
         string? path,
         string? sessionId,
         CancellationToken cancellationToken);
+
+    Task<ProjectProxyResponse> ProxyAsync(
+        string effectiveRoot,
+        ProjectProxyRequest request,
+        string? sessionId,
+        CancellationToken cancellationToken);
 }

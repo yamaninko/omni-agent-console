@@ -1,5 +1,7 @@
 namespace OmniAgentConsole.Application.Workspace;
 
+public sealed record ProjectRouteHint(string Method, string Path, string Label);
+
 public sealed record ProjectDetectResponse(
     string ProjectRoot,
     bool HasDockerfile,
@@ -11,7 +13,12 @@ public sealed record ProjectDetectResponse(
     string UpCommand,
     string DownCommand,
     string StatusCommand,
-    string? Message);
+    string? Message,
+    /// <summary>api | web | hybrid | unknown</summary>
+    string ProjectKind,
+    string BaseUrl,
+    string OpenUrl,
+    IReadOnlyList<ProjectRouteHint> SuggestedRoutes);
 
 public sealed record ProjectRunStatusResponse(
     string ProjectRoot,
@@ -29,3 +36,19 @@ public sealed record ProjectRunActionResponse(
     string State,
     string Message,
     string? LogsTail);
+
+public sealed record ProjectProxyRequest(
+    string? ProjectPath,
+    string Method,
+    string Path,
+    Dictionary<string, string>? Headers,
+    string? Body);
+
+public sealed record ProjectProxyResponse(
+    bool Ok,
+    int StatusCode,
+    long LatencyMs,
+    string? ContentType,
+    string Body,
+    IReadOnlyDictionary<string, string> Headers,
+    string? Error);

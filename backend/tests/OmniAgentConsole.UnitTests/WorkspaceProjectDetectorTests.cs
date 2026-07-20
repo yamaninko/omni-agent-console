@@ -56,4 +56,50 @@ public sealed class WorkspaceProjectDetectorTests
         Assert.Contains("HOST_PORT=18321", cmd);
         Assert.Contains("docker compose -p omni-fastapi up -d --build", cmd);
     }
+
+    [Fact]
+    public void ClassifyProjectKind_DetectsApiFromFastApiLayout()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "omni-kind-" + Guid.NewGuid().ToString("N"));
+        var app = Path.Combine(root, "app");
+        Directory.CreateDirectory(app);
+        File.WriteAllText(Path.Combine(app, "main.py"), "from fastapi import FastAPI\napp = FastAPI()\n");
+        File.WriteAllText(Path.Combine(root, "requirements.txt"), "fastapi>=0.110\nuvicorn\n");
+        try
+        {
+            Assert.Equal("api", WorkspaceProjectDetector.ClassifyProjectKind(root));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void ClassifyProjectKind_DetectsWebFromIndexHtml()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "omni-web-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        File.WriteAllText(Path.Combine(root, "index.html"), "<html></html>");
+        try
+        {
+            Assert.Equal("web", WorkspaceProjectDetector.ClassifyProjectKind(root));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Theory]
+    [InlineData("http://localhost:18786/health", true)]
+    [InlineData("http://127.0.0.1:18000/x", true)]
+    [InlineData("http://evil.com:18786/x", false)]
+    [InlineData("http://localhost:80/x", false)]
+    public void IsAllowedProxyTarget_OnlyLocalRunnerPorts(string url, bool expected)
+    {
+        Assert.Equal(
+            expected,
+            WorkspaceProjectDetector.IsAllowedProxyTarget(new Uri(url), 18000, 1000));
+    }
 }

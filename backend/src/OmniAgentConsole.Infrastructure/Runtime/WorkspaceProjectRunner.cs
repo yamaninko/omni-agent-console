@@ -39,7 +39,11 @@ public sealed class WorkspaceProjectRunner : IWorkspaceProjectRunner
                 UpCommand: "",
                 DownCommand: "",
                 StatusCommand: "",
-                Message: "No Dockerfile or docker-compose.yml found near this path. Enable the Dockerized Service skill and re-run the task.");
+                Message: "No Dockerfile or docker-compose.yml found near this path. Enable the Dockerized Service skill and re-run the task.",
+                ProjectKind: "unknown",
+                BaseUrl: "",
+                OpenUrl: "",
+                SuggestedRoutes: []);
         }
 
         var projectName = WorkspaceProjectDetector.ComposeProjectName(layout.RelativeRoot, sessionId);
@@ -47,8 +51,10 @@ public sealed class WorkspaceProjectRunner : IWorkspaceProjectRunner
             layout.RelativeRoot,
             options.PortRangeStart,
             options.PortRangeSize);
-        var containerPort = WorkspaceProjectDetector.GuessContainerPort(layout.FullRoot);
-        var healthUrl = $"http://localhost:{port}/health";
+        var baseUrl = $"http://localhost:{port}";
+        var healthUrl = $"{baseUrl}/health";
+        var kind = WorkspaceProjectDetector.ClassifyProjectKind(layout.FullRoot);
+        var routes = WorkspaceProjectDetector.SuggestRoutes(layout.FullRoot, kind);
 
         return new ProjectDetectResponse(
             ProjectRoot: layout.RelativeRoot,
@@ -63,7 +69,11 @@ public sealed class WorkspaceProjectRunner : IWorkspaceProjectRunner
             StatusCommand: WorkspaceProjectDetector.BuildStatusCommand(projectName, layout.HasCompose),
             Message: layout.HasCompose
                 ? null
-                : "Dockerfile found without compose — runner will use docker build/run. Prefer docker-compose.yml for multi-service projects.");
+                : "Dockerfile found without compose — runner will use docker build/run. Prefer docker-compose.yml for multi-service projects.",
+            ProjectKind: kind,
+            BaseUrl: baseUrl,
+            OpenUrl: baseUrl + "/",
+            SuggestedRoutes: routes);
     }
 
     public async Task<ProjectRunActionResponse> UpAsync(
@@ -282,6 +292,136 @@ public sealed class WorkspaceProjectRunner : IWorkspaceProjectRunner
             healthStatus,
             Truncate(ps.Output),
             null);
+    }
+
+    public async Task<ProjectProxyResponse> ProxyAsync(
+        string effectiveRoot,
+        ProjectProxyRequest request,
+        string? sessionId,
+        CancellationToken cancellationToken)
+    {
+        var detect = Detect(effectiveRoot, request.ProjectPath, sessionId);
+        if (!detect.Runnable || string.IsNullOrWhiteSpace(detect.BaseUrl))
+        {
+            return new ProjectProxyResponse(
+                false, 0, 0, null, "", new Dictionary<string, string>(),
+                detect.Message ?? "Project is not runnable.");
+        }
+
+        var method = string.IsNullOrWhiteSpace(request.Method) ? "GET" : request.Method.Trim().ToUpperInvariant();
+        if (method is not ("GET" or "POST" or "PUT" or "PATCH" or "DELETE" or "HEAD" or "OPTIONS"))
+        {
+            return new ProjectProxyResponse(false, 0, 0, null, "", new Dictionary<string, string>(), "Unsupported HTTP method.");
+        }
+
+        var path = request.Path ?? "/";
+        if (!path.StartsWith('/'))
+        {
+            path = "/" + path;
+        }
+
+        // Build target on localhost + assigned port only (never trust a full URL from the client).
+        if (!Uri.TryCreate(detect.BaseUrl.TrimEnd('/') + path, UriKind.Absolute, out var target)
+            || !WorkspaceProjectDetector.IsAllowedProxyTarget(target, options.PortRangeStart, options.PortRangeSize))
+        {
+            return new ProjectProxyResponse(
+                false, 0, 0, null, "", new Dictionary<string, string>(),
+                "Proxy target rejected. Only localhost ports in the workspace runner range are allowed.");
+        }
+
+        // From inside the API container, hit host-published ports via HealthProbeHost.
+        var probeHost = string.IsNullOrWhiteSpace(options.HealthProbeHost) ? "localhost" : options.HealthProbeHost;
+        var builder = new UriBuilder(target) { Host = probeHost };
+        var requestUri = builder.Uri;
+
+        if (request.Body is { Length: > 1_000_000 })
+        {
+            return new ProjectProxyResponse(false, 0, 0, null, "", new Dictionary<string, string>(), "Body exceeds 1 MB limit.");
+        }
+
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        using var httpRequest = new HttpRequestMessage(new HttpMethod(method), requestUri);
+
+        if (request.Headers is not null)
+        {
+            foreach (var (key, value) in request.Headers)
+            {
+                if (string.IsNullOrWhiteSpace(key) || value is null)
+                {
+                    continue;
+                }
+
+                // Host is forced; hop-by-hop headers skipped.
+                if (key.Equals("Host", StringComparison.OrdinalIgnoreCase)
+                    || key.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!httpRequest.Headers.TryAddWithoutValidation(key, value)
+                    && httpRequest.Content is null
+                    && method is "POST" or "PUT" or "PATCH")
+                {
+                    // content headers applied after body is set
+                }
+            }
+        }
+
+        if (method is "POST" or "PUT" or "PATCH" || !string.IsNullOrEmpty(request.Body))
+        {
+            httpRequest.Content = new StringContent(request.Body ?? "", Encoding.UTF8);
+            if (request.Headers is not null
+                && request.Headers.TryGetValue("Content-Type", out var ct)
+                && !string.IsNullOrWhiteSpace(ct))
+            {
+                httpRequest.Content.Headers.Remove("Content-Type");
+                httpRequest.Content.Headers.TryAddWithoutValidation("Content-Type", ct);
+            }
+            else if (httpRequest.Content.Headers.ContentType is null)
+            {
+                httpRequest.Content.Headers.TryAddWithoutValidation("Content-Type", "application/json");
+            }
+        }
+
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            using var response = await client.SendAsync(httpRequest, cancellationToken);
+            sw.Stop();
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (body.Length > 500_000)
+            {
+                body = body[..500_000] + "\n…[truncated]";
+            }
+
+            var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var header in response.Headers)
+            {
+                headers[header.Key] = string.Join(", ", header.Value);
+            }
+
+            foreach (var header in response.Content.Headers)
+            {
+                headers[header.Key] = string.Join(", ", header.Value);
+            }
+
+            return new ProjectProxyResponse(
+                true,
+                (int)response.StatusCode,
+                sw.ElapsedMilliseconds,
+                response.Content.Headers.ContentType?.ToString(),
+                body,
+                headers,
+                null);
+        }
+        catch (Exception exception)
+        {
+            sw.Stop();
+            logger.LogWarning(exception, "Workspace project proxy failed for {Uri}", requestUri);
+            return new ProjectProxyResponse(
+                false, 0, sw.ElapsedMilliseconds, null, "", new Dictionary<string, string>(),
+                exception.Message);
+        }
     }
 
     private async Task<ProcessResult> RunDockerAsync(

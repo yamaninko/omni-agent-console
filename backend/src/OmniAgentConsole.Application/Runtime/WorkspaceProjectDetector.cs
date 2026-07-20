@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using OmniAgentConsole.Application.Workspace;
 
 namespace OmniAgentConsole.Application.Runtime;
 
@@ -156,6 +157,248 @@ public static partial class WorkspaceProjectDetector
         return 8000;
     }
 
+    /// <summary>
+    /// Classifies a project as api / web / hybrid / unknown from filesystem cues.
+    /// </summary>
+    public static string ClassifyProjectKind(string projectFullRoot)
+    {
+        var web = LooksLikeWeb(projectFullRoot);
+        var api = LooksLikeApi(projectFullRoot);
+
+        if (web && api)
+        {
+            return "hybrid";
+        }
+
+        if (web)
+        {
+            return "web";
+        }
+
+        if (api)
+        {
+            return "api";
+        }
+
+        // Runnable backend containers without strong frontend markers → API default.
+        if (File.Exists(Path.Combine(projectFullRoot, "Dockerfile"))
+            || File.Exists(Path.Combine(projectFullRoot, "docker-compose.yml"))
+            || File.Exists(Path.Combine(projectFullRoot, "compose.yml")))
+        {
+            return "api";
+        }
+
+        return "unknown";
+    }
+
+    public static IReadOnlyList<ProjectRouteHint> SuggestRoutes(string projectFullRoot, string projectKind)
+    {
+        var routes = new List<ProjectRouteHint>
+        {
+            new("GET", "/health", "Health check")
+        };
+
+        if (projectKind is "web")
+        {
+            routes.Add(new ProjectRouteHint("GET", "/", "App root"));
+            return routes;
+        }
+
+        // Lightweight content scan for common REST paths (best-effort).
+        var found = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "/health" };
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(projectFullRoot, "*.*", SearchOption.AllDirectories)
+                         .Where(f => IsSourceFile(f))
+                         .Take(80))
+            {
+                string text;
+                try
+                {
+                    text = File.ReadAllText(file);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                if (text.Length > 200_000)
+                {
+                    continue;
+                }
+
+                foreach (Match match in RouteLiteral().Matches(text))
+                {
+                    var path = match.Groups[1].Value;
+                    if (path.Length is < 2 or > 80 || !found.Add(path))
+                    {
+                        continue;
+                    }
+
+                    var method = GuessMethodForPath(path, text);
+                    routes.Add(new ProjectRouteHint(method, path, $"{method} {path}"));
+                    if (routes.Count >= 12)
+                    {
+                        return routes;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // ignore scan errors
+        }
+
+        // Sensible defaults for notebook-style APIs when nothing was found.
+        if (routes.Count == 1)
+        {
+            routes.Add(new ProjectRouteHint("GET", "/notes", "List notes"));
+            routes.Add(new ProjectRouteHint("POST", "/notes", "Create note"));
+        }
+
+        return routes;
+    }
+
+    public static bool IsAllowedProxyTarget(Uri uri, int portRangeStart, int portRangeSize)
+    {
+        if (!string.Equals(uri.Scheme, "http", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(uri.Scheme, "https", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var host = uri.Host;
+        if (!string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)
+            && host is not "127.0.0.1" and not "::1")
+        {
+            return false;
+        }
+
+        var port = uri.IsDefaultPort
+            ? (string.Equals(uri.Scheme, "https", StringComparison.OrdinalIgnoreCase) ? 443 : 80)
+            : uri.Port;
+
+        return port >= portRangeStart && port < portRangeStart + Math.Max(1, portRangeSize);
+    }
+
+    private static bool LooksLikeWeb(string root)
+    {
+        if (File.Exists(Path.Combine(root, "index.html"))
+            || File.Exists(Path.Combine(root, "public", "index.html"))
+            || File.Exists(Path.Combine(root, "src", "index.html")))
+        {
+            return true;
+        }
+
+        var packageJson = Path.Combine(root, "package.json");
+        if (File.Exists(packageJson))
+        {
+            try
+            {
+                var text = File.ReadAllText(packageJson);
+                if (text.Contains("\"vite\"", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains("\"react\"", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains("\"@angular/core\"", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains("\"next\"", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains("\"vue\"", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        return Directory.Exists(Path.Combine(root, "src", "app"))
+            && File.Exists(Path.Combine(root, "angular.json"));
+    }
+
+    private static bool LooksLikeApi(string root)
+    {
+        var markers = new[]
+        {
+            Path.Combine(root, "app", "main.py"),
+            Path.Combine(root, "main.py"),
+            Path.Combine(root, "main.go"),
+            Path.Combine(root, "cmd", "server", "main.go"),
+            Path.Combine(root, "openapi.json"),
+            Path.Combine(root, "swagger.json")
+        };
+
+        if (markers.Any(File.Exists))
+        {
+            return true;
+        }
+
+        // FastAPI / Express / Gin cues in requirements or go.mod / package.json
+        foreach (var name in new[] { "requirements.txt", "go.mod", "package.json", "Program.cs" })
+        {
+            var path = Path.Combine(root, name);
+            if (!File.Exists(path))
+            {
+                continue;
+            }
+
+            try
+            {
+                var text = File.ReadAllText(path);
+                if (text.Contains("fastapi", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains("express", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains("gin-gonic", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains("Microsoft.AspNetCore", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains("uvicorn", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsSourceFile(string path)
+    {
+        var ext = Path.GetExtension(path).ToLowerInvariant();
+        return ext is ".py" or ".go" or ".ts" or ".js" or ".cs" or ".java" or ".rb" or ".rs";
+    }
+
+    private static string GuessMethodForPath(string path, string surrounding)
+    {
+        var lower = surrounding.ToLowerInvariant();
+        var idx = lower.IndexOf(path.ToLowerInvariant(), StringComparison.Ordinal);
+        var window = idx >= 0
+            ? lower[Math.Max(0, idx - 80)..Math.Min(lower.Length, idx + path.Length + 40)]
+            : lower;
+
+        if (window.Contains("post") || window.Contains("create") || window.Contains("@app.post"))
+        {
+            return "POST";
+        }
+
+        if (window.Contains("put") || window.Contains("@app.put"))
+        {
+            return "PUT";
+        }
+
+        if (window.Contains("delete") || window.Contains("@app.delete"))
+        {
+            return "DELETE";
+        }
+
+        if (window.Contains("patch") || window.Contains("@app.patch"))
+        {
+            return "PATCH";
+        }
+
+        return "GET";
+    }
+
     private static string? FindComposeFileName(string dir)
     {
         foreach (var name in ComposeNames)
@@ -174,6 +417,10 @@ public static partial class WorkspaceProjectDetector
 
     [GeneratedRegex(@"[^A-Za-z0-9]+")]
     private static partial Regex ProjectSlug();
+
+    // Matches "/foo", "/foo/{id}", "/api/v1/items" style literals in source.
+    [GeneratedRegex(@"""(/(?:[A-Za-z0-9_\-{}]+/?)+)""")]
+    private static partial Regex RouteLiteral();
 }
 
 public sealed record ProjectLayout(

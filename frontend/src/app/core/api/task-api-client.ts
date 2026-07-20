@@ -21,7 +21,8 @@ import {
   SuggestSkillsResponse,
   ProjectDetectResponse,
   ProjectRunStatusResponse,
-  ProjectRunActionResponse
+  ProjectRunActionResponse,
+  ProjectProxyResponse
 } from '../models';
 
 const API_BASE_URL = '/api';
@@ -184,6 +185,22 @@ export class TaskApiClient {
       params['path'] = path;
     }
     return this.http.get<ProjectRunStatusResponse>(`${API_BASE_URL}/workspace/project/status`, { params });
+  }
+
+  workspaceProjectProxy(request: {
+    projectPath?: string | null;
+    method: string;
+    path: string;
+    headers?: Record<string, string>;
+    body?: string | null;
+  }): Observable<ProjectProxyResponse> {
+    return this.http.post<ProjectProxyResponse>(`${API_BASE_URL}/workspace/project/proxy`, {
+      projectPath: request.projectPath,
+      method: request.method,
+      path: request.path,
+      headers: request.headers,
+      body: request.body
+    });
   }
 
   listCredentials(): Observable<ApiCredential[]> {
