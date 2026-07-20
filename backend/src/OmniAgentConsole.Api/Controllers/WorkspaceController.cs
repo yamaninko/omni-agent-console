@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using OmniAgentConsole.Api.Middleware;
 using OmniAgentConsole.Application.Configuration;
 using OmniAgentConsole.Application.Runtime;
+using OmniAgentConsole.Application.Workspace;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -18,10 +19,14 @@ public class WorkspaceController : ControllerBase
     private const string WorkspaceRoot = "/workspace";
 
     private readonly SharedLabOptions sharedLab;
+    private readonly IWorkspaceProjectRunner projectRunner;
 
-    public WorkspaceController(IOptions<SharedLabOptions> sharedLab)
+    public WorkspaceController(
+        IOptions<SharedLabOptions> sharedLab,
+        IWorkspaceProjectRunner projectRunner)
     {
         this.sharedLab = sharedLab.Value;
+        this.projectRunner = projectRunner;
     }
 
     // In the shared-lab profile every student session gets its own effective
@@ -67,6 +72,54 @@ public class WorkspaceController : ControllerBase
 
         var content = await System.IO.File.ReadAllTextAsync(fullPath, cancellationToken);
         return Ok(new { Content = content });
+    }
+
+    /// <summary>
+    /// Detects a runnable project near <paramref name="path"/> and returns
+    /// copy-paste docker commands + suggested host port (P1).
+    /// </summary>
+    [HttpGet("project")]
+    public ActionResult<ProjectDetectResponse> DetectProject([FromQuery] string? path)
+    {
+        var sessionId = sharedLab.Enabled && !SharedLabHttp.IsAdmin(HttpContext)
+            ? SharedLabHttp.GetSessionId(HttpContext)
+            : null;
+        return Ok(projectRunner.Detect(EffectiveRoot, path, sessionId));
+    }
+
+    [HttpPost("project/up")]
+    public async Task<ActionResult<ProjectRunActionResponse>> UpProject(
+        [FromQuery] string? path,
+        CancellationToken cancellationToken)
+    {
+        var sessionId = sharedLab.Enabled && !SharedLabHttp.IsAdmin(HttpContext)
+            ? SharedLabHttp.GetSessionId(HttpContext)
+            : null;
+        var result = await projectRunner.UpAsync(EffectiveRoot, path, sessionId, cancellationToken);
+        return result.Ok ? Ok(result) : StatusCode(result.State == "disabled" ? 503 : 400, result);
+    }
+
+    [HttpPost("project/down")]
+    public async Task<ActionResult<ProjectRunActionResponse>> DownProject(
+        [FromQuery] string? path,
+        CancellationToken cancellationToken)
+    {
+        var sessionId = sharedLab.Enabled && !SharedLabHttp.IsAdmin(HttpContext)
+            ? SharedLabHttp.GetSessionId(HttpContext)
+            : null;
+        var result = await projectRunner.DownAsync(EffectiveRoot, path, sessionId, cancellationToken);
+        return result.Ok ? Ok(result) : StatusCode(result.State == "disabled" ? 503 : 400, result);
+    }
+
+    [HttpGet("project/status")]
+    public async Task<ActionResult<ProjectRunStatusResponse>> ProjectStatus(
+        [FromQuery] string? path,
+        CancellationToken cancellationToken)
+    {
+        var sessionId = sharedLab.Enabled && !SharedLabHttp.IsAdmin(HttpContext)
+            ? SharedLabHttp.GetSessionId(HttpContext)
+            : null;
+        return Ok(await projectRunner.StatusAsync(EffectiveRoot, path, sessionId, cancellationToken));
     }
 
     [HttpDelete]

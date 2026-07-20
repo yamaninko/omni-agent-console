@@ -18,7 +18,10 @@ import {
   ApiCredential,
   SkillDefinition,
   SaveSkillRequest,
-  SuggestSkillsResponse
+  SuggestSkillsResponse,
+  ProjectDetectResponse,
+  ProjectRunStatusResponse,
+  ProjectRunActionResponse
 } from '../models';
 
 const API_BASE_URL = '/api';
@@ -149,6 +152,38 @@ export class TaskApiClient {
 
   deleteWorkspaceNode(path: string): Observable<void> {
     return this.http.delete<void>(`${API_BASE_URL}/workspace`, { params: { path } });
+  }
+
+  detectWorkspaceProject(path?: string | null): Observable<ProjectDetectResponse> {
+    const params: Record<string, string> = {};
+    if (path) {
+      params['path'] = path;
+    }
+    return this.http.get<ProjectDetectResponse>(`${API_BASE_URL}/workspace/project`, { params });
+  }
+
+  workspaceProjectUp(path?: string | null): Observable<ProjectRunActionResponse> {
+    const params: Record<string, string> = {};
+    if (path) {
+      params['path'] = path;
+    }
+    return this.http.post<ProjectRunActionResponse>(`${API_BASE_URL}/workspace/project/up`, {}, { params });
+  }
+
+  workspaceProjectDown(path?: string | null): Observable<ProjectRunActionResponse> {
+    const params: Record<string, string> = {};
+    if (path) {
+      params['path'] = path;
+    }
+    return this.http.post<ProjectRunActionResponse>(`${API_BASE_URL}/workspace/project/down`, {}, { params });
+  }
+
+  workspaceProjectStatus(path?: string | null): Observable<ProjectRunStatusResponse> {
+    const params: Record<string, string> = {};
+    if (path) {
+      params['path'] = path;
+    }
+    return this.http.get<ProjectRunStatusResponse>(`${API_BASE_URL}/workspace/project/status`, { params });
   }
 
   listCredentials(): Observable<ApiCredential[]> {

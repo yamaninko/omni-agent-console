@@ -17,6 +17,7 @@ Bir prompt girersiniz; Planner → Research → Coder → Reviewer → (opsiyone
 - Docker Compose ile frontend, API, agent-worker, PostgreSQL, Redis, RabbitMQ ve Vault; optional OpenSearch profili
 - **Agentic tool loop (Coder)**: Coder ajanı Claude Code tarzı bir araç döngüsüyle çalışır — model `write_file` / `read_file` / `list_files` araçlarını çağırarak projeyi dosya dosya, kısa iterasyonlarla kurar (OpenAI-uyumlu function calling). Her tool call console'a canlı düşer, her iterasyon ayrı model çağrısı olarak usage'a işlenir; araç kullanmayan modeller için markdown fence export'u fallback olarak devrededir
 - **Reviewer → Coder fix loop**: Reviewer eyleme dönük bulgu ürettiyse Coder **tek** ek turda yalnız o bulguları workspace üzerinde düzeltir (`Fix loop started` / `Fix loop skipped` console event'leri); Ops Monitor en sonda çalışır
+- **Docker üretim kontratı**: Coder her backend projede `Dockerfile` + `docker-compose.yml` (service `app`, `${HOST_PORT:-18080}`, `/health`) üretir; Workspace runner bu kontratla ayağa kaldırır
 
 ### Skill Library (proje konvansiyon paketleri)
 - 20 hazır skill: **Backend** (Node/Express/TS, Go, .NET, Java Spring Boot, Python FastAPI), **Frontend** (Angular, React, Flutter), **Data** (PostgreSQL + Migrations, ORM, MongoDB, Redis Caching, RabbitMQ Messaging), **Security** (JWT Authentication), **Quality** (Input Validation, Unit Tests, REST Conventions, Health Checks, README & Docs), **Packaging** (Dockerized Service)
@@ -39,7 +40,7 @@ Bir prompt girersiniz; Planner → Research → Coder → Reviewer → (opsiyone
 ### Studio ve çıktılar
 - Coder dosyaları **doğrudan workspace'e yazar** (tool loop, max 24 iterasyon / 50 dosya / dosya başına 1M karakter); tüm path'ler WorkspacePathGuard'dan geçer
 - Tool desteklemeyen modellerde fallback: markdown fence'li bloklar ve `// filepath:` işaretli akış eski yöntemle export edilir; dosya adı tespit edilemeyen bloklar `output/` alt klasörüne düşer
-- Workspace ekranı: üretilen dosyalar gezilir, okunur, silinir
+- Workspace ekranı: üretilen dosyalar gezilir, okunur, silinir; klasör seçince **Project run** paneli — kopyalanabilir `docker compose up` komutu, **Start/Stop** (API → Docker socket), port ataması (`18000–18999`), `/health` linki
 - Task history, task detail, dashboard; usage tracking (model, token, latency, hata)
 - Agents ekranı: agent tanımları (model, system prompt, provider, credential bağlama, max token) UI'dan yönetilir
 

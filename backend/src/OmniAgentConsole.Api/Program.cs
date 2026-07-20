@@ -403,7 +403,7 @@ static async Task SyncAgentSystemPromptsAsync(AgentConsoleDbContext dbContext)
 
     // Coder Agent
     var coder = await dbContext.AgentDefinitions.FindAsync(Guid.Parse("10000000-0000-0000-0000-000000000003"));
-    var coderDefaultPrompt = "You are the Coder Agent. You build complete, production-ready projects directly in the task workspace using your filesystem tools.\n\nTOOLS:\n- write_file(path, content): create or overwrite one file. Call it once per file with the COMPLETE file content - no placeholders, no truncated code, no TODO stubs.\n- read_file(path): re-read a file you wrote earlier.\n- list_files(path?): list what exists in the workspace.\n\nWORKFLOW:\n1. Decide the full file layout for the project.\n2. Write the files one by one with write_file, starting with the most important source files. Keep every file complete and runnable.\n3. Always include a comprehensive README.md as one of the files.\n4. When every file is written, reply with a short plain-text summary of what you built (no code blocks in that final answer).\n\nRULES:\n- Use relative paths like src/app.py or cmd/server/main.go.\n- You CANNOT execute code, run tests, or use a shell. Never create scratch, check, or verification scripts; verify your work only by re-reading files with read_file.\n- Write each file once. Rewrite a file only to fix a concrete mistake you found.\n- If no specific version is mentioned, default to the latest stable production versions of all frameworks, libraries, databases, and runtimes.\n- Never print file contents in the chat; deliver them only through write_file.\n- Only if the tools are unavailable in this session, fall back to one fenced code block per file with a first-line comment such as // filepath: path/to/file.go.";
+    var coderDefaultPrompt = "You are the Coder Agent. You build complete, production-ready projects directly in the task workspace using your filesystem tools.\n\nTOOLS:\n- write_file(path, content): create or overwrite one file. Call it once per file with the COMPLETE file content - no placeholders, no truncated code, no TODO stubs.\n- read_file(path): re-read a file you wrote earlier.\n- list_files(path?): list what exists in the workspace.\n\nWORKFLOW:\n1. Decide the full file layout for the project.\n2. Write the files one by one with write_file, starting with the most important source files. Keep every file complete and runnable.\n3. Always include README.md, Dockerfile, and docker-compose.yml (service name: app; ports: \"${HOST_PORT:-18080}:<containerPort>\"; healthcheck on GET /health).\n4. When every file is written, reply with a short plain-text summary of what you built (no code blocks in that final answer).\n\nRULES:\n- Use relative paths like src/app.py or cmd/server/main.go.\n- You CANNOT execute code, run tests, or use a shell. Never create scratch, check, or verification scripts; verify your work only by re-reading files with read_file.\n- Write each file once. Rewrite a file only to fix a concrete mistake you found.\n- If no specific version is mentioned, default to the latest stable production versions of all frameworks, libraries, databases, and runtimes.\n- Never print file contents in the chat; deliver them only through write_file.\n- Only if the tools are unavailable in this session, fall back to one fenced code block per file with a first-line comment such as // filepath: path/to/file.go.";
     if (coder != null && coder.SystemPrompt != coderDefaultPrompt)
     {
         coder.SystemPrompt = coderDefaultPrompt;
@@ -452,6 +452,17 @@ static async Task EnsureSkillDefinitionsExistAsync(AgentConsoleDbContext dbConte
             {
                 if (string.IsNullOrWhiteSpace(current.Keywords) && !string.IsNullOrWhiteSpace(seed.Keywords))
                 {
+                    current.Keywords = seed.Keywords;
+                    changed = true;
+                }
+
+                // Packaging / run-contract skills: keep instructions in sync with seed
+                // so Workspace one-click run requirements propagate on upgrade.
+                if (string.Equals(seed.Name, "Dockerized Service", StringComparison.OrdinalIgnoreCase)
+                    && current.Instructions != seed.Instructions)
+                {
+                    current.Instructions = seed.Instructions;
+                    current.Description = seed.Description;
                     current.Keywords = seed.Keywords;
                     changed = true;
                 }
@@ -537,9 +548,9 @@ static List<SkillDefinition> BuildSeedSkills()
             "Define a validation schema (Zod or Joi) for every request body, params, and query the API accepts. Apply them through a reusable validation middleware. On failure respond 400 with a JSON error envelope listing field-level messages. Do not duplicate validation logic inside controllers."),
 
         Skill("Dockerized Service", "Packaging",
-            "Production-grade Dockerfile and compose wiring.",
-            "docker,dockerize,dockerfile,docker-compose,container,containerize",
-            "Include a multi-stage Dockerfile (build stage + slim runtime stage), a .dockerignore, and a docker-compose.yml when the service needs supporting services (database, cache). Run the process as a non-root user, define EXPOSE and a HEALTHCHECK, and read all configuration from environment variables. Document build/run commands in README.md."),
+            "Production-grade Dockerfile and compose wiring — required for Workspace one-click run.",
+            "docker,dockerize,dockerfile,docker-compose,container,containerize,compose",
+            "ALWAYS include both a Dockerfile and a docker-compose.yml (even for a single service). Compose must define a service named app, map ports as \"${HOST_PORT:-18080}:<containerPort>\", set a HEALTHCHECK (or compose healthcheck) hitting GET /health, and read config from environment variables. Prefer multi-stage Dockerfile, non-root user, EXPOSE, .dockerignore. Document: docker compose up -d --build and curl http://localhost:$HOST_PORT/health. Never omit compose — the OmniAgent Workspace runner depends on it."),
 
         Skill("PostgreSQL + Migrations", "Data",
             "PostgreSQL schema with migration scripts and safe query practices.",

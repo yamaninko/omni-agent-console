@@ -252,3 +252,36 @@ export interface WorkspaceNode {
   isDirectory: boolean;
   children?: WorkspaceNode[] | null;
 }
+
+export interface ProjectDetectResponse {
+  projectRoot: string;
+  hasDockerfile: boolean;
+  hasCompose: boolean;
+  runnable: boolean;
+  suggestedHostPort: number;
+  composeProjectName: string;
+  healthUrl: string;
+  upCommand: string;
+  downCommand: string;
+  statusCommand: string;
+  message?: string | null;
+}
+
+export interface ProjectRunStatusResponse {
+  projectRoot: string;
+  composeProjectName: string;
+  hostPort: number;
+  state: string;
+  runnerEnabled: boolean;
+  healthUrl?: string | null;
+  healthStatus?: string | null;
+  detail?: string | null;
+  logsTail?: string | null;
+}
+
+export interface ProjectRunActionResponse {
+  ok: boolean;
+  state: string;
+  message: string;
+  logsTail?: string | null;
+}

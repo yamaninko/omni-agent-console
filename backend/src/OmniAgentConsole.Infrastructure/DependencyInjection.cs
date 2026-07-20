@@ -21,6 +21,8 @@ public static class DependencyInjection
         services.Configure<OmniAgentProviderOptions>(configuration.GetSection(OmniAgentProviderOptions.SectionName));
         services.Configure<VaultOptions>(configuration.GetSection(VaultOptions.SectionName));
         services.Configure<TaskQueueOptions>(configuration.GetSection(TaskQueueOptions.SectionName));
+        services.Configure<WorkspaceRunnerOptions>(configuration.GetSection(WorkspaceRunnerOptions.SectionName));
+        services.AddSingleton<IWorkspaceProjectRunner, WorkspaceProjectRunner>();
 
         var connectionString = configuration.GetConnectionString("Postgres")
             ?? "Host=localhost;Port=5432;Database=omniagent_console;Username=postgres;Password=postgres";

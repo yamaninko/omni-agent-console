@@ -35,8 +35,16 @@ services:
       Vault__Mount: secret
       Vault__OmniAgentApiKeyPath: providers/omniagent
       Cors__AllowedOrigins__0: http://localhost:4210
+      WorkspaceRunner__Enabled: ${WORKSPACE_RUNNER_ENABLED:-true}
+      WorkspaceRunner__PortRangeStart: ${WORKSPACE_RUNNER_PORT_START:-18000}
+      WorkspaceRunner__PortRangeSize: ${WORKSPACE_RUNNER_PORT_SIZE:-1000}
+      WorkspaceRunner__MaxConcurrent: ${WORKSPACE_RUNNER_MAX_CONCURRENT:-3}
+      WorkspaceRunner__BuildTimeoutSeconds: ${WORKSPACE_RUNNER_BUILD_TIMEOUT:-300}
+      WorkspaceRunner__HealthProbeHost: ${WORKSPACE_RUNNER_HEALTH_HOST:-host.docker.internal}
     ports:
       - "${BACKEND_HOST_PORT:-5080}:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
@@ -48,6 +56,8 @@ services:
         condition: service_healthy
     volumes:
       - ./workspace:/workspace
+      # Allow the API to start student/demo stacks generated under /workspace.
+      - /var/run/docker.sock:/var/run/docker.sock
 
   agent-worker:
     build:
