@@ -12,7 +12,7 @@
 | 3 | Poison message infinite requeue | ✅ Kapandı | Redelivered → 2. fail = Failed+ACK |
 | 4a | Açık infra portları | ✅ Kapandı | `INFRA_BIND_ADDRESS=127.0.0.1` |
 | 4b | Credential at-rest (Vault secret-ref) | 🔲 Açık | §4 |
-| 5 | Tenant / sınıf izolasyonu | 🔲 Açık | §1 |
+| 5 | Tenant / sınıf izolasyonu | 🟡 Karar verildi, MVP bekliyor | §1 — dual deployment: laptop default, shared-lab opt-in (`SHARED_LAB`) |
 | 6 | InputSanitizer darlığı | ✅ Kapandı (kısmi, doğası gereği) | Genişletildi; pattern-dışı secret teorik risk |
 | 7 | Orchestrator god-class | 🔲 Açık | §2 |
 | 8 | Reasoning-only boş content | ✅ Kapandı | `reasoning_content`/`reasoning` fallback |
@@ -22,31 +22,54 @@
 | — | Reviewer→Coder fix loop | ⭐ Opsiyonel | §5.1 |
 | — | OpenSearch entegrasyonu | 🔮 Future | Profil arkasında, log ship yok |
 
-**Önerilen öncelik**: lab modeli kararı → (shared-server ise) Tenant MVP → Orchestrator refactor → Frontend specs → Vault secret-ref → (opsiyonel) Fix loop.
+**Önerilen öncelik**: ~~lab modeli kararı~~ *(verildi: dual profile, bkz. §1)* → Tenant MVP (flag arkasında) → Orchestrator refactor → Frontend specs → Vault secret-ref → (opsiyonel) Fix loop.
 
 ---
 
-## 1. Tenant / sınıf izolasyonu
+## 1. Tenant / sınıf izolasyonu — KARAR: dual deployment profili
 
-**Problem**: Sistem tek paylaşımlı tenant varsayar — tek `CONSOLE_API_KEY` (veya anonim), owner'sız task'lar, ortak workspace, global credentials. Her öğrenci kendi laptop'unda çalışıyorsa sorun yok; tek sunucu + sınıf Wi-Fi senaryosunda öğrenciler birbirinin task'ını iptal edebilir, workspace'ini silebilir.
+**Karar (2026-07-20)**: "Laptop-only mu, shared-server mı?" sorusu **ikisi birden** diye kapandı. Bu tek "ya o ya bu" ürün değil; aynı kod tabanında ortam değişkeniyle seçilen iki deployment profili:
 
-**Karar matrisi**:
+| Profil | Ne zaman | İzolasyon | Gereken |
+|--------|----------|-----------|---------|
+| **Laptop-only** (default) | Her öğrenci kendi makinesinde `compose up` | Gerekmez (tek kullanıcı) | Hiçbir şey — bugünkü davranış |
+| **Shared-lab** (opt-in) | Tek host, sınıf aynı URL'e girer | Session + ownership + workspace prefix | `SHARED_LAB=true` + `CONSOLE_API_KEY` |
 
-| Seçenek | Sağladığı | Karmaşıklık | Uygunluk |
-|---------|-----------|-------------|----------|
-| A. Hiçbir şey | Laptop-başına demo | 0 | En yaygın lab |
-| B. Per-session workspace prefix | Dosya izolasyonu | ~0.5–1 gün | Hafif ortak sunucu |
-| C. B + task ownership | Task list/cancel/delete izolasyonu | ~1–1.5 gün | **Ortak sunucu önerilen MVP** |
-| D. Full auth (kullanıcı/rol) | Gerçek multi-tenant | 3–5+ gün | Production; akademi için aşırı |
-| E. Demo mode flag | Credentials read-only, settings kilitli | Düşük | Hoca makinesi senaryosu |
+Ürün cevabı "ikisi de olsun"; mühendislik cevabı "default tek-kullanıcı, shared-lab kapılı özellik". Laptop'ta ekstra UX sürtünmesi yok; lab sunucusunda flag açılınca Tenant MVP devreye girer.
 
-**Karar yolu**: laptop-başına → A (belgele, kapat). Ortak sunucu → **C + E**. Full auth yalnız kalıcı kurulumda.
+**`SHARED_LAB` davranış şeması** (uygulanacak sözleşme):
 
-**MVP tasarımı (Session + Ownership)**: tarayıcıda üretilen `SessionId` (localStorage) + `X-Studio-Session-Id` header'ı; `TaskRun.OwnerSessionId` kolonu (nullable = legacy); List/Get/Cancel/Delete/Run'da owner eşleşmesi (mismatch → 404, bilgi sızdırmadan); workspace path'leri zorla `/workspace/sessions/{sessionId}/` altına map (**WorkspacePathGuard effective root = session kökü** — logical prefix'ten daha güvenli); SignalR JoinGroup öncesi ownership kontrolü; demo mode'da credential write 403.
+```
+SHARED_LAB=false  (default)
+  → bugünkü davranış birebir korunur
+  → X-Studio-Session-Id header'ı gelirse yok sayılır (no-op)
+
+SHARED_LAB=true
+  → X-Studio-Session-Id header'ı zorunlu (yoksa 400)
+  → TaskRun.OwnerSessionId doldurulur; List/Get/Run/Cancel/Delete owner-filtreli
+    (mismatch → 404, bilgi sızdırılmaz)
+  → workspace zorla /workspace/sessions/{sessionId}/ altına map edilir
+    (WorkspacePathGuard effective root = session kökü)
+  → SignalR JoinGroup öncesi task ownership kontrolü
+  → Settings/Credentials write endpoint'leri 403 (admin CONSOLE_API_KEY ile bypass)
+  → FAIL-FAST: SHARED_LAB=true iken CONSOLE_API_KEY boşsa uygulama AÇILMAZ
+    (flag'i unutup anonim shared deploy yapmayı imkânsızlaştırır)
+```
+
+Güvenlik varsayılanı ilkesi: sıkı kurallar (fail-fast) **yalnız shared-lab profilinde** — laptop'ta sürtünme yaratmaz; shared'da unutulan flag güvensiz kuruluma yol açamaz.
+
+**MVP tasarımı (Session + Ownership, flag arkasında)**: tarayıcıda üretilen `SessionId` (localStorage) + `X-Studio-Session-Id` header'ı; `TaskRun.OwnerSessionId` kolonu (nullable = legacy, flag kapalıyken null); owner mismatch → 404; workspace path'leri zorla session prefix'e map (**effective root** yaklaşımı — logical prefix'ten daha güvenli); demo/settings kilidi yukarıdaki şemada.
+
+**Test matrisi (iki path de test edilir)**:
+- Flag OFF smoke: bugünkü davranış birebir (session header'sız task create/run/cancel)
+- Flag ON: iki farklı session → birbirinin task'ı 404, workspace ayrı, credential write 403
+- Flag ON + `CONSOLE_API_KEY` boş → startup fail-fast
+
+**Karar matrisi (arşiv — karar verildi, referans için)**: A hiçbir şey (laptop) / B workspace prefix / C B+ownership / D full auth / E demo-mode flag. Seçilen: **C+E, `SHARED_LAB` flag'i arkasında; default A**. Full auth (D) yalnız kalıcı/prod kurulumda.
 
 **Kapsam dışı (MVP)**: OAuth/LDAP, disk quota, session expiry, per-user API quota.
 
-**Effort**: ~1.5–2.5 gün. **Kabul**: iki session birbirinin task'ını görmez/iptal edemez; workspace yazma session dışına çıkamaz; demo mode'da credential write 403; README'de deployment modelleri.
+**Effort**: docs-only aşama ~yarım gün *(bu belge + README ile tamam)*; flag'li MVP ~1.5–2.5 gün. **Kabul**: flag off → davranış birebir bugünkü; flag on → iki session izolasyonu + fail-fast; README'de iki deployment modeli.
 
 ---
 
@@ -130,13 +153,14 @@ Kod fallback'i eklendi; README listesi temkinli uyarı taşıyor. İş: 2 modell
 
 | Sprint | İçerik | Süre |
 |--------|--------|------|
-| A | Lab modeli kararı + (shared ise) Tenant MVP + docs | 2–3 gün |
+| A1 ✅ | Dual-deployment kararını belgele (bu belge + README) | yarım gün — tamam |
+| A2 | `SHARED_LAB` flag'li Tenant MVP (session + ownership + prefix + fail-fast) | 1.5–2.5 gün |
 | B | Orchestrator PR-R1→R3 (+R4) | 1.5–3 gün |
 | C | Frontend test altyapısı + spec 1–4 + CI | 1.5–2.5 gün |
 | D | Vault dual-read → migrate → drop plaintext | 2–3.5 gün |
 | E (ops.) | Reviewer→Coder fix loop | 1 gün |
 
-Laptop-only ise A = "README'de belgele"; çekirdek B+C ≈ 3–5.5 gün.
+A2 shared-lab kullanımından önce şart; yalnız laptop kullanılıyorsa ertelenebilir (flag zaten default kapalı olacak). Çekirdek B+C ≈ 3–5.5 gün.
 
 ---
 
@@ -144,7 +168,7 @@ Laptop-only ise A = "README'de belgele"; çekirdek B+C ≈ 3–5.5 gün.
 
 | Kalem | Gerekçe |
 |-------|---------|
-| Tenant | Deployment modeline bağlı tasarım kararı; yanlış model boşa efor |
+| Tenant | ~~Deployment modeline bağlı karar~~ → **Karar verildi (2026-07-20): dual profile** — default laptop-only, shared-lab `SHARED_LAB=true` ile opt-in; MVP implementasyonu Sprint A2 |
 | Orchestrator split | Davranış değişikliği + büyük refactor aynı turda = regresyon riski; sınırlar netleşti, güvenle yapılabilir |
 | Frontend specs | Altyapı + flake maliyeti; backend 79 test önce geldi |
 | Vault credential path | Loopback bind ile lab riski düşürüldü; production checklist kalemi |

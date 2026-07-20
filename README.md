@@ -119,6 +119,20 @@ Local Vault bilgileri:
 
 Dev mode Vault production için uygun değildir.
 
+## Deployment modelleri
+
+Aynı kod tabanı iki profili destekler; davranış ortam değişkeniyle seçilir:
+
+| Profil | Ne zaman | İzolasyon | Gereken |
+|--------|----------|-----------|---------|
+| **Laptop-only** (varsayılan) | Her öğrenci/kullanıcı kendi makinesinde `docker compose up` | Gerekmez — tek kullanıcı | Hiçbir şey; bugünkü davranış |
+| **Shared-lab** (opt-in) | Tek sunucu, sınıf aynı URL'e bağlanır | Session + task ownership + `/workspace/sessions/{id}/` prefix | `SHARED_LAB=true` + `CONSOLE_API_KEY` |
+
+- **Laptop-only**: flag kapalı, ekstra kimlik/oturum sürtünmesi yok. Infra portları zaten `127.0.0.1`'e bind'lidir.
+- **Shared-lab**: `SHARED_LAB=true` ile session header'ı zorunlu olur, task'lar oturum sahibine filtrelenir, workspace oturum köküne kilitlenir ve Settings/Credentials yazma uçları kilitlenir (eğitmen `CONSOLE_API_KEY` ile yönetir). Flag açıkken `CONSOLE_API_KEY` boşsa uygulama **fail-fast** ile açılmaz — anonim paylaşımlı kurulum kazara mümkün değildir.
+
+> ⚠️ **Durum**: Shared-lab profili tasarım olarak kilitlendi, implementasyonu [docs/ROADMAP.md](docs/ROADMAP.md) Sprint A2'dedir (`SHARED_LAB` davranış şeması dahil). Bu sürümde ortak sunucuya kurulum yapacaksanız en azından `CONSOLE_API_KEY` set edin ve kullanıcıların birbirinin task/workspace'ine erişebildiğini bilin.
+
 ## Docker ile çalıştırma
 
 ```bash
@@ -213,4 +227,4 @@ cd frontend && npm run build
 
 ## Yol haritası
 
-Açık kalemler ve tam uygulama planları [docs/ROADMAP.md](docs/ROADMAP.md) dosyasındadır: tenant/sınıf izolasyonu (karar matrisi + Session+Ownership MVP), orchestrator refactor (4 PR dilimi), frontend test altyapısı + kritik spec seti, credential'ların Vault secret-ref modeline taşınması ve opsiyonel Reviewer→Coder fix loop. Kapanmış inceleme bulgularının arşivi de aynı belgede.
+Açık kalemler ve tam uygulama planları [docs/ROADMAP.md](docs/ROADMAP.md) dosyasındadır: shared-lab profili / `SHARED_LAB` flag'li Tenant MVP (karar verildi — dual deployment, bkz. yukarıdaki "Deployment modelleri"), orchestrator refactor (4 PR dilimi), frontend test altyapısı + kritik spec seti, credential'ların Vault secret-ref modeline taşınması ve opsiyonel Reviewer→Coder fix loop. Kapanmış inceleme bulgularının arşivi de aynı belgede.
