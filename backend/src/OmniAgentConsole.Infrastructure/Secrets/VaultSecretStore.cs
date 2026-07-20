@@ -25,6 +25,8 @@ public sealed class VaultSecretStore : ISecretStore
 
     public string StoreName => "HashiCorp Vault";
 
+    public bool IsWritable => true;
+
     public async Task<bool> ExistsAsync(string path, string key, CancellationToken cancellationToken)
     {
         var value = await GetSecretAsync(path, key, cancellationToken);
@@ -62,11 +64,30 @@ public sealed class VaultSecretStore : ISecretStore
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task DeleteAsync(string path, string key, CancellationToken cancellationToken)
+    {
+        // KV v2 metadata delete removes all versions of the secret.
+        var response = await httpClient.DeleteAsync(BuildKv2MetadataPath(path), cancellationToken);
+        if (response.StatusCode is HttpStatusCode.NotFound)
+        {
+            return;
+        }
+
+        response.EnsureSuccessStatusCode();
+    }
+
     private string BuildKv2Path(string path)
     {
         var mount = Uri.EscapeDataString(options.Mount.Trim('/'));
         var normalizedPath = path.Trim('/');
         return $"v1/{mount}/data/{normalizedPath}";
+    }
+
+    private string BuildKv2MetadataPath(string path)
+    {
+        var mount = Uri.EscapeDataString(options.Mount.Trim('/'));
+        var normalizedPath = path.Trim('/');
+        return $"v1/{mount}/metadata/{normalizedPath}";
     }
 
     private sealed record VaultKv2WriteRequest(

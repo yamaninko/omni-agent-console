@@ -83,7 +83,10 @@ public sealed class AgentConsoleDbContext : DbContext
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
             entity.Property(x => x.Provider).HasMaxLength(64).IsRequired();
             entity.Property(x => x.BaseUrl).HasMaxLength(500);
-            entity.Property(x => x.ApiKey).HasMaxLength(500).IsRequired();
+            entity.Property(x => x.ApiKey).HasMaxLength(500);
+            entity.Property(x => x.ApiKeySecretPath).HasMaxLength(320);
+            entity.Property(x => x.ApiKeySecretKey).HasMaxLength(64);
+            entity.Property(x => x.KeyLastFour).HasMaxLength(8);
             entity.Property(x => x.IsDefault).HasDefaultValue(false);
         });
 

@@ -73,14 +73,23 @@ internal static class AgentPromptBuilder
         AgentRun agentRun,
         AgentDefinition agentDefinition)
     {
+        // Never put raw API keys in metadata — the provider resolves them via
+        // IApiCredentialKeyResolver (Vault / secret store / legacy column).
         return new Dictionary<string, string>
         {
             ["taskRunId"] = taskRun.Id.ToString(),
             ["agentRunId"] = agentRun.Id.ToString(),
             ["agentType"] = agentDefinition.Type.ToString(),
-            ["customApiUrl"] = agentDefinition.ApiCredential != null ? (agentDefinition.ApiCredential.BaseUrl ?? "") : (agentDefinition.CustomApiUrl ?? ""),
-            ["customApiKey"] = agentDefinition.ApiCredential != null ? (agentDefinition.ApiCredential.ApiKey ?? "") : (agentDefinition.CustomApiKey ?? ""),
-            ["provider"] = agentDefinition.ApiCredential != null ? (agentDefinition.ApiCredential.Provider ?? "") : agentDefinition.Provider.ToString()
+            ["agentDefinitionId"] = agentDefinition.Id.ToString(),
+            ["apiCredentialId"] = agentDefinition.ApiCredentialId?.ToString()
+                ?? agentDefinition.ApiCredential?.Id.ToString()
+                ?? string.Empty,
+            ["customApiUrl"] = agentDefinition.ApiCredential != null
+                ? (agentDefinition.ApiCredential.BaseUrl ?? "")
+                : (agentDefinition.CustomApiUrl ?? ""),
+            ["provider"] = agentDefinition.ApiCredential != null
+                ? (agentDefinition.ApiCredential.Provider ?? "")
+                : agentDefinition.Provider.ToString()
         };
     }
 

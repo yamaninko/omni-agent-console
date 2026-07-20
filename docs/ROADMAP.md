@@ -11,7 +11,7 @@
 | 2 | API restart recovery race | ✅ Kapandı | Recovery yalnız single-process (RabbitMQ yok) |
 | 3 | Poison message infinite requeue | ✅ Kapandı | Redelivered → 2. fail = Failed+ACK |
 | 4a | Açık infra portları | ✅ Kapandı | `INFRA_BIND_ADDRESS=127.0.0.1` |
-| 4b | Credential at-rest (Vault secret-ref) | 🔲 Açık | §4 |
+| 4b | Credential at-rest (Vault secret-ref) | ✅ Kapandı (2026-07-20) | §4 — Vault path + dual-read migrate + metadata'da raw key yok |
 | 5 | Tenant / sınıf izolasyonu | ✅ Kapandı (2026-07-20) | §1 — dual deployment uygulandı: laptop default, shared-lab `SHARED_LAB=true` ile; iki-path canlı doğrulama yapıldı |
 | 6 | InputSanitizer darlığı | ✅ Kapandı (kısmi, doğası gereği) | Genişletildi; pattern-dışı secret teorik risk |
 | 7 | Orchestrator god-class | ✅ Kapandı (2026-07-20) | §2 — R1–R4 dilimleri uygulandı; 1442 → 487 satır, davranış değişmedi |
@@ -22,7 +22,7 @@
 | — | Reviewer→Coder fix loop | ⭐ Opsiyonel | §5.1 |
 | — | OpenSearch entegrasyonu | 🔮 Future | Profil arkasında, log ship yok |
 
-**Önerilen öncelik**: ~~A1/A2/B/C~~ → **D** Vault secret-ref → (opsiyonel) **E** Fix loop.
+**Önerilen öncelik**: ~~A1–D~~ → (opsiyonel) **E** Reviewer→Coder fix loop.
 
 ---
 
@@ -143,23 +143,25 @@ cd frontend && npm ci && npm test
 
 ---
 
-## 4. Credential'ların Vault secret-ref modeline taşınması
+## 4. Credential'ların Vault secret-ref modeline taşınması — ✅ KAPANDI (2026-07-20, Sprint D)
 
-**Bugün**: OmniAgent/NVIDIA key'i Vault'ta (referans implementasyon: `ISecretStore` + `VaultSecretStore`); diğer provider key'leri `api_credentials.ApiKey` **düz metin**. Loopback bind ağ riskini kesti; disk/volume/backup erişimi hâlâ açık.
+**Durum (önce)**: OmniAgent default key Vault'ta; `api_credentials.ApiKey` düz metin.
 
-**Hedef model**: `ApiCredential`'a `ApiKeySecretPath` + `ApiKeySecretKey` + `KeyLastFour` (maskeleme için; list endpoint Vault'a gitmez); `ApiKey` kolonu deprecated → drop.
+**Uygulanan model**:
+- `ApiCredential`: `ApiKeySecretPath` + `ApiKeySecretKey` + `KeyLastFour`; `ApiKey` nullable (legacy / seed placeholder)
+- `ISecretStore.IsWritable` + `DeleteAsync`; Vault writable, Environment read-only lab fallback
+- `ApiCredentialSecretPolicy` (pure) + `ApiCredentialKeyResolver` (dual-read, Persist, MigratePlaintextKeys)
+- `CredentialsController` create/update → PersistKeyAsync (Vault'ta path yazar, kolonu temizler)
+- Request metadata: `apiCredentialId` / `agentDefinitionId` — **raw key yok**; `OmniAgentModelProvider` resolve eder
+- Startup: `MigratePlaintextKeysAsync` gerçek key'leri Vault'a taşır; `YOUR_…_HERE` seed placeholder'lara dokunmaz
+- Migration `CredentialSecretRefs` (idempotent SQL)
 
-**Migrasyon** (sıfır downtime): ① schema ekle, `ApiKey` nullable ② dual-read (path dolu → Vault; boş → legacy + uyarı log) ③ one-shot job: plaintext'leri Vault'a taşı ④ dual-write kapat ⑤ ayrı migration'la kolonu düşür.
+**Kabul (doğrulandı)**:
+- ✅ Vault açık stack'te gerçek NVIDIA NIM key: `ApiKey` boş, `ApiKeySecretPath=providers/credentials/…`, `KeyLastFour` dolu
+- ✅ Seed placeholder'lar path'siz + unconfigured
+- ✅ 122 unit test (policy mask/placeholder/path)
 
-**Dokunulacak noktalar**: entity + migration, `CredentialsController` (Set/DeleteSecret), `ISecretStore.DeleteAsync`, `BuildRequestMetadata` (raw key metadata'da taşınmasın — provider'da resolve), seed placeholder'lar Vault'a yazılmaz.
-
-**Agent CustomApiKey kararı**: **A** — credential FK zorunlu, free-text custom key kaldırılır (akademi için yeterli ve en temiz).
-
-**Ek güvenlik**: production'da Vault dev-mode değil; token yalnız API+worker'a; credential update audit event'i.
-
-**Effort**: ~2–3.5 gün. **Ne zaman zorunlu**: laptop lab → isteğe bağlı; ortak sunucu → önerilir; internete açık → zorunlu (+ TLS + real Vault).
-
-**Kabul**: `api_credentials` tablosunda raw key yok (psql ile doğrula); custom provider key'li task çalışır; seed placeholder `configured=false`.
+**Bilinçli bırakılanlar**: `ApiKey` kolonu drop edilmedi (placeholder + non-Vault lab dual-read için); agent `CustomApiKey` legacy dual-read (metadata'sız, agentDefinitionId ile). Production'da real Vault (dev-mode değil) hâlâ checklist.
 
 ---
 
@@ -187,10 +189,10 @@ Kod fallback'i eklendi; README listesi temkinli uyarı taşıyor. İş: 2 modell
 | A2 ✅ | `SHARED_LAB` flag'li Tenant MVP (session + ownership + prefix + fail-fast) | tamam (2026-07-20) — 113 test + iki-path canlı doğrulama |
 | B ✅ | Orchestrator PR-R1→R4 | tamam (2026-07-20) — 1442→487 satır, 113 test, canlı smoke |
 | C ✅ | Frontend test altyapısı + MVP specs | tamam (2026-07-20) — Vitest, 27 frontend test |
-| D | Vault dual-read → migrate → drop plaintext | 2–3.5 gün |
+| D ✅ | Vault secret-ref credentials | tamam (2026-07-20) — dual-read + migrate + 122 test |
 | E (ops.) | Reviewer→Coder fix loop | 1 gün |
 
-Kalan çekirdek: **D** (Vault). E eğitim wow için opsiyonel.
+Kalan: opsiyonel **E** (eğitim fix loop).
 
 ---
 
@@ -201,7 +203,7 @@ Kalan çekirdek: **D** (Vault). E eğitim wow için opsiyonel.
 | Tenant | ~~Deployment modeline bağlı karar~~ → **Karar verildi (2026-07-20): dual profile** — default laptop-only, shared-lab `SHARED_LAB=true` ile opt-in; MVP implementasyonu Sprint A2 |
 | Orchestrator split | ~~Regresyon riski ertelemesi~~ → **Sprint B tamam (2026-07-20)**: 1442→487 satır, 4 dilim commit |
 | Frontend specs | ~~Altyapı + flake~~ → **Sprint C tamam (2026-07-20)**: pure helpers + Vitest 27 test |
-| Vault credential path | Loopback bind ile lab riski düşürüldü; production checklist kalemi |
+| Vault credential path | ~~Loopback yeterli~~ → **Sprint D tamam (2026-07-20)**: secret-ref + migrate; prod'da real Vault hâlâ checklist |
 | Full DLQ | Redelivered×2 lab için yeterli; `x-dead-letter-exchange` üstüne eklenebilir |
 | Full OAuth | Akademi scope dışı |
 

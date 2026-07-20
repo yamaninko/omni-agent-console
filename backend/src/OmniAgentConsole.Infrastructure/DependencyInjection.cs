@@ -95,6 +95,7 @@ public static class DependencyInjection
         }
 
         services.AddScoped<IProviderSecretResolver, ProviderSecretResolver>();
+        services.AddScoped<IApiCredentialKeyResolver, ApiCredentialKeyResolver>();
 
         var vaultEnabled = configuration.GetValue<bool>($"{VaultOptions.SectionName}:Enabled");
         if (vaultEnabled)

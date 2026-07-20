@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using OmniAgentConsole.Application.Secrets;
 using OmniAgentConsole.Domain.Entities;
 using OmniAgentConsole.Infrastructure.Persistence;
 
@@ -10,10 +11,14 @@ namespace OmniAgentConsole.Api.Controllers;
 public sealed class CredentialsController : ControllerBase
 {
     private readonly AgentConsoleDbContext dbContext;
+    private readonly IApiCredentialKeyResolver credentialKeys;
 
-    public CredentialsController(AgentConsoleDbContext dbContext)
+    public CredentialsController(
+        AgentConsoleDbContext dbContext,
+        IApiCredentialKeyResolver credentialKeys)
     {
         this.dbContext = dbContext;
+        this.credentialKeys = credentialKeys;
     }
 
     [HttpGet]
@@ -61,12 +66,15 @@ public sealed class CredentialsController : ControllerBase
             Name = request.Name.Trim(),
             Provider = request.Provider.Trim(),
             BaseUrl = request.BaseUrl?.Trim(),
-            ApiKey = request.ApiKey.Trim(),
             IsDefault = request.IsDefault,
             CreatedAt = DateTimeOffset.UtcNow
         };
 
+        // Id must exist before building the Vault path.
         dbContext.ApiCredentials.Add(credential);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await credentialKeys.PersistKeyAsync(credential, request.ApiKey.Trim(), cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return Ok(ToDto(credential));
@@ -113,7 +121,7 @@ public sealed class CredentialsController : ControllerBase
         // returned to the client, so the edit form cannot round-trip it.
         if (!string.IsNullOrWhiteSpace(request.ApiKey))
         {
-            credential.ApiKey = request.ApiKey.Trim();
+            await credentialKeys.PersistKeyAsync(credential, request.ApiKey.Trim(), cancellationToken);
         }
 
         credential.IsDefault = request.IsDefault;
@@ -146,6 +154,7 @@ public sealed class CredentialsController : ControllerBase
             }
         }
 
+        await credentialKeys.DeleteKeyAsync(credential, cancellationToken);
         dbContext.ApiCredentials.Remove(credential);
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -154,7 +163,17 @@ public sealed class CredentialsController : ControllerBase
 
     private static ApiCredentialDto ToDto(ApiCredential credential)
     {
-        var configured = IsRealKey(credential.ApiKey);
+        var configured = ApiCredentialSecretPolicy.IsConfigured(
+            credential.ApiKeySecretPath,
+            credential.ApiKey);
+
+        string? masked = null;
+        if (configured)
+        {
+            masked = !string.IsNullOrWhiteSpace(credential.KeyLastFour)
+                ? ApiCredentialSecretPolicy.BuildMaskedPreviewFromLastFour(credential.KeyLastFour)
+                : ApiCredentialSecretPolicy.BuildMaskedPreview(credential.ApiKey ?? string.Empty);
+        }
 
         return new ApiCredentialDto(
             credential.Id,
@@ -163,18 +182,10 @@ public sealed class CredentialsController : ControllerBase
             credential.BaseUrl,
             credential.IsDefault,
             configured,
-            configured ? MaskKey(credential.ApiKey) : null,
+            masked,
             credential.CreatedAt,
             credential.UpdatedAt);
     }
-
-    // Seed rows use "YOUR_<PROVIDER>_API_KEY_HERE" placeholders; treat them as unconfigured.
-    private static bool IsRealKey(string? apiKey) =>
-        !string.IsNullOrWhiteSpace(apiKey)
-        && !(apiKey.StartsWith("YOUR_", StringComparison.Ordinal) && apiKey.EndsWith("_HERE", StringComparison.Ordinal));
-
-    private static string MaskKey(string apiKey) =>
-        apiKey.Length <= 8 ? "****" : $"{apiKey[..4]}...{apiKey[^4..]}";
 }
 
 public sealed record ApiCredentialDto(

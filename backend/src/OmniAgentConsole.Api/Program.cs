@@ -70,6 +70,11 @@ await using (var scope = app.Services.CreateAsyncScope())
     await EnsureAgentCustomFieldsExistAsync(dbContext);
     await EnsureSkillDefinitionsExistAsync(dbContext);
 
+    // Move any remaining real plaintext provider keys into Vault (no-op when
+    // the secret store is not writable / environment-only lab mode).
+    var credentialKeys = scope.ServiceProvider.GetRequiredService<OmniAgentConsole.Application.Secrets.IApiCredentialKeyResolver>();
+    await credentialKeys.MigratePlaintextKeysAsync(CancellationToken.None);
+
     var omniAgentOptions = scope.ServiceProvider.GetRequiredService<IOptions<OmniAgentProviderOptions>>().Value;
     await ReconcileSeededModelDefaultsAsync(dbContext, omniAgentOptions);
 

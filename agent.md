@@ -153,11 +153,17 @@ This file records the execution history, features implemented, and architectural
 - **27 frontend tests**: skill merge, debounce (fake timers), run/create/cancel/rerun state machine, `apiKeyInterceptor` (session + optional console key), `ConsoleStreamService` buffer, `getStudioSessionId`.
 - SignalR live connect and Playwright E2E intentionally out of scope (academy MVP).
 
+### 25. 🔐 Credential Vault Secret-Refs (Sprint D)
+- `ApiCredential` gains `ApiKeySecretPath` / `ApiKeySecretKey` / `KeyLastFour`; `ApiKey` nullable (legacy + seed placeholders).
+- `ISecretStore.IsWritable` + `DeleteAsync`; `ApiCredentialKeyResolver` dual-reads Vault then plaintext; `PersistKeyAsync` writes Vault when available and clears the column; startup `MigratePlaintextKeysAsync` one-shots real keys (placeholders untouched).
+- Request metadata no longer carries raw keys (`apiCredentialId` + `agentDefinitionId`); `OmniAgentModelProvider` resolves via the resolver.
+- Migration `CredentialSecretRefs` (idempotent). Live: NVIDIA NIM row shows empty `ApiKey` + Vault path + `KeyLastFour`.
+
 ---
 
 ## 📈 Verification Status
 
-- **Unit Tests (backend)**: 113 tests build and pass (path guard, export splitting, workspace tools, requeue decision, skill suggestion, model fallback chain, sanitizer incl. widened patterns, shared-lab policy, token usage).
+- **Unit Tests (backend)**: 122 tests build and pass (path guard, export, tools, requeue, suggestion, fallback, sanitizer, shared-lab, credential secret policy, token usage).
 - **Unit Tests (frontend)**: 27 Vitest tests pass (`cd frontend && npm test`).
 - **Frontend Compiler**: Angular 21 builds successfully (only pre-existing SCSS budget warnings).
 - **Docker Compose**: All containers (Postgres, RabbitMQ, Redis, Vault, API, Frontend, Worker) built and running under the `omni-agent-console` project name.

@@ -3,11 +3,14 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using OmniAgentConsole.Application.Configuration;
 using OmniAgentConsole.Application.Providers;
 using OmniAgentConsole.Application.Secrets;
 using OmniAgentConsole.Domain.Enums;
+using OmniAgentConsole.Infrastructure.Persistence;
 
 namespace OmniAgentConsole.Infrastructure.Providers.OmniAgent;
 
@@ -16,15 +19,21 @@ public sealed class OmniAgentModelProvider : IModelProvider
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly HttpClient httpClient;
     private readonly IProviderSecretResolver secretResolver;
+    private readonly IApiCredentialKeyResolver credentialKeys;
+    private readonly IServiceScopeFactory scopeFactory;
     private readonly OmniAgentProviderOptions options;
 
     public OmniAgentModelProvider(
         HttpClient httpClient,
         IProviderSecretResolver secretResolver,
+        IApiCredentialKeyResolver credentialKeys,
+        IServiceScopeFactory scopeFactory,
         IOptions<OmniAgentProviderOptions> options)
     {
         this.httpClient = httpClient;
         this.secretResolver = secretResolver;
+        this.credentialKeys = credentialKeys;
+        this.scopeFactory = scopeFactory;
         this.options = options.Value;
         this.httpClient.BaseAddress = new Uri(this.options.BaseUrl);
         this.httpClient.Timeout = TimeSpan.FromSeconds(this.options.TimeoutSeconds);
@@ -48,9 +57,36 @@ public sealed class OmniAgentModelProvider : IModelProvider
             {
                 baseUrl = customUrl;
             }
-            if (request.Metadata.TryGetValue("customApiKey", out var customKey) && !string.IsNullOrWhiteSpace(customKey))
+
+            // Prefer credential secret-ref resolution (Vault / dual-read). Never
+            // require raw keys in metadata. Fallback: agent-level CustomApiKey
+            // (legacy) loaded by agentDefinitionId, then obsolete customApiKey field.
+            string? resolved = null;
+            if (request.Metadata.TryGetValue("apiCredentialId", out var credentialIdText)
+                && Guid.TryParse(credentialIdText, out var credentialId)
+                && credentialId != Guid.Empty)
             {
-                apiKey = customKey;
+                resolved = await credentialKeys.ResolveByIdAsync(credentialId, cancellationToken);
+            }
+
+            if (string.IsNullOrWhiteSpace(resolved)
+                && request.Metadata.TryGetValue("agentDefinitionId", out var agentIdText)
+                && Guid.TryParse(agentIdText, out var agentId)
+                && agentId != Guid.Empty)
+            {
+                resolved = await ResolveAgentLegacyCustomKeyAsync(agentId, cancellationToken);
+            }
+
+            if (string.IsNullOrWhiteSpace(resolved)
+                && request.Metadata.TryGetValue("customApiKey", out var customKey)
+                && !string.IsNullOrWhiteSpace(customKey))
+            {
+                resolved = customKey;
+            }
+
+            if (!string.IsNullOrWhiteSpace(resolved))
+            {
+                apiKey = resolved;
             }
         }
 
@@ -109,6 +145,18 @@ public sealed class OmniAgentModelProvider : IModelProvider
                 "OMNIAGENT response could not be parsed.",
                 exception);
         }
+    }
+
+    private async Task<string?> ResolveAgentLegacyCustomKeyAsync(Guid agentDefinitionId, CancellationToken cancellationToken)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AgentConsoleDbContext>();
+        var customKey = await db.AgentDefinitions
+            .AsNoTracking()
+            .Where(a => a.Id == agentDefinitionId)
+            .Select(a => a.CustomApiKey)
+            .FirstOrDefaultAsync(cancellationToken);
+        return ApiCredentialSecretPolicy.IsRealKey(customKey) ? customKey : null;
     }
 
     private Uri BuildChatCompletionsUri(string baseUrl)
