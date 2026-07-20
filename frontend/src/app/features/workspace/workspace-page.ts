@@ -247,9 +247,26 @@ export class WorkspacePage implements OnInit, OnDestroy {
     }
   }
 
+  /** Common Swagger UI paths produced by the Swagger / OpenAPI skill. */
+  protected openSwagger(): void {
+    const base = this.projectInfo()?.baseUrl?.replace(/\/$/, '');
+    if (!base) {
+      return;
+    }
+    // FastAPI default /docs; also try /swagger for .NET/Java conventions.
+    window.open(`${base}/docs`, '_blank', 'noopener');
+  }
+
   protected applyRoute(route: ProjectRouteHint): void {
     this.reqMethod.set(route.method);
     this.reqPath.set(route.path);
+    if (route.exampleBody) {
+      try {
+        this.reqBody.set(JSON.stringify(JSON.parse(route.exampleBody), null, 2));
+      } catch {
+        this.reqBody.set(route.exampleBody);
+      }
+    }
   }
 
   protected setMethod(event: Event): void {

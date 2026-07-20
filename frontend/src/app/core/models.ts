@@ -257,6 +257,7 @@ export interface ProjectRouteHint {
   method: string;
   path: string;
   label: string;
+  exampleBody?: string | null;
 }
 
 export interface ProjectDetectResponse {

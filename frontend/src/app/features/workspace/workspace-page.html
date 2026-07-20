@@ -108,6 +108,12 @@
                   Open in browser
                 </button>
               }
+              @if (project.projectKind === 'api' || project.projectKind === 'hybrid') {
+                <button type="button" class="run-btn secondary" (click)="openSwagger()">
+                  <lucide-icon [img]="icons.external" size="14"></lucide-icon>
+                  Open Swagger
+                </button>
+              }
             </div>
           } @else {
             <p class="run-hint">{{ project.message || 'Select a project folder that contains Dockerfile or docker-compose.yml.' }}</p>

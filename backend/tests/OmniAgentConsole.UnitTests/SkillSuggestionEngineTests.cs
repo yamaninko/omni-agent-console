@@ -22,6 +22,7 @@ public sealed class SkillSuggestionEngineTests
         Make("Redis Caching", "Data", "redis,cache,caching,onbellek"),
         Make("Health Checks & Observability", "Quality", "health check,healthcheck,health"),
         Make("Relational Database + ORM", "Data", "orm,sqlalchemy,prisma,typeorm,ef core"),
+        Make("Swagger / OpenAPI", "Quality", "swagger,openapi,swagger ui,api docs,api dokumantasyon"),
     ];
 
     private static SkillDefinition Make(string name, string category, string keywords) =>
@@ -94,6 +95,16 @@ public sealed class SkillSuggestionEngineTests
             "Node.js ile bir API yaz, veritabanina kayit atsin ama detayini sonra secelim", Skills);
 
         Assert.Contains(result.Questions, q => q.Contains("veritaban"));
+    }
+
+    [Fact]
+    public void SwaggerPrompt_SuggestsOpenApiSkill()
+    {
+        var names = SuggestNames(
+            "FastAPI ile not API yaz, Swagger UI ve openapi.json olsun, ornek request body'ler de gelsin.");
+
+        Assert.Contains("Python FastAPI Service", names);
+        Assert.Contains("Swagger / OpenAPI", names);
     }
 
     [Fact]

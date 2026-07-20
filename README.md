@@ -41,7 +41,8 @@ Bir prompt girersiniz; Planner → Research → Coder → Reviewer → (opsiyone
 - Coder dosyaları **doğrudan workspace'e yazar** (tool loop, max 24 iterasyon / 50 dosya / dosya başına 1M karakter); tüm path'ler WorkspacePathGuard'dan geçer
 - Tool desteklemeyen modellerde fallback: markdown fence'li bloklar ve `// filepath:` işaretli akış eski yöntemle export edilir; dosya adı tespit edilemeyen bloklar `output/` alt klasörüne düşer
 - Workspace ekranı: üretilen dosyalar gezilir, okunur, silinir; klasör seçince **Project run** paneli — kopyalanabilir `docker compose up` komutu, **Start/Stop** (API → Docker socket), port ataması (`18000–18999`), `/health` linki
-- **Workspace test**: proje tipi `api` / `web` / `hybrid` otomatik; API için mini Postman (method/path/headers/body + SSRF-safe proxy), web için **Open in browser**; route chip'leri (`/health` + kaynak taraması)
+- **Workspace test**: proje tipi `api` / `web` / `hybrid` otomatik; API için mini Postman (method/path/headers/body + SSRF-safe proxy), web için **Open in browser**; route chip'leri (`/health` + kaynak taraması veya `openapi.json`)
+- **Swagger / OpenAPI skill**: Studio skill kütüphanesinde; seçilince Coder Swagger UI (`/docs`) + `/openapi.json` + örnek request body üretir — Workspace tester chip'leri ve **Open Swagger** ile denenebilir
 - Task history, task detail, dashboard; usage tracking (model, token, latency, hata)
 - Agents ekranı: agent tanımları (model, system prompt, provider, credential bağlama, max token) UI'dan yönetilir
 

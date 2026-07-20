@@ -1,6 +1,10 @@
 namespace OmniAgentConsole.Application.Workspace;
 
-public sealed record ProjectRouteHint(string Method, string Path, string Label);
+public sealed record ProjectRouteHint(
+    string Method,
+    string Path,
+    string Label,
+    string? ExampleBody = null);
 
 public sealed record ProjectDetectResponse(
     string ProjectRoot,

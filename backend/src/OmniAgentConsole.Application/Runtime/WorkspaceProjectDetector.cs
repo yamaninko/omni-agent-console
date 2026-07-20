@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using OmniAgentConsole.Application.Workspace;
 
@@ -204,6 +205,30 @@ public static partial class WorkspaceProjectDetector
             return routes;
         }
 
+        // Prefer OpenAPI/Swagger on disk (from Swagger skill) — includes example bodies.
+        var fromOpenApi = TryLoadRoutesFromOpenApi(projectFullRoot);
+        if (fromOpenApi.Count > 0)
+        {
+            foreach (var route in fromOpenApi)
+            {
+                if (routes.Count >= 16)
+                {
+                    break;
+                }
+
+                if (routes.Any(r =>
+                        r.Method.Equals(route.Method, StringComparison.OrdinalIgnoreCase)
+                        && r.Path.Equals(route.Path, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                routes.Add(route);
+            }
+
+            return routes;
+        }
+
         // Lightweight content scan for common REST paths (best-effort).
         var found = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "/health" };
         try
@@ -253,10 +278,140 @@ public static partial class WorkspaceProjectDetector
         if (routes.Count == 1)
         {
             routes.Add(new ProjectRouteHint("GET", "/notes", "List notes"));
-            routes.Add(new ProjectRouteHint("POST", "/notes", "Create note"));
+            routes.Add(new ProjectRouteHint(
+                "POST",
+                "/notes",
+                "Create note",
+                """{"title":"demo","body":"hello from workspace tester"}"""));
         }
 
         return routes;
+    }
+
+    /// <summary>
+    /// Loads operations from openapi.json / swagger.json written into the project
+    /// (Swagger / OpenAPI skill). Best-effort; invalid files are ignored.
+    /// </summary>
+    public static IReadOnlyList<ProjectRouteHint> TryLoadRoutesFromOpenApi(string projectFullRoot)
+    {
+        var candidates = new[]
+        {
+            Path.Combine(projectFullRoot, "openapi.json"),
+            Path.Combine(projectFullRoot, "swagger.json"),
+            Path.Combine(projectFullRoot, "docs", "openapi.json"),
+            Path.Combine(projectFullRoot, "swagger", "v1", "swagger.json")
+        };
+
+        foreach (var path in candidates)
+        {
+            if (!File.Exists(path))
+            {
+                continue;
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(File.ReadAllText(path));
+                if (!doc.RootElement.TryGetProperty("paths", out var paths)
+                    || paths.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var routes = new List<ProjectRouteHint>();
+                foreach (var pathProp in paths.EnumerateObject())
+                {
+                    var routePath = pathProp.Name;
+                    if (!routePath.StartsWith('/'))
+                    {
+                        routePath = "/" + routePath;
+                    }
+
+                    foreach (var op in pathProp.Value.EnumerateObject())
+                    {
+                        var method = op.Name.ToUpperInvariant();
+                        if (method is not ("GET" or "POST" or "PUT" or "PATCH" or "DELETE"))
+                        {
+                            continue;
+                        }
+
+                        var summary = op.Value.TryGetProperty("summary", out var sum)
+                            && sum.ValueKind == JsonValueKind.String
+                                ? sum.GetString()
+                                : null;
+                        var label = string.IsNullOrWhiteSpace(summary)
+                            ? $"{method} {routePath}"
+                            : summary!;
+                        var example = ExtractOpenApiExampleBody(op.Value);
+                        routes.Add(new ProjectRouteHint(method, routePath, label, example));
+                        if (routes.Count >= 20)
+                        {
+                            return routes;
+                        }
+                    }
+                }
+
+                if (routes.Count > 0)
+                {
+                    return routes;
+                }
+            }
+            catch
+            {
+                // try next candidate
+            }
+        }
+
+        return [];
+    }
+
+    private static string? ExtractOpenApiExampleBody(JsonElement operation)
+    {
+        try
+        {
+            if (!operation.TryGetProperty("requestBody", out var body)
+                || !body.TryGetProperty("content", out var content))
+            {
+                return null;
+            }
+
+            foreach (var media in content.EnumerateObject())
+            {
+                if (!media.Name.Contains("json", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (media.Value.TryGetProperty("example", out var example))
+                {
+                    return example.GetRawText();
+                }
+
+                if (media.Value.TryGetProperty("examples", out var examples)
+                    && examples.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var ex in examples.EnumerateObject())
+                    {
+                        if (ex.Value.TryGetProperty("value", out var value))
+                        {
+                            return value.GetRawText();
+                        }
+                    }
+                }
+
+                if (media.Value.TryGetProperty("schema", out var schema)
+                    && schema.TryGetProperty("example", out var schemaExample))
+                {
+                    return schemaExample.GetRawText();
+                }
+            }
+        }
+        catch
+        {
+            return null;
+        }
+
+        return null;
     }
 
     public static bool IsAllowedProxyTarget(Uri uri, int portRangeStart, int portRangeSize)

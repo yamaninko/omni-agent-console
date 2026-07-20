@@ -456,9 +456,11 @@ static async Task EnsureSkillDefinitionsExistAsync(AgentConsoleDbContext dbConte
                     changed = true;
                 }
 
-                // Packaging / run-contract skills: keep instructions in sync with seed
-                // so Workspace one-click run requirements propagate on upgrade.
-                if (string.Equals(seed.Name, "Dockerized Service", StringComparison.OrdinalIgnoreCase)
+                // Contract skills: keep instructions in sync with seed so Workspace
+                // run/test requirements propagate on upgrade without wiping user edits
+                // for other skills.
+                if ((string.Equals(seed.Name, "Dockerized Service", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(seed.Name, "Swagger / OpenAPI", StringComparison.OrdinalIgnoreCase))
                     && current.Instructions != seed.Instructions)
                 {
                     current.Instructions = seed.Instructions;
@@ -581,6 +583,11 @@ static List<SkillDefinition> BuildSeedSkills()
             "Health endpoints, structured logging, and container probes.",
             "health check,healthcheck,health,liveness,readiness,observability,monitoring",
             "Expose GET /health (liveness) and, when the service has dependencies, GET /ready (readiness verifying database/cache/broker connectivity). Return machine-readable JSON status. Add structured logging (request logging + errors with context) and reference the health endpoint from the Dockerfile HEALTHCHECK and compose healthcheck blocks."),
+
+        Skill("Swagger / OpenAPI", "Quality",
+            "Interactive API docs (Swagger UI) and OpenAPI 3 schema for try-it-out samples.",
+            "swagger,openapi,swagger ui,openapi.json,redoc,api docs,api dokumantasyon,swaggerui,swashbuckle,springdoc",
+            "Expose interactive API documentation and a machine-readable OpenAPI 3 document so the OmniAgent Workspace API tester can load real routes and example bodies.\n\nMUST include:\n1) Swagger UI (or equivalent) at a well-known path: prefer GET /docs or GET /swagger (and /redoc optional).\n2) OpenAPI JSON at GET /openapi.json (or /swagger/v1/swagger.json) — the document MUST list every public endpoint with method, path, summary, requestBody examples for POST/PUT/PATCH, and response schemas.\n3) Stack-native library: FastAPI (built-in openapi_url + docs_url), Node (swagger-ui-express + openapi.yaml/json), .NET (Swashbuckle), Java (springdoc-openapi), Go (swaggo/swag or similar).\n4) At least one realistic example request body per write endpoint (e.g. create note) inside the OpenAPI examples.\n5) README section: how to open Swagger UI (http://localhost:$HOST_PORT/docs) and that /openapi.json is available for tools.\n\nDo not hardcode secrets in examples. Keep docs enabled in the default docker-compose run (dev/demo)."),
 
         Skill("Unit Tests", "Quality",
             "Test coverage for core logic with the stack standard framework.",

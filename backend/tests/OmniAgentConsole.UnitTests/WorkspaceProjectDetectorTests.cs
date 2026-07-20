@@ -102,4 +102,45 @@ public sealed class WorkspaceProjectDetectorTests
             expected,
             WorkspaceProjectDetector.IsAllowedProxyTarget(new Uri(url), 18000, 1000));
     }
+
+    [Fact]
+    public void TryLoadRoutesFromOpenApi_ReadsPathsAndExamples()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "omni-oa-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        File.WriteAllText(
+            Path.Combine(root, "openapi.json"),
+            """
+            {
+              "openapi": "3.0.0",
+              "paths": {
+                "/notes": {
+                  "get": { "summary": "List notes" },
+                  "post": {
+                    "summary": "Create note",
+                    "requestBody": {
+                      "content": {
+                        "application/json": {
+                          "example": { "title": "t", "body": "b" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        try
+        {
+            var routes = WorkspaceProjectDetector.TryLoadRoutesFromOpenApi(root);
+            Assert.Contains(routes, r => r.Method == "GET" && r.Path == "/notes");
+            var post = Assert.Single(routes, r => r.Method == "POST" && r.Path == "/notes");
+            Assert.Contains("title", post.ExampleBody);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
 }
