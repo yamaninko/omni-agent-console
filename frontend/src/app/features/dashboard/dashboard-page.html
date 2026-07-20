@@ -1,0 +1,117 @@
+<section class="page">
+  <header class="page-header">
+    <div>
+      <p>Dashboard</p>
+      <h1>Usage overview</h1>
+    </div>
+    <button type="button" (click)="loadOverview()" [disabled]="loading()">Refresh</button>
+  </header>
+
+  @if (overview(); as data) {
+    <div class="metrics">
+      <div>
+        <span>Total tasks</span>
+        <strong>{{ data.totalTasks }}</strong>
+      </div>
+      <div>
+        <span>Running</span>
+        <strong>{{ data.runningTasks }}</strong>
+      </div>
+      <div>
+        <span>Success rate</span>
+        <strong>{{ data.successRate }}%</strong>
+      </div>
+      <div>
+        <span>Total requests</span>
+        <strong>{{ data.totalRequests }}</strong>
+      </div>
+      <div>
+        <span>Total tokens</span>
+        <strong>{{ data.totalTokens }}</strong>
+      </div>
+      <div>
+        <span>Input / output tokens</span>
+        <strong>{{ data.totalInputTokens }} / {{ data.totalOutputTokens }}</strong>
+      </div>
+      <div>
+        <span>Average latency</span>
+        <strong>{{ formatDuration(data.averageLatencyMs) }}</strong>
+      </div>
+      <div>
+        <span>Errors</span>
+        <strong>{{ data.errorCount }}</strong>
+      </div>
+    </div>
+
+    <section class="grid">
+      <div class="panel">
+        <div class="panel-title">
+          <span>Agent usage</span>
+          <code>{{ data.agentBreakdown.length }} agents</code>
+        </div>
+        <div class="breakdown">
+          <div class="breakdown-head">
+            <span>Agent</span>
+            <span>Requests</span>
+            <span>Tokens</span>
+            <span>Avg latency</span>
+          </div>
+          @for (agent of data.agentBreakdown; track agent.agentName) {
+            <div class="breakdown-row">
+              <span>{{ agent.agentName }}</span>
+              <strong>{{ agent.requests }}</strong>
+              <span>{{ agent.totalTokens }}</span>
+              <span>{{ formatDuration(agent.averageLatencyMs) }}</span>
+            </div>
+          } @empty {
+            <div class="empty">No agent usage recorded.</div>
+          }
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <span>Model usage</span>
+          <code>{{ data.modelBreakdown.length }} models</code>
+        </div>
+        <div class="breakdown">
+          <div class="breakdown-head">
+            <span>Model</span>
+            <span>Requests</span>
+            <span>Tokens</span>
+            <span>Errors</span>
+          </div>
+          @for (model of data.modelBreakdown; track model.provider + model.model) {
+            <div class="breakdown-row">
+              <span>{{ model.provider }} · {{ model.model }}</span>
+              <strong>{{ model.requests }}</strong>
+              <span>{{ model.totalTokens }}</span>
+              <span>{{ model.errorCount }}</span>
+            </div>
+          } @empty {
+            <div class="empty">No model usage recorded.</div>
+          }
+        </div>
+      </div>
+    </section>
+
+    <section class="panel recent">
+      <div class="panel-title">
+        <span>Recent tasks</span>
+        <code>{{ data.completedTasks }} completed · {{ data.failedTasks }} failed</code>
+      </div>
+      @for (task of data.recentTasks; track task.id) {
+        <a class="task-row" [routerLink]="['/tasks', task.id]">
+          <span>{{ task.title }}</span>
+          <code [class]="task.status.toLowerCase()">{{ task.status }}</code>
+          <span>{{ task.createdAt | date:'HH:mm:ss · MMM d' }}</span>
+          <strong>{{ task.totalTokens }}</strong>
+        </a>
+      } @empty {
+        <div class="empty">No tasks yet.</div>
+      }
+    </section>
+  } @else {
+    <div class="panel empty">{{ loading() ? 'Loading dashboard...' : 'Dashboard data could not be loaded.' }}</div>
+  }
+</section>

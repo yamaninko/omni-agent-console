@@ -1,0 +1,399 @@
+<div class="page">
+  <p class="section-tag">Documentation & Reference</p>
+  <h1>Console Guides & Architecture</h1>
+
+  <div class="tabs">
+    <button (click)="activeTab.set('user')" [class.active]="activeTab() === 'user'">
+      <lucide-icon [img]="icons.book" size="16" style="margin-right: 6px;"></lucide-icon>
+      User Guide
+    </button>
+    <button (click)="activeTab.set('tech')" [class.active]="activeTab() === 'tech'">
+      <lucide-icon [img]="icons.cpu" size="16" style="margin-right: 6px;"></lucide-icon>
+      Architecture & Tech
+    </button>
+  </div>
+
+  @if (activeTab() === 'user') {
+    <div class="panel">
+      <!-- Section 1: Introduction -->
+      <section class="doc-section">
+        <h2>
+          <lucide-icon [img]="icons.workflow" size="20"></lucide-icon>
+          Multi-Agent Studio Workflow
+        </h2>
+        <p>
+          The OmniAgent Console is a pipeline studio powered by OpenAI-compatible LLM APIs (NVIDIA NIM by default). It orchestrates complex developer tasks by passing them sequentially through a specialized chain of AI agents:
+        </p>
+
+        <div class="card-grid">
+          <div class="step-card">
+            <div class="step-header">
+              <span class="badge">1</span>
+              <span>Planner Agent</span>
+            </div>
+            <p>Analyzes your prompt and the selected skills, establishes concrete goals, and outputs a structured execution plan.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-header">
+              <span class="badge">2</span>
+              <span>Research Agent</span>
+            </div>
+            <p>Extracts facts, constraints, and technical context from the supplied prompt to lay the foundation for the plan.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-header">
+              <span class="badge">3</span>
+              <span>Coder Agent</span>
+            </div>
+            <p>Runs as an <strong>agentic tool loop</strong> (like Claude Code): the model calls <code>write_file</code> / <code>read_file</code> / <code>list_files</code> to build the project file by file directly in the workspace, following the selected skill conventions. Every tool call streams live to the console.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-header">
+              <span class="badge">4</span>
+              <span>Reviewer Agent</span>
+            </div>
+            <p>Reviews the generated output for correctness, security, and skill-convention violations, producing prioritized findings.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-header">
+              <span class="badge">5</span>
+              <span>OpsMonitor Agent</span>
+            </div>
+            <p>Summarizes execution health, usage signals, latency considerations, and operational risks of the run.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 2: How to Use -->
+      <section class="doc-section">
+        <h2>
+          <lucide-icon [img]="icons.terminal" size="20"></lucide-icon>
+          Using the Studio
+        </h2>
+        <h3>1. Workspace Path & Prompt</h3>
+        <p>
+          On the <strong>Studio</strong> page, first pick a workspace subfolder (e.g. <code>/workspace/my-api</code>) — generated files land there, mapped to the repository's <code>workspace/</code> folder on your host. Then write your prompt describing what to build.
+        </p>
+
+        <h3>2. Skills — Automatic & Manual Selection</h3>
+        <p>
+          As you type, the console matches your prompt against the Skill Library and auto-selects fitting skills — they appear as <strong>✨ dashed chips</strong> with a "N auto" counter. Click any chip to read what it does; click an auto-selected chip to dismiss it, or click unselected chips to add them manually (manual picks are remembered across sessions). If the prompt leaves the stack or datastore ambiguous, the console shows follow-up questions (e.g. <em>"Which language/framework?"</em>) — refine your prompt or pick the skills yourself.
+        </p>
+
+        <h3>3. Running & Watching</h3>
+        <p>
+          Click <strong>Run Task</strong>. The live console streams every agent step via WebSockets: skill injection ("Applied N skill(s)"), each Coder iteration, and every filesystem tool call as it happens — e.g. <code>🔧 Wrote app/main.py (886 chars)</code> — ending with a "Coder wrote N file(s) via tools" summary. Browse results on the <strong>Workspace</strong> page; metrics live in <strong>History</strong>, <strong>Task Detail</strong>, and <strong>Dashboard</strong>.
+        </p>
+
+        <h3>4. Controlling Executions</h3>
+        <ul>
+          <li>
+            <strong>Cancellation:</strong> Cancel halts the active run; the task is finalized as <em>Cancelled</em>.
+          </li>
+          <li>
+            <strong>Rerunning:</strong> Failed/cancelled tasks show a <strong>Rerun</strong> button that clears prior logs and restarts fresh.
+          </li>
+          <li>
+            <strong>Crash safety:</strong> If the worker restarts mid-run (deployment, crash), the queued message is automatically redelivered and the task re-executes — no run is silently lost.
+          </li>
+        </ul>
+      </section>
+
+      <!-- Section 3: Skill Library -->
+      <section class="doc-section">
+        <h2>
+          <lucide-icon [img]="icons.sparkles" size="20"></lucide-icon>
+          Skill Library
+        </h2>
+        <p>
+          Skills are reusable convention packs injected into <em>every</em> agent's system prompt as mandatory rules for that task. They turn vague prompts into properly structured projects (real package manifests, layered folders, Dockerfiles, READMEs). 20 skills ship out of the box:
+        </p>
+        <ul>
+          <li><strong>Backend:</strong> Node.js + Express + TypeScript, Go REST API, .NET Web API, Java Spring Boot, Python FastAPI</li>
+          <li><strong>Frontend:</strong> Angular, React (Vite), Flutter</li>
+          <li><strong>Data:</strong> PostgreSQL + Migrations, Relational DB + ORM, MongoDB, Redis Caching, RabbitMQ Messaging</li>
+          <li><strong>Security:</strong> JWT Authentication (bcrypt, token middleware, env secrets)</li>
+          <li><strong>Quality:</strong> Input Validation (Zod/Joi), Unit Tests, REST API Conventions, Health Checks & Observability, Project README & Docs</li>
+          <li><strong>Packaging:</strong> Dockerized Service (multi-stage build, compose, healthcheck)</li>
+        </ul>
+        <p>
+          Manage them under <strong>Settings → Skill Library</strong>: add your own skills, edit instructions, and tune the comma-separated <code>keywords</code> field — keywords drive the prompt-based auto-suggestion, so custom skills become auto-suggestable too.
+        </p>
+      </section>
+
+      <!-- Section 4: Recommended Models -->
+      <section class="doc-section">
+        <h2>
+          <lucide-icon [img]="icons.layers" size="20"></lucide-icon>
+          Recommended Models (NVIDIA NIM)
+        </h2>
+        <p>
+          Use <strong>Settings → Model Registry → Sync from NVIDIA</strong> to import the full API catalog (~119 models), then assign models per agent on the <strong>Agents</strong> page. Based on live latency/output testing against the free NIM endpoints (2026-07):
+        </p>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+            <thead>
+              <tr style="border-bottom: 1px solid #1b2a38; color: #8fa3b7;">
+                <th style="padding: 8px;">Agent</th>
+                <th style="padding: 8px;">Recommended model</th>
+                <th style="padding: 8px;">Why</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom: 1px solid #14212d;">
+                <td style="padding: 8px; color: #ffffff; font-weight: 600;">Coder</td>
+                <td style="padding: 8px;"><code>deepseek-ai/deepseek-v4-flash</code></td>
+                <td style="padding: 8px; color: #8fa3b7;">Reliable function calling — verified live in the agentic tool loop, writing a multi-file project through write_file calls (2026-07-20).</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #14212d;">
+                <td style="padding: 8px; color: #ffffff; font-weight: 600;">Planner</td>
+                <td style="padding: 8px;"><code>openai/gpt-oss-120b</code></td>
+                <td style="padding: 8px; color: #8fa3b7;">Strong planning/reasoning at ~2.4s; keeps its reasoning in a separate field, so the content stays clean.</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #14212d;">
+                <td style="padding: 8px; color: #ffffff; font-weight: 600;">Reviewer</td>
+                <td style="padding: 8px;"><code>openai/gpt-oss-120b</code></td>
+                <td style="padding: 8px; color: #8fa3b7;">Deliberately a <em>different model family</em> than the Coder — it doesn't share the same blind spots, adding real cross-check value.</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #14212d;">
+                <td style="padding: 8px; color: #ffffff; font-weight: 600;">Research</td>
+                <td style="padding: 8px;"><code>nvidia/nemotron-3-super-120b-a12b</code></td>
+                <td style="padding: 8px; color: #8fa3b7;">NVIDIA's current agentic flagship, ~2.6s; well suited to context/constraint extraction.</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; color: #ffffff; font-weight: 600;">Ops Monitor</td>
+                <td style="padding: 8px;"><code>meta/llama-3.1-8b-instruct</code></td>
+                <td style="padding: 8px; color: #8fa3b7;">Short operational summaries don't need a big model; 8B is fast and sufficient. Alt: <code>stepfun-ai/step-3.7-flash</code>.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <h3 style="margin-top: 16px;">Avoid these</h3>
+        <ul>
+          <li><code>qwen/qwen3.5-122b-a10b</code> — removed from the catalog; the endpoint returns <strong>410 Gone</strong> (detected 2026-07-20; it was the Coder primary in earlier versions).</li>
+          <li><code>moonshotai/kimi-k2.6</code>, <code>nvidia/nemotron-nano-3-30b-a3b</code> — listed in the catalog but the endpoint returns <strong>404</strong> (not deployed).</li>
+          <li><code>nvidia/llama-3.3-nemotron-super-49b-v1.5</code>, <code>nvidia/nvidia-nemotron-nano-9b-v2</code> — write their answer into the <code>reasoning</code> field and leave <code>content</code> <strong>empty</strong>; the orchestrator reads only <code>content</code>, so these produce blank output.</li>
+          <li><code>deepseek-ai/deepseek-v4-pro</code>, <code>z-ai/glm-5.2</code>, <code>mistralai/mistral-medium-3.5-128b</code> — free-tier queue latency of 60–90s+ keeps hitting the 120s agent timeout.</li>
+        </ul>
+        <h3 style="margin-top: 16px;">Fallback chains</h3>
+        <p>
+          Each agent supports up to two <strong>fallback models</strong> (Agents page). When the primary model fails — timeout, rate limit, 404, provider error — the orchestrator automatically retries the same call on the next model in the chain and logs a <em>"falling back"</em> console event. Only auth failures (401) stop the chain, since the same key applies to every model. Free-tier latency varies with load, so pairing each primary with fallbacks from different families keeps runs resilient.
+        </p>
+        <p>Currently applied chains (primary → fallback 1 → fallback 2):</p>
+        <ul>
+          <li><strong>Planner:</strong> <code>gpt-oss-120b</code> → <code>nemotron-3-super-120b-a12b</code> → <code>llama-3.1-8b-instruct</code></li>
+          <li><strong>Research:</strong> <code>nemotron-3-super-120b-a12b</code> → <code>step-3.7-flash</code> → <code>llama-3.1-8b-instruct</code></li>
+          <li><strong>Coder:</strong> <code>deepseek-v4-flash</code> → <code>gpt-oss-120b</code> → <code>nemotron-3-super-120b-a12b</code> <span style="color: #8fa3b7;">(timeout 300s)</span></li>
+          <li><strong>Reviewer:</strong> <code>gpt-oss-120b</code> → <code>nemotron-3-super-120b-a12b</code> → <code>deepseek-v4-flash</code> <span style="color: #8fa3b7;">(timeout 180s)</span></li>
+          <li><strong>Ops Monitor:</strong> <code>llama-3.1-8b-instruct</code> → <code>step-3.7-flash</code> → <code>minimax-m3</code></li>
+        </ul>
+      </section>
+
+      <!-- Section 5: Configuration -->
+      <section class="doc-section">
+        <h2>
+          <lucide-icon [img]="icons.server" size="20"></lucide-icon>
+          Settings & Keys Configuration
+        </h2>
+        <p>
+          Navigate to the <strong>Settings</strong> page to configure system-wide parameters:
+        </p>
+        <ul>
+          <li>
+            <strong>OmniAgent API Key:</strong> Your NVIDIA NIM key, stored in Vault (with an <code>OMNIAGENT_API_KEY</code> environment fallback).
+          </li>
+          <li>
+            <strong>API Credentials Manager:</strong> Additional provider keys (OpenAI, Anthropic, Gemini, Ollama, Custom). Keys are write-only — the API returns only a masked preview (<code>sk-t...cdef</code>); leaving the key blank while editing keeps the stored one. Mark one credential as <em>Default</em> to serve agents without an explicit link.
+          </li>
+          <li>
+            <strong>Console API Key:</strong> A browser key required for all HTTP/WebSocket requests when the server sets <code>CONSOLE_API_KEY</code>; comparison is timing-safe. Empty means anonymous local-dev access.
+          </li>
+          <li>
+            <strong>Model Registry:</strong> Register models manually or bulk-import the provider catalog with <em>Sync from NVIDIA</em>.
+          </li>
+          <li>
+            <strong>Skill Library:</strong> Create/edit/disable skills and their auto-suggestion keywords.
+          </li>
+          <li>
+            <strong>Agents page:</strong> Per-agent model, two fallback models, system prompt, temperature, timeout, retry, credential link, and max tokens (up to 200,000).
+          </li>
+        </ul>
+      </section>
+    </div>
+  }
+
+  @if (activeTab() === 'tech') {
+    <div class="panel">
+      <!-- Section 1: System Architecture Diagram -->
+      <section class="doc-section">
+        <h2>
+          <lucide-icon [img]="icons.server" size="20"></lucide-icon>
+          System Architecture & Topology
+        </h2>
+        <p>
+          The OmniAgent Console utilizes a decoupled, worker-oriented on-premise architecture designed for high throughput and security:
+        </p>
+
+        <!-- Dynamic SVG Architecture Drawing -->
+        <div class="svg-container">
+          <svg width="800" height="420" viewBox="0 0 800 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Background -->
+            <rect width="800" height="420" rx="12" fill="#060b11"/>
+            <rect x="0.5" y="0.5" width="799" height="419" rx="11.5" stroke="#1b2a38"/>
+
+            <!-- Definitions of Gradients -->
+            <defs>
+              <linearGradient id="brand-grad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#76b900"/>
+                <stop offset="100%" stop-color="#558800"/>
+              </linearGradient>
+              <linearGradient id="box-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#0f1922"/>
+                <stop offset="100%" stop-color="#091016"/>
+              </linearGradient>
+            </defs>
+
+            <!-- Connections / Arrows (Static Paths) -->
+            <!-- Angular -> Web API -->
+            <path d="M190 210 H 260" stroke="#76b900" stroke-width="2" stroke-dasharray="4 4"/>
+            <polygon points="260,210 252,205 252,215" fill="#76b900"/>
+
+            <!-- Web API -> DB -->
+            <path d="M335 150 V 90 H 360" stroke="#1b2a38" stroke-width="2"/>
+            <polygon points="360,90 352,85 352,95" fill="#1b2a38"/>
+
+            <!-- Web API -> Vault -->
+            <path d="M300 240 V 330 H 360" stroke="#1b2a38" stroke-width="2"/>
+            <polygon points="360,330 352,325 352,335" fill="#1b2a38"/>
+
+            <!-- Web API -> RabbitMQ -->
+            <path d="M370 210 H 420" stroke="#76b900" stroke-width="2"/>
+            <polygon points="420,210 412,205 412,215" fill="#76b900"/>
+
+            <!-- RabbitMQ -> Worker -->
+            <path d="M490 210 H 530" stroke="#76b900" stroke-width="2"/>
+            <polygon points="530,210 522,205 522,215" fill="#76b900"/>
+
+            <!-- Worker -> DB -->
+            <path d="M605 150 V 90 H 440" stroke="#1b2a38" stroke-width="2"/>
+            <polygon points="440,90 448,85 448,95" fill="#1b2a38"/>
+
+            <!-- Worker -> Redis -> API (Pub/Sub feedback) -->
+            <path d="M605 270 V 315 H 530" stroke="#76b900" stroke-width="2" stroke-dasharray="3 3"/>
+            <path d="M430 330 H 210 V 230" stroke="#76b900" stroke-width="2" stroke-dasharray="3 3"/>
+            <polygon points="210,230 205,238 215,238" fill="#76b900"/>
+
+            <!-- Worker -> LLM Provider -->
+            <path d="M675 210 H 710" stroke="#76b900" stroke-width="2"/>
+            <polygon points="710,210 702,205 702,215" fill="#76b900"/>
+
+            <!-- Nodes -->
+            <!-- 1. Frontend -->
+            <rect x="50" y="170" width="140" height="80" rx="8" fill="url(#box-grad)" stroke="#1c2e42"/>
+            <text x="120" y="210" fill="#ffffff" font-family="system-ui" font-size="14" font-weight="bold" text-anchor="middle">Angular 21 UI</text>
+            <text x="120" y="230" fill="#8fa3b7" font-family="system-ui" font-size="11" text-anchor="middle">Port 4210</text>
+
+            <!-- 2. Web API -->
+            <rect x="260" y="150" width="110" height="90" rx="8" fill="url(#box-grad)" stroke="#1c2e42"/>
+            <text x="315" y="195" fill="#ffffff" font-family="system-ui" font-size="14" font-weight="bold" text-anchor="middle">.NET 10 API</text>
+            <text x="315" y="215" fill="#8fa3b7" font-family="system-ui" font-size="11" text-anchor="middle">SignalR Hubs</text>
+
+            <!-- 3. PostgreSQL -->
+            <rect x="360" y="55" width="80" height="70" rx="8" fill="url(#box-grad)" stroke="#1b2a38"/>
+            <text x="400" y="90" fill="#ffffff" font-family="system-ui" font-size="12" font-weight="bold" text-anchor="middle">PostgreSQL</text>
+            <text x="400" y="108" fill="#8fa3b7" font-family="system-ui" font-size="10" text-anchor="middle">Port 55432</text>
+
+            <!-- 4. HashiCorp Vault -->
+            <rect x="360" y="295" width="70" height="70" rx="8" fill="url(#box-grad)" stroke="#1b2a38"/>
+            <text x="395" y="330" fill="#ffffff" font-family="system-ui" font-size="12" font-weight="bold" text-anchor="middle">Vault</text>
+            <text x="395" y="348" fill="#8fa3b7" font-family="system-ui" font-size="10" text-anchor="middle">Secrets</text>
+
+            <!-- 5. RabbitMQ -->
+            <rect x="420" y="170" width="70" height="80" rx="8" fill="url(#box-grad)" stroke="#76b900" stroke-width="1.5"/>
+            <text x="455" y="210" fill="#76b900" font-family="system-ui" font-size="13" font-weight="bold" text-anchor="middle">RabbitMQ</text>
+            <text x="455" y="230" fill="#8fa3b7" font-family="system-ui" font-size="10" text-anchor="middle">Queue</text>
+
+            <!-- 6. Worker -->
+            <rect x="530" y="150" width="145" height="90" rx="8" fill="url(#box-grad)" stroke="#1c2e42"/>
+            <text x="602" y="190" fill="#ffffff" font-family="system-ui" font-size="14" font-weight="bold" text-anchor="middle">Agent Worker</text>
+            <text x="602" y="210" fill="#76b900" font-family="system-ui" font-size="11" text-anchor="middle">Orchestration Loop</text>
+            <text x="602" y="225" fill="#8fa3b7" font-family="system-ui" font-size="10" text-anchor="middle">HostedService</text>
+
+            <!-- 7. Redis -->
+            <rect x="430" y="300" width="100" height="60" rx="8" fill="url(#box-grad)" stroke="#1c2e42"/>
+            <text x="480" y="330" fill="#ffffff" font-family="system-ui" font-size="12" font-weight="bold" text-anchor="middle">Redis Pub/Sub</text>
+            <text x="480" y="348" fill="#8fa3b7" font-family="system-ui" font-size="10" text-anchor="middle">Logs Bridge</text>
+
+            <!-- 8. LLM Provider -->
+            <rect x="710" y="165" width="80" height="90" rx="8" fill="url(#brand-grad)"/>
+            <text x="750" y="210" fill="#000000" font-family="system-ui" font-size="12" font-weight="bold" text-anchor="middle">LLM Provider</text>
+            <text x="750" y="230" fill="#333333" font-family="system-ui" font-size="11" text-anchor="middle">Chat API</text>
+          </svg>
+        </div>
+      </section>
+
+      <!-- Section 2: Key Integration Flows -->
+      <section class="doc-section">
+        <h2>
+          <lucide-icon [img]="icons.workflow" size="20"></lucide-icon>
+          Architectural Implementation Details
+        </h2>
+        <h3>1. Cross-Process Live Log Streaming</h3>
+        <p>
+          The <strong>Worker</strong> and the <strong>API</strong> run in separate containers. Because WebSockets (SignalR) require stateful client connections, clients connect directly to the API container. The worker publishes console events to a Redis Pub/Sub channel; the API's <code>RedisConsoleEventSubscriber</code> forwards them to the appropriate SignalR task group.
+        </p>
+
+        <h3>2. At-Least-Once Task Delivery</h3>
+        <p>
+          RabbitMQ consumption uses manual acknowledgements. The orchestrator distinguishes <em>user cancellation</em> (task finalized as Cancelled → message ACK'ed) from <em>host shutdown</em> (task left Running, exception rethrown → message <strong>NACK'ed and requeued</strong>, so the run re-executes when the worker returns). Ack/nack always goes through the exact channel that delivered the message — delivery tags are channel-scoped, and a dead channel means the broker already requeued. Dangling agent runs from an interrupted attempt are closed on redelivery.
+        </p>
+
+        <h3>3. Model Fallback Chains</h3>
+        <p>
+          Each agent's model list is resolved into a chain (<code>BuildModelChain</code>): the primary <code>DefaultModel</code> followed by up to two comma-separated <code>FallbackModels</code>, de-duplicated case-insensitively. On a <code>ProviderException</code> the orchestrator advances to the next model for every error code except <code>Unauthorized</code> (<code>ShouldFallbackToNextModel</code>) — timeouts, rate limits, 404/InvalidModel, and provider outages are all model-specific, while a 401 would fail identically across the chain. Each switch updates the model call log and emits a <em>"Model X failed (code); falling back to Y"</em> console event, so the run history always shows which model actually produced the output. Per-model retries (with exponential backoff) still apply before the chain advances.
+        </p>
+
+        <h3>4. Agentic Tool Loop (Coder)</h3>
+        <p>
+          The Coder no longer produces the whole project in a single completion. It runs a <strong>tool-calling loop</strong> (the same pattern agentic CLIs like Claude Code use): the model is given three function tools — <code>write_file(path, content)</code>, <code>read_file(path)</code>, <code>list_files(path?)</code> — via the OpenAI-compatible <code>tools</code> parameter. Each iteration is one short chat completion; when the model requests tool calls, the worker executes them (<code>AgentWorkspaceTools</code>), streams a <code>🔧</code> console event per call, feeds the results back as <code>tool</code> messages, and continues. When the model answers without tool calls, that answer is the final summary. Hard limits: 24 iterations, 50 files per task, 1M chars per file.
+        </p>
+        <ul>
+          <li><strong>Per-iteration accounting:</strong> every iteration is its own model call log entry — token usage, latency, and cost stay accurate.</li>
+          <li><strong>Sticky model:</strong> each iteration's fallback chain starts from the model that last succeeded, so a dead primary isn't re-tried every round (HTTP 410 "model removed" now maps to InvalidModel).</li>
+          <li><strong>Graceful finish:</strong> if the whole chain fails mid-loop but files are already written, the run completes with a warning instead of discarding the work.</li>
+          <li><strong>Legacy fallback:</strong> models without function-calling support still work — their final answer goes through the old fence/<code>filepath:</code> exporter, and blocks with no detectable filename land in an <code>output/</code> subfolder.</li>
+        </ul>
+
+        <h3>5. Workspace Path Guard & Code Export</h3>
+        <p>
+          Every filesystem path — the user-supplied workspace folder, browser file reads/deletes, tool-call paths from the agentic loop, and even filenames extracted from model output — is resolved through <code>WorkspacePathGuard</code>, which confines it to the <code>/workspace</code> root: <code>..</code> traversal, out-of-root absolute paths, backslash tricks, and symlinked components (including dangling symlinks) are rejected. The legacy exporter understands both fenced markdown blocks and fence-less <code>// filepath:</code> annotated streams, splitting them into real files (max 50 files per export, 1M chars per file; skipped blocks are reported in the console).
+        </p>
+
+        <h3>6. Skill Injection & Auto-Suggestion</h3>
+        <p>
+          Selected skill IDs travel in the task's context JSON. The orchestrator loads the enabled skills and appends their instructions to <em>every</em> agent's system prompt as a mandatory-conventions block. Suggestions come from <code>SkillSuggestionEngine</code>: whole-word keyword matching (letter/number lookarounds, so "go" never matches "django") plus follow-up questions when no Backend/Frontend skill matches or a database is mentioned without a specific Data skill.
+        </p>
+
+        <h3>7. API Authentication & Secret Handling</h3>
+        <p>
+          <code>ApiKeyMiddleware</code> validates <code>X-Api-Key</code>, Bearer, or SignalR <code>?access_token</code> credentials using SHA-256 + <code>FixedTimeEquals</code> (timing-safe, no length leak). Provider credentials are write-only through the API — responses carry only <code>apiKeyConfigured</code> and a masked preview, and an empty key on update keeps the stored secret. The regex-based <code>InputSanitizer</code> redacts secrets/PII from prompts, outputs, and error messages before they reach PostgreSQL logs.
+        </p>
+      </section>
+
+      <!-- Section 3: Cost and Token Analytics -->
+      <section class="doc-section">
+        <h2>
+          <lucide-icon [img]="icons.shield" size="20"></lucide-icon>
+          Cost & Usage Calculations
+        </h2>
+        <p>
+          The system tracks token usage and calculates estimated cost dynamically upon each model API return.
+        </p>
+        <pre><code>Cost = (InputTokens / 1,000,000 * InputPricePerMillion) + (OutputTokens / 1,000,000 * OutputPricePerMillion)</code></pre>
+        <p>
+          Prices are preconfigured based on the official pricing charts of Llama 3.1 and Nemotron models; unknown models fall back to a flat default rate.
+        </p>
+      </section>
+    </div>
+  }
+</div>

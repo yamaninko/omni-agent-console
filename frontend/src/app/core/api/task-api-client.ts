@@ -1,0 +1,169 @@
+import { HttpClient } from '@angular/common/http';
+import { Injectable, inject } from '@angular/core';
+import { Observable } from 'rxjs';
+import {
+  AgentDefinition,
+  ConsoleEvent,
+  DashboardOverview,
+  OmniAgentSettings,
+  ProviderHealthStatus,
+  RuntimeAgent,
+  TaskDetail,
+  TaskSummary,
+  UpdateAgentDefinitionRequest,
+  UpdateOmniAgentApiKeyResponse,
+  UsageSummary,
+  ModelDefinition,
+  WorkspaceNode,
+  ApiCredential,
+  SkillDefinition,
+  SaveSkillRequest,
+  SuggestSkillsResponse
+} from '../models';
+
+const API_BASE_URL = '/api';
+
+@Injectable({ providedIn: 'root' })
+export class TaskApiClient {
+  private readonly http = inject(HttpClient);
+
+  createTask(prompt: string, inputContextJson?: string): Observable<TaskSummary> {
+    return this.http.post<TaskSummary>(`${API_BASE_URL}/tasks`, { prompt, inputContextJson });
+  }
+
+  listAvailableModels(): Observable<{ id: string; ownedBy: string; registered: boolean }[]> {
+    return this.http.get<{ id: string; ownedBy: string; registered: boolean }[]>(`${API_BASE_URL}/agents/models/available`);
+  }
+
+  syncModelsFromProvider(): Observable<{ imported: number; totalAvailable: number }> {
+    return this.http.post<{ imported: number; totalAvailable: number }>(`${API_BASE_URL}/agents/models/sync`, {});
+  }
+
+  listSkills(): Observable<SkillDefinition[]> {
+    return this.http.get<SkillDefinition[]>(`${API_BASE_URL}/skills`);
+  }
+
+  createSkill(request: SaveSkillRequest): Observable<SkillDefinition> {
+    return this.http.post<SkillDefinition>(`${API_BASE_URL}/skills`, request);
+  }
+
+  updateSkill(id: string, request: SaveSkillRequest): Observable<SkillDefinition> {
+    return this.http.put<SkillDefinition>(`${API_BASE_URL}/skills/${id}`, request);
+  }
+
+  deleteSkill(id: string): Observable<void> {
+    return this.http.delete<void>(`${API_BASE_URL}/skills/${id}`);
+  }
+
+  suggestSkills(prompt: string): Observable<SuggestSkillsResponse> {
+    return this.http.post<SuggestSkillsResponse>(`${API_BASE_URL}/skills/suggest`, { prompt });
+  }
+
+  runTask(taskId: string): Observable<unknown> {
+    return this.http.post(`${API_BASE_URL}/tasks/${taskId}/run`, {});
+  }
+
+  cancelTask(taskId: string): Observable<unknown> {
+    return this.http.post(`${API_BASE_URL}/tasks/${taskId}/cancel`, {});
+  }
+
+  getTaskEvents(taskId: string): Observable<ConsoleEvent[]> {
+    return this.http.get<ConsoleEvent[]>(`${API_BASE_URL}/tasks/${taskId}/events`);
+  }
+
+  getTask(taskId: string): Observable<TaskDetail> {
+    return this.http.get<TaskDetail>(`${API_BASE_URL}/tasks/${taskId}`);
+  }
+
+  listTasks(): Observable<TaskSummary[]> {
+    return this.http.get<TaskSummary[]>(`${API_BASE_URL}/tasks`);
+  }
+
+  renameTask(taskId: string, title: string): Observable<unknown> {
+    return this.http.put(`${API_BASE_URL}/tasks/${taskId}/title`, { title });
+  }
+
+  deleteTask(taskId: string): Observable<unknown> {
+    return this.http.delete(`${API_BASE_URL}/tasks/${taskId}`);
+  }
+
+  listRuntimeAgents(): Observable<RuntimeAgent[]> {
+    return this.http.get<RuntimeAgent[]>(`${API_BASE_URL}/agents/runtime`);
+  }
+
+  listAgentDefinitions(): Observable<AgentDefinition[]> {
+    return this.http.get<AgentDefinition[]>(`${API_BASE_URL}/agents`);
+  }
+
+  updateAgentDefinition(agentId: string, request: UpdateAgentDefinitionRequest): Observable<AgentDefinition> {
+    return this.http.put<AgentDefinition>(`${API_BASE_URL}/agents/${agentId}`, request);
+  }
+
+  createAgentDefinition(request: UpdateAgentDefinitionRequest): Observable<AgentDefinition> {
+    return this.http.post<AgentDefinition>(`${API_BASE_URL}/agents`, request);
+  }
+
+  deleteAgentDefinition(agentId: string): Observable<void> {
+    return this.http.delete<void>(`${API_BASE_URL}/agents/${agentId}`);
+  }
+
+  getUsageSummary(): Observable<UsageSummary> {
+    return this.http.get<UsageSummary>(`${API_BASE_URL}/usage/summary`);
+  }
+
+  getDashboardOverview(): Observable<DashboardOverview> {
+    return this.http.get<DashboardOverview>(`${API_BASE_URL}/dashboard/overview`);
+  }
+
+  getSettings(): Observable<OmniAgentSettings> {
+    return this.http.get<OmniAgentSettings>(`${API_BASE_URL}/settings`);
+  }
+
+  updateOmniAgentApiKey(apiKey: string): Observable<UpdateOmniAgentApiKeyResponse> {
+    return this.http.put<UpdateOmniAgentApiKeyResponse>(`${API_BASE_URL}/settings/omniagent/api-key`, { apiKey });
+  }
+
+  checkOmniAgentHealth(): Observable<ProviderHealthStatus> {
+    return this.http.post<ProviderHealthStatus>(`${API_BASE_URL}/settings/omniagent/health`, {});
+  }
+
+  listModels(): Observable<ModelDefinition[]> {
+    return this.http.get<ModelDefinition[]>(`${API_BASE_URL}/agents/models`);
+  }
+
+  addModel(model: string, displayName: string, contextWindow?: number | null): Observable<ModelDefinition> {
+    return this.http.post<ModelDefinition>(`${API_BASE_URL}/agents/models`, { model, displayName, contextWindow });
+  }
+
+  deleteModel(id: string): Observable<void> {
+    return this.http.delete<void>(`${API_BASE_URL}/agents/models/${id}`);
+  }
+
+  getWorkspaceFiles(): Observable<WorkspaceNode[]> {
+    return this.http.get<WorkspaceNode[]>(`${API_BASE_URL}/workspace/files`);
+  }
+
+  getWorkspaceFileContent(path: string): Observable<{ content: string }> {
+    return this.http.get<{ content: string }>(`${API_BASE_URL}/workspace/file`, { params: { path } });
+  }
+
+  deleteWorkspaceNode(path: string): Observable<void> {
+    return this.http.delete<void>(`${API_BASE_URL}/workspace`, { params: { path } });
+  }
+
+  listCredentials(): Observable<ApiCredential[]> {
+    return this.http.get<ApiCredential[]>(`${API_BASE_URL}/credentials`);
+  }
+
+  createCredential(request: { name: string; provider: string; baseUrl?: string; apiKey: string; isDefault?: boolean }): Observable<ApiCredential> {
+    return this.http.post<ApiCredential>(`${API_BASE_URL}/credentials`, request);
+  }
+
+  updateCredential(id: string, request: { name: string; provider: string; baseUrl?: string; apiKey?: string; isDefault?: boolean }): Observable<ApiCredential> {
+    return this.http.put<ApiCredential>(`${API_BASE_URL}/credentials/${id}`, request);
+  }
+
+  deleteCredential(id: string): Observable<void> {
+    return this.http.delete<void>(`${API_BASE_URL}/credentials/${id}`);
+  }
+}

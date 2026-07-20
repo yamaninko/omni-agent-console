@@ -1,0 +1,12 @@
+.git
+.DS_Store
+.env
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/.angular/
+**/.vs/
+**/.vscode/
+*.user
+*.suo

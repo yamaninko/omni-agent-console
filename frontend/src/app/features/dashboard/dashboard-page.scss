@@ -1,0 +1,182 @@
+.page {
+  padding: 24px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+p {
+  margin: 0 0 4px;
+  color: #76b900;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.metrics div,
+.panel {
+  border: 1px solid #1b2a38;
+  border-radius: 8px;
+  background: #0b1118;
+}
+
+.metrics div {
+  padding: 16px;
+}
+
+span {
+  color: #8da1b4;
+  font-size: 12px;
+}
+
+strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 26px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.panel {
+  min-width: 0;
+  padding: 16px;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  color: #dce6ef;
+  font-weight: 800;
+}
+
+.panel-title code {
+  color: #76b900;
+}
+
+.breakdown {
+  border: 1px solid #13202c;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.breakdown-head,
+.breakdown-row,
+.task-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 100px 120px 110px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+}
+
+.breakdown-head {
+  color: #7f93a8;
+  background: #080d13;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.breakdown-row,
+.task-row {
+  border-top: 1px solid #13202c;
+  color: #dce6ef;
+  font-size: 12px;
+}
+
+.breakdown-row strong,
+.task-row strong {
+  margin: 0;
+  font-size: 13px;
+}
+
+.recent {
+  padding: 0;
+}
+
+.recent .panel-title {
+  margin: 0;
+  padding: 14px 16px;
+  border-bottom: 1px solid #13202c;
+}
+
+.task-row {
+  grid-template-columns: minmax(220px, 1fr) 110px 160px 100px;
+  text-decoration: none;
+}
+
+.task-row:hover {
+  background: #101823;
+}
+
+code.completed {
+  color: #d6f4bd;
+}
+
+code.failed {
+  color: #ffd8d8;
+}
+
+code.running {
+  color: #d8ecff;
+}
+
+.empty {
+  padding: 14px 16px;
+  color: #8da1b4;
+}
+
+button {
+  min-height: 38px;
+  border: 1px solid #263445;
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #dce6ef;
+  background: #121b25;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+@media (max-width: 920px) {
+  .metrics,
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .breakdown-head {
+    display: none;
+  }
+
+  .breakdown-row,
+  .task-row {
+    grid-template-columns: 1fr;
+  }
+}

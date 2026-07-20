@@ -1,0 +1,381 @@
+<section class="studio-page">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">OmniAgent API</p>
+      <h1>Agent Console</h1>
+    </div>
+    <div class="status-pill">
+      <lucide-icon [img]="icons.realtime" size="16"></lucide-icon>
+      {{ running() ? 'Agent run active' : 'SignalR ready' }}
+    </div>
+  </header>
+
+  <div class="studio-grid">
+    <aside class="agent-panel" style="display: flex; flex-direction: column; height: 100%; overflow: hidden; gap: 16px; padding: 16px;">
+      <!-- Recent Runs History -->
+      <div style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+        <div class="panel-title" style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" (click)="toggleRecentTasks()">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <lucide-icon [img]="showRecentTasks() ? icons.chevronDown : icons.chevronRight" size="16" style="color: #76b900;"></lucide-icon>
+            <lucide-icon [img]="icons.history" size="18"></lucide-icon>
+            Recent Tasks
+          </div>
+          <button class="icon-btn" (click)="loadRecentTasks(); $event.stopPropagation();" title="Reload History" style="background: transparent; border: none; color: #8fa3b7; cursor: pointer; padding: 2px; display: flex; align-items: center; justify-content: center;">
+            <lucide-icon [img]="icons.refresh" size="13"></lucide-icon>
+          </button>
+        </div>
+        @if (showRecentTasks()) {
+          <div class="history-list">
+            @for (task of recentTasks(); track task.id) {
+              <div 
+                class="history-row" 
+                [class.active]="activeTaskId() === task.id"
+                (click)="selectRecentTask(task.id)"
+              >
+                <div class="row-content">
+                  <!-- Status Icon -->
+                  @if (task.status === 'Running' || task.status === 'Pending') {
+                    <lucide-icon [img]="icons.loader" class="status-icon spinner" size="13" style="color: #76b900;"></lucide-icon>
+                  } @else if (task.status === 'Completed') {
+                    <lucide-icon [img]="icons.checkCircle" class="status-icon" size="13" style="color: #76b900;"></lucide-icon>
+                  } @else if (task.status === 'Failed') {
+                    <lucide-icon [img]="icons.alertCircle" class="status-icon" size="13" style="color: #ff3b30;"></lucide-icon>
+                  } @else {
+                    <lucide-icon [img]="icons.xCircle" class="status-icon" size="13" style="color: #8da1b4;"></lucide-icon>
+                  }
+
+                  @if (editingTaskId() === task.id) {
+                    <input 
+                      type="text"
+                      [value]="editingTitle()"
+                      (input)="updateEditingTitle($event)"
+                      (keydown.enter)="saveRename(task.id)"
+                      (keydown.escape)="cancelRename()"
+                      (click)="$event.stopPropagation()"
+                      (blur)="saveRename(task.id)"
+                      style="font-size: 12px; font-weight: 500; background: #080d13; border: 1px solid #76b900; color: #ccd6e0; padding: 2px 4px; border-radius: 4px; width: 100%; outline: none; box-sizing: border-box;"
+                    />
+                  } @else {
+                    <span class="task-title" [title]="task.title">
+                      {{ task.title }}
+                    </span>
+                    <div class="history-actions" (click)="$event.stopPropagation()">
+                      <button 
+                        type="button" 
+                        (click)="startRename(task.id, task.title, $event)" 
+                        title="Rename task"
+                      >
+                        <lucide-icon [img]="icons.edit" size="11"></lucide-icon>
+                      </button>
+                      <button 
+                        type="button" 
+                        (click)="deleteTask(task.id, $event)" 
+                        title="Delete task"
+                      >
+                        <lucide-icon [img]="icons.trash" size="11"></lucide-icon>
+                      </button>
+                    </div>
+                  }
+                </div>
+              </div>
+            } @empty {
+              <div style="font-size: 12px; color: #8da1b4; padding: 8px; text-align: center;">No past tasks found</div>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Divider -->
+      <div style="border-top: 1px solid #1a2532; margin: 0 -16px;"></div>
+
+      <!-- Active Agents List -->
+      <div style="display: flex; flex-direction: column; min-height: 0;">
+        <div class="panel-title" style="margin-bottom: 12px; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px;" (click)="toggleAgents()">
+          <lucide-icon [img]="showAgents() ? icons.chevronDown : icons.chevronRight" size="16" style="color: #76b900;"></lucide-icon>
+          <lucide-icon [img]="icons.bot" size="18"></lucide-icon>
+          Agents
+        </div>
+        @if (showAgents()) {
+          <div class="agent-list" style="overflow-y: auto; max-height: 250px; padding-right: 4px;">
+            @for (agent of agents(); track agent.type) {
+              <div class="agent-row">
+                <span class="agent-dot"></span>
+                <div>
+                  <strong>{{ agent.name }}</strong>
+                  <span>{{ agent.description }}</span>
+                  <code style="display: block; font-size: 10px; margin-top: 4px; color: #76b900; background: #0f1c13; padding: 2px 4px; border-radius: 4px; width: fit-content; word-break: break-all;">{{ agent.model }}</code>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </aside>
+
+    <main class="console-panel" [class.active-running]="running() || pending()">
+      <div class="console-toolbar" style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+        <span>
+          <lucide-icon [img]="icons.terminal" size="17"></lucide-icon>
+          Live Console
+        </span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <code style="font-size: 11px;">{{ activeTaskId() ? activeTaskId()?.substring(0, 8) + '...' : 'new-session' }}</code>
+          <button class="secondary" type="button" (click)="startNewTask()" [disabled]="pending() || running()" title="New Task" style="min-height: 28px; height: 28px; padding: 0 8px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; margin: 0;">
+            <lucide-icon [img]="icons.plus" size="13" style="margin-right: 4px;"></lucide-icon>
+            New
+          </button>
+          <button class="secondary" type="button" (click)="clearConsole()" title="Clear Console" style="min-height: 28px; height: 28px; padding: 0 8px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; margin: 0;">
+            <lucide-icon [img]="icons.trash" size="13" style="margin-right: 4px;"></lucide-icon>
+            Clear
+          </button>
+        </div>
+      </div>
+
+      <div class="terminal" #terminalEl (scroll)="onTerminalScroll($event)">
+        @for (event of (consoleEvents().length ? consoleEvents() : sampleEvents()); track event.id) {
+          @if (event.eventType === 'TaskStarted' && event.message.includes('Task execution started with prompt:')) {
+            <div class="prompt-log-bubble" style="background: #0c1824; border: 1px solid #1e3146; border-radius: 8px 8px 0 8px; padding: 12px; margin-bottom: 16px; margin-left: auto; margin-right: 0; max-width: 80%; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);">
+              <div style="flex: 1; min-width: 0; text-align: right;">
+                <div style="color: #76b900; font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px;">User Prompt</div>
+                <div style="color: #ffffff; font-size: 13.5px; line-height: 1.5; font-family: inherit; font-style: italic; font-weight: 500; word-break: break-word;">
+                  "{{ getCleanPrompt(event.message) }}"
+                </div>
+              </div>
+              @if (activeTaskId() && !running() && !pending()) {
+                <button type="button" (click)="rerunActiveTask()" title="Rerun this prompt" style="background: rgba(118, 185, 0, 0.1); border: 1px solid rgba(118, 185, 0, 0.3); color: #76b900; border-radius: 6px; padding: 6px 12px; font-size: 11px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease; margin: 0; min-height: unset; height: auto; flex-shrink: 0;">
+                  <lucide-icon [img]="icons.refresh" size="13"></lucide-icon>
+                  Rerun
+                </button>
+              }
+            </div>
+          } @else {
+            <div class="terminal-line">
+              <span class="time">[{{ event.createdAt | date:'HH:mm:ss' }}]</span>
+              <span class="type">{{ event.eventType }}</span>
+              <span class="message">{{ event.message }}</span>
+            </div>
+            @if ((event.eventType === 'PlanCreated' || event.eventType === 'AgentCompleted') && getAgentOutput(event.payloadJson)) {
+              <div class="agent-output-bubble" style="background: #111e29; border: 1px solid #1a2c3a; border-radius: 8px 8px 8px 0; padding: 16px; margin: 8px 0 20px 0; margin-left: 0; margin-right: auto; max-width: 85%; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);">
+                <div style="color: #76b900; font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+                  <lucide-icon [img]="icons.bot" size="14"></lucide-icon>
+                  {{ getAgentName(event.payloadJson) }} Response
+                </div>
+                <div class="agent-response-content" [innerHTML]="parseMarkdown(getAgentOutput(event.payloadJson))" style="color: #e6edf3; font-size: 13px; line-height: 1.55; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; word-break: break-word;"></div>
+              </div>
+            }
+          }
+        }
+        @if (running() || pending()) {
+          <div class="terminal-line active-running-line" style="margin-top: 8px;">
+            <span class="time">[{{ currentTime() | date:'HH:mm:ss' }}]</span>
+            <span class="type running-type">RUNNING</span>
+            <span class="message" style="display: flex; align-items: center; gap: 8px; color: #76b900; font-weight: 600;">
+              Agent orchestrator is executing the task
+              <span class="terminal-spinner-dots"></span>
+            </span>
+          </div>
+        }
+      </div>
+
+      @if (activeTaskId() === null) {
+        <div class="prompt-box">
+          <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+            <!-- Workspace Path Input -->
+            <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
+              <label style="color: #8fa3b7; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+                Çalışma Dizini (Workspace Path)
+              </label>
+              <div style="display: flex; align-items: center; background: #0d121a; border: 1px solid #1a2636; border-radius: 6px; color: #e6edf3; padding: 0 12px; font-size: 13px; width: 100%;">
+                <span style="color: #5f7892; user-select: none; padding-right: 4px; font-weight: 600;">/workspace/</span>
+                <input
+                  type="text"
+                  [value]="getWorkspaceSubfolder()"
+                  (input)="updateWorkspaceSubfolder($event)"
+                  placeholder="projem (Docker'daki ./workspace klasörüne eşlenir)"
+                  style="background: transparent; border: none; color: #e6edf3; padding: 8px 0; font-size: 13px; width: 100%; outline: none;"
+                />
+              </div>
+            </div>
+
+            @if (skills().length > 0) {
+              <div style="display: flex; flex-direction: column; gap: 6px; margin: 10px 0;">
+                <label style="color: #8fa3b7; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+                  Skills ({{ selectedSkillIds().length }} selected@if (autoSuggestedCount() > 0) {, {{ autoSuggestedCount() }} auto})
+                </label>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                  @for (s of skills(); track s.id) {
+                    <button
+                      type="button"
+                      (click)="toggleSkill(s.id)"
+                      [title]="s.description"
+                      [style.background]="isSkillSelected(s.id) ? 'rgba(118,185,0,0.15)' : '#0d121a'"
+                      [style.border-color]="isSkillSelected(s.id) ? '#76b900' : '#1a2636'"
+                      [style.border-style]="isAutoSuggested(s.id) ? 'dashed' : 'solid'"
+                      [style.color]="isSkillSelected(s.id) ? '#76b900' : '#8fa3b7'"
+                      style="border: 1px solid; border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 600; cursor: pointer; margin: 0; min-height: unset; height: auto; line-height: 1.4;">
+                      @if (isAutoSuggested(s.id)) {<span style="margin-right: 4px;">✨</span>}{{ s.name }}
+                    </button>
+                  }
+                </div>
+                @if (skillInfo(); as info) {
+                  <div style="color: #8fa3b7; font-size: 12px; background: #0d121a; border: 1px solid #1a2636; border-radius: 6px; padding: 8px 10px; line-height: 1.5;">
+                    <span style="color: #76b900; font-weight: 700;">{{ info.name }}</span>
+                    <span style="color: #5f7892;"> · {{ info.category }}</span><br />
+                    {{ info.description }}
+                  </div>
+                }
+                @if (autoSuggestedCount() > 0) {
+                  <div style="color: #76b900; font-size: 12px;">
+                    ✨ Prompt'a göre otomatik önerildi — istemediğin chip'e tıklayarak kaldırabilirsin.
+                  </div>
+                }
+                @for (q of suggestQuestions(); track q) {
+                  <div style="color: #f59e0b; font-size: 12px;">❓ {{ q }}</div>
+                }
+              </div>
+            }
+
+            <textarea
+              [value]="prompt()"
+              [placeholder]="promptPlaceholder"
+              (input)="updatePrompt($event)"
+              rows="4"
+            ></textarea>
+          </div>
+
+          <div class="task-actions">
+            <button type="button" (click)="startTask()" [disabled]="pending() || running() || !prompt().trim() || !workspacePath().trim()">
+              <lucide-icon [img]="icons.send" size="18"></lucide-icon>
+              Run Task
+            </button>
+            <button class="secondary" type="button" (click)="cancelActiveTask()" [disabled]="!running()">
+              Cancel
+            </button>
+          </div>
+        </div>
+      } @else {
+        <!-- Task Status Bar -->
+        <div class="task-status-bar" [class.running]="running() || pending()" style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-top: 1px solid #1b2a38; background: #0c121b; min-height: 58px; box-sizing: border-box;">
+          <div style="display: flex; align-items: center; gap: 12px; min-width: 0;">
+            @if (running() || pending()) {
+              <span class="pulse-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #76b900; display: inline-block; animation: pulse-green 1.5s infinite; flex-shrink: 0;"></span>
+              <span style="font-size: 13px; font-weight: 700; color: #76b900; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
+                Agent is running task...
+              </span>
+            } @else {
+              @let status = activeTask()?.status;
+              @if (status === 'Completed') {
+                <span style="color: #76b900; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700;">
+                  <span style="width: 8px; height: 8px; border-radius: 50%; background: #76b900; display: inline-block; flex-shrink: 0;"></span>
+                  Task Completed
+                </span>
+              } @else if (status === 'Failed') {
+                <span style="color: #ff3b30; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700;">
+                  <span style="width: 8px; height: 8px; border-radius: 50%; background: #ff3b30; display: inline-block; flex-shrink: 0;"></span>
+                  Task Failed
+                </span>
+              } @else if (status === 'Cancelled') {
+                <span style="color: #8da1b4; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700;">
+                  <span style="width: 8px; height: 8px; border-radius: 50%; background: #8da1b4; display: inline-block; flex-shrink: 0;"></span>
+                  Task Cancelled
+                </span>
+              } @else {
+                <span style="color: #e6edf3; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700;">
+                  Status: {{ status }}
+                </span>
+              }
+            }
+            @if (getActiveWorkspacePath()) {
+              <span style="color: #5f7892; font-size: 11px; font-weight: 600; padding: 2px 6px; background: #111a24; border: 1px solid #1a2532; border-radius: 4px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;" [title]="getActiveWorkspacePath()">
+                {{ getActiveWorkspacePath() }}
+              </span>
+            }
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+            @if (running() || pending()) {
+              <button class="secondary" type="button" (click)="cancelActiveTask()" style="min-height: 32px; height: 32px; font-size: 12px; font-weight: 700; color: #ff3b30; border: 1px solid rgba(255, 59, 48, 0.3); background: rgba(255, 59, 48, 0.05); padding: 0 12px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;">
+                Cancel Task
+              </button>
+            } @else {
+              <button type="button" (click)="rerunActiveTask()" title="Rerun this prompt" style="min-height: 32px; height: 32px; font-size: 12px; font-weight: 700; background: rgba(118, 185, 0, 0.1); border: 1px solid rgba(118, 185, 0, 0.3); color: #76b900; border-radius: 6px; padding: 0 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease; margin: 0;">
+                <lucide-icon [img]="icons.refresh" size="13"></lucide-icon>
+                Rerun
+              </button>
+              <button class="secondary" type="button" (click)="startNewTask()" style="min-height: 32px; height: 32px; font-size: 12px; font-weight: 700; padding: 0 12px; border-radius: 6px; margin: 0; display: inline-flex; align-items: center; justify-content: center; gap: 4px;">
+                <lucide-icon [img]="icons.plus" size="13"></lucide-icon>
+                New Task
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </main>
+
+    <aside class="metrics-panel" style="display: flex; flex-direction: column; gap: 20px; padding: 16px;">
+      <!-- Active Task Stats accordion -->
+      @if (activeTask()) {
+        <div>
+          <div class="panel-title" style="margin-bottom: 12px; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px;" (click)="toggleActiveTaskCollapse()">
+            <lucide-icon [img]="showActiveTaskCollapse() ? icons.chevronDown : icons.chevronRight" size="16" style="color: #76b900;"></lucide-icon>
+            Active Task Stats
+          </div>
+          @if (showActiveTaskCollapse()) {
+            <div class="panel" style="padding: 12px; border-color: #76b900; display: grid; gap: 8px;">
+              <div class="metric" style="padding: 4px 0; border-bottom: 1px solid #1a2532;">
+                <span style="font-size: 11px;">Status</span>
+                <strong style="font-size: 15px; color: #ffffff;">{{ activeTask()?.status }}</strong>
+              </div>
+              <div class="metric" style="padding: 4px 0; border-bottom: 1px solid #1a2532;">
+                <span style="font-size: 11px;">Input Tokens</span>
+                <strong style="font-size: 15px; color: #ffffff;">{{ getActiveTaskInputTokens() }}</strong>
+              </div>
+              <div class="metric" style="padding: 4px 0; border-bottom: 1px solid #1a2532;">
+                <span style="font-size: 11px;">Output Tokens</span>
+                <strong style="font-size: 15px; color: #ffffff;">{{ getActiveTaskOutputTokens() }}</strong>
+              </div>
+              <div class="metric" style="padding: 4px 0; border-bottom: 1px solid #1a2532;">
+                <span style="font-size: 11px;">Total Tokens</span>
+                <strong style="font-size: 15px; color: #ffffff;">{{ getActiveTaskTotalTokens() }}</strong>
+              </div>
+              <div class="metric" style="padding: 4px 0; border-bottom: none;">
+                <span style="font-size: 11px;">Latency</span>
+                <strong style="font-size: 15px; color: #ffffff;">{{ getActiveTaskLatency() }} ms</strong>
+              </div>
+            </div>
+          }
+        </div>
+
+        <!-- Divider -->
+        <div style="border-top: 1px solid #1a2532; margin: 0 -16px;"></div>
+      }
+
+      <!-- Overall Usage stats -->
+      <div>
+        <div class="panel-title" style="margin-bottom: 12px; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px;" (click)="toggleUsageCollapse()">
+          <lucide-icon [img]="showUsageCollapse() ? icons.chevronDown : icons.chevronRight" size="16" style="color: #76b900;"></lucide-icon>
+          Overall Usage
+        </div>
+        @if (showUsageCollapse()) {
+          <div style="display: grid; gap: 12px;">
+            <div class="metric">
+              <span>Total requests</span>
+              <strong>{{ usage()?.totalRequests ?? 0 }}</strong>
+            </div>
+            <div class="metric">
+              <span>Success rate</span>
+              <strong>{{ usage()?.successRate ?? 0 }}%</strong>
+            </div>
+            <div class="metric">
+              <span>Total tokens</span>
+              <strong>{{ usage()?.totalTokens ?? 0 }}</strong>
+            </div>
+            <div class="metric">
+              <span>Avg latency</span>
+              <strong>{{ usage()?.averageLatencyMs ?? 0 }} ms</strong>
+            </div>
+          </div>
+        }
+      </div>
+    </aside>
+  </div>
+</section>

@@ -1,0 +1,34 @@
+<section class="page">
+  <header class="page-header">
+    <div>
+      <p>Task History</p>
+      <h1>Recent task runs</h1>
+    </div>
+    <button type="button" (click)="loadTasks()" [disabled]="loading()">Refresh</button>
+  </header>
+
+  <div class="table">
+    <div class="table-head">
+      <span>Task</span>
+      <span>Status</span>
+      <span>Created</span>
+      <span>Latency</span>
+      <span>Tokens</span>
+    </div>
+    @for (task of tasks(); track task.id) {
+      <a class="row" [routerLink]="['/tasks', task.id]">
+        <span class="title">{{ task.title }}</span>
+        <code [class]="task.status.toLowerCase()">{{ task.status }}</code>
+        <span>{{ task.createdAt | date:'HH:mm:ss · MMM d' }}</span>
+        <span>{{ formatDuration(task.totalLatencyMs) }}</span>
+        <strong>{{ task.totalTokens }}</strong>
+      </a>
+    } @empty {
+      @if (error()) {
+        <div class="empty" style="color: #f43f5e;">{{ error() }}</div>
+      } @else {
+        <div class="empty">{{ loading() ? 'Loading task runs...' : 'No task runs yet.' }}</div>
+      }
+    }
+  </div>
+</section>

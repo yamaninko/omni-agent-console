@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/backend/" />
+  <Folder Name="/backend/src/">
+    <Project Path="backend/src/OmniAgentConsole.Api/OmniAgentConsole.Api.csproj" />
+    <Project Path="backend/src/OmniAgentConsole.Application/OmniAgentConsole.Application.csproj" />
+    <Project Path="backend/src/OmniAgentConsole.Domain/OmniAgentConsole.Domain.csproj" />
+    <Project Path="backend/src/OmniAgentConsole.Infrastructure/OmniAgentConsole.Infrastructure.csproj" />
+    <Project Path="backend/src/OmniAgentConsole.Worker/OmniAgentConsole.Worker.csproj" />
+  </Folder>
+  <Folder Name="/backend/tests/">
+    <Project Path="backend/tests/OmniAgentConsole.UnitTests/OmniAgentConsole.UnitTests.csproj" />
+  </Folder>
+</Solution>

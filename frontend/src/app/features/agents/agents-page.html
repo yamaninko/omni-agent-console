@@ -1,0 +1,245 @@
+<section class="agents-page">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Studio Configuration</p>
+      <h1>Agents Registry</h1>
+    </div>
+    <button class="primary-btn" (click)="startCreation()" [disabled]="saving() || deleting()">
+      <lucide-icon [img]="icons.plus" size="16"></lucide-icon>
+      Create New Agent
+    </button>
+  </header>
+
+  @if (success()) {
+    <div class="alert success-alert">
+      <lucide-icon [img]="icons.check" size="18"></lucide-icon>
+      <span>{{ success() }}</span>
+    </div>
+  }
+  @if (error()) {
+    <div class="alert error-alert">
+      <lucide-icon [img]="icons.x" size="18"></lucide-icon>
+      <span>{{ error() }}</span>
+    </div>
+  }
+
+  <div class="agents-layout">
+    <!-- Left Panel: Agents list -->
+    <aside class="agents-sidebar">
+      <div class="sidebar-header">
+        <h2>Registered Agents</h2>
+        <span class="count-badge">{{ agents().length }}</span>
+      </div>
+
+      <div class="agents-list">
+        @for (agent of agents(); track agent.id) {
+          <div 
+            class="agent-card" 
+            [class.active]="selectedAgent()?.id === agent.id && !isCreating()"
+            (click)="selectAgent(agent)"
+          >
+            <div class="card-glow"></div>
+            <div class="card-content">
+              <div class="card-main">
+                <lucide-icon [img]="icons.bot" class="agent-icon" size="18"></lucide-icon>
+                <div class="agent-meta">
+                  <h3>{{ agent.name }}</h3>
+                  <span class="type-tag">{{ agent.type }}</span>
+                </div>
+              </div>
+              <div class="status-indicator">
+                <span class="dot" [class.enabled]="agent.enabled"></span>
+                <span class="text">{{ agent.enabled ? 'Active' : 'Disabled' }}</span>
+              </div>
+            </div>
+          </div>
+        } @empty {
+          <div class="no-agents">
+            <lucide-icon [img]="icons.bot" size="32"></lucide-icon>
+            <p>No agents registered</p>
+          </div>
+        }
+      </div>
+    </aside>
+
+    <!-- Right Panel: Editor / Creator Form -->
+    <main class="agent-editor">
+      @if (selectedAgent() || isCreating()) {
+        <form (submit)="$event.preventDefault(); saveAgent()" class="editor-form">
+          <div class="form-header">
+            <div class="header-info">
+              <lucide-icon [img]="icons.sparkles" size="20" class="sparkle-icon"></lucide-icon>
+              <h2>{{ isCreating() ? 'Configure New Agent' : 'Edit Agent Profile' }}</h2>
+            </div>
+            
+            <div style="display: flex; gap: 8px;">
+              @if (!isCreating()) {
+                <button type="button" class="delete-btn" (click)="deleteAgent()" [disabled]="saving() || deleting()">
+                  <lucide-icon [img]="icons.trash" size="16"></lucide-icon>
+                  Delete
+                </button>
+              }
+              <button type="submit" class="save-btn" [disabled]="saving() || deleting()">
+                <lucide-icon [img]="icons.save" size="16"></lucide-icon>
+                {{ saving() ? 'Saving...' : 'Save Changes' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="editor-body">
+            <!-- Basic Information Group -->
+            <fieldset class="form-section">
+              <legend>Basic Information</legend>
+              <div class="input-grid">
+                <label class="full-width">
+                  Agent Name
+                  <input type="text" [value]="formName()" (input)="updateField('name', $event)" placeholder="e.g. Frontend Coder" required />
+                </label>
+                
+                <label class="full-width">
+                  Short Description
+                  <input type="text" [value]="formDescription()" (input)="updateField('description', $event)" placeholder="e.g. Builds Angular components and layout templates" />
+                </label>
+
+                <label>
+                  Agent Type / Role
+                  <select [value]="formType()" (change)="updateField('type', $event)">
+                    @for (t of agentTypes; track t) {
+                      <option [value]="t">{{ t }}</option>
+                    }
+                  </select>
+                </label>
+
+                <div class="toggle-control">
+                  <span class="label">Status</span>
+                  <button type="button" class="toggle-btn" [class.enabled]="formEnabled()" (click)="toggleEnabled()">
+                    <lucide-icon [img]="formEnabled() ? icons.toggleRight : icons.toggleLeft" size="36"></lucide-icon>
+                    <span>{{ formEnabled() ? 'Enabled' : 'Disabled' }}</span>
+                  </button>
+                </div>
+              </div>
+            </fieldset>
+
+            <!-- Provider & Connection Group -->
+            <fieldset class="form-section">
+              <legend>Provider & Model Settings</legend>
+              <div class="input-grid">
+                <label class="full-width" style="margin-bottom: 8px;">
+                  Linked API Key Credential (Optional)
+                  <select [value]="formApiCredentialId() ?? ''" (change)="updateField('apiCredentialId', $event)" style="border-color: #76b900; background: #0c1520;">
+                    <option value="">-- No Linked Credential (Falls back to Default: {{ getDefaultCredentialName() }}) --</option>
+                    @for (c of credentials(); track c.id) {
+                      <option [value]="c.id">{{ c.name }} ({{ c.provider }}){{ c.isDefault ? ' [Default]' : '' }}</option>
+                    }
+                  </select>
+                </label>
+
+                <label>
+                  LLM Provider
+                  <select [value]="formProvider()" (change)="updateField('provider', $event)" [disabled]="formApiCredentialId() !== null">
+                    @for (p of providers; track p.value) {
+                      <option [value]="p.value">{{ p.label }}</option>
+                    }
+                  </select>
+                </label>
+
+                <label>
+                  Model Select
+                  <select (change)="onModelSelectChange($event)">
+                    @for (m of models(); track m.id) {
+                      <option [value]="m.model" [selected]="m.model === formDefaultModel()">{{ m.displayName }}</option>
+                    }
+                    <option value="__custom__" [selected]="isCustomModel(formDefaultModel())">-- Custom Model (Type Manually) --</option>
+                  </select>
+                </label>
+
+                @if (isCustomModel(formDefaultModel())) {
+                  <label class="full-width">
+                    Custom Model Key
+                    <input type="text" [value]="formDefaultModel()" (input)="updateField('defaultModel', $event)" placeholder="e.g. meta/llama-3-8b-instruct" />
+                  </label>
+                }
+
+                <label>
+                  Fallback Model 1 (on timeout/failure)
+                  <select (change)="updateField('fallbackModel1', $event)">
+                    <option value="" [selected]="!formFallbackModel1()">-- None --</option>
+                    @for (m of models(); track m.id) {
+                      <option [value]="m.model" [selected]="m.model === formFallbackModel1()">{{ m.displayName }}</option>
+                    }
+                  </select>
+                </label>
+
+                <label>
+                  Fallback Model 2
+                  <select (change)="updateField('fallbackModel2', $event)">
+                    <option value="" [selected]="!formFallbackModel2()">-- None --</option>
+                    @for (m of models(); track m.id) {
+                      <option [value]="m.model" [selected]="m.model === formFallbackModel2()">{{ m.displayName }}</option>
+                    }
+                  </select>
+                </label>
+
+                @if (formProvider() !== 'OmniAgent') {
+                  <label class="full-width">
+                    Custom API Endpoint Base URL (Optional)
+                    <input type="text" [value]="formCustomApiUrl()" (input)="updateField('customApiUrl', $event)" placeholder="e.g. https://api.openai.com/v1" [disabled]="formApiCredentialId() !== null" />
+                  </label>
+
+                  <label class="full-width">
+                    Custom API Key (Optional)
+                    <div class="password-wrapper">
+                      <lucide-icon [img]="icons.key" size="16" class="key-icon"></lucide-icon>
+                      <input type="password" autocomplete="new-password" [value]="formCustomApiKey()" (input)="updateField('customApiKey', $event)" [placeholder]="selectedAgent()?.customApiKeyConfigured ? 'Saved — leave blank to keep current key' : 'Secret Bearer Token'" [disabled]="formApiCredentialId() !== null" />
+                    </div>
+                  </label>
+                }
+              </div>
+            </fieldset>
+
+            <!-- Prompt & Parameters Group -->
+            <fieldset class="form-section">
+              <legend>Orchestration Parameters</legend>
+              <div class="input-grid">
+                <label class="full-width">
+                  System Prompt / Core Instructions
+                  <textarea [value]="formSystemPrompt()" (input)="updateField('systemPrompt', $event)" rows="6" placeholder="Define the role, constraints, and instructions for this agent..." required></textarea>
+                </label>
+
+                <label>
+                  Max Tokens
+                  <input type="number" min="128" max="200000" [value]="formMaxTokens()" (input)="updateNumberField('maxTokens', $event)" />
+                </label>
+
+                <label>
+                  Temperature
+                  <input type="number" min="0" max="2" step="0.1" [value]="formTemperature()" (input)="updateNumberField('temperature', $event)" />
+                </label>
+
+                <label>
+                  Timeout Seconds
+                  <input type="number" min="5" max="600" [value]="formTimeoutSeconds()" (input)="updateNumberField('timeoutSeconds', $event)" />
+                </label>
+
+                <label>
+                  Retry Count
+                  <input type="number" min="0" max="5" [value]="formRetryCount()" (input)="updateNumberField('retryCount', $event)" />
+                </label>
+              </div>
+            </fieldset>
+          </div>
+        </form>
+      } @else {
+        <div class="empty-state">
+          <lucide-icon [img]="icons.bot" size="48" class="pulse-logo"></lucide-icon>
+          <h3>No Agent Selected</h3>
+          <p>Select an agent from the list on the left to edit, or create a brand new agent definition.</p>
+          <button class="secondary-btn" (click)="startCreation()">
+            <lucide-icon [img]="icons.plus" size="16"></lucide-icon>
+            Create New Agent
+          </button>
+        </div>
+      }
+    </main>
+  </div>
+</section>

@@ -1,0 +1,395 @@
+<section class="page">
+  <p>Settings</p>
+  <h1>Provider and agent configuration</h1>
+
+  <div class="panel">
+    <div class="secret-status">
+      <lucide-icon [img]="icons.vault" size="20"></lucide-icon>
+      <div>
+        <strong>{{ settings()?.secretStore ?? 'Secret store' }}</strong>
+        <span>
+          API Key:
+          @if (settings()?.apiKeyConfigured) {
+            configured
+          } @else {
+            not configured
+          }
+        </span>
+      </div>
+    </div>
+
+    <div class="health-card" [class.healthy]="health()?.healthy" [class.failed]="health() && !health()?.healthy">
+      <div>
+        <span>Provider health</span>
+        <strong>
+          @if (health()) {
+            {{ health()?.status }}
+          } @else {
+            Not checked
+          }
+        </strong>
+      </div>
+      <button class="secondary" type="button" (click)="checkHealth()" [disabled]="checking()">
+        <lucide-icon [img]="icons.activity" size="18"></lucide-icon>
+        {{ checking() ? 'Checking' : 'Check API' }}
+      </button>
+    </div>
+
+    @if (health()) {
+      <div class="health-detail">
+        <span>{{ health()?.message }}</span>
+        <code>{{ health()?.model }} · {{ health()?.latencyMs }} ms</code>
+      </div>
+    }
+
+    <label>
+      Secret reference
+      <input [value]="settings()?.apiKeySecretName ?? 'secret/providers/omniagent#apiKey'" disabled />
+    </label>
+
+    <label>
+      OmniAgent API Key (e.g. OMNIAGENT, OpenAI, Anthropic)
+      <div class="secret-input">
+        <lucide-icon [img]="icons.key" size="18"></lucide-icon>
+        <input
+          type="password"
+          autocomplete="off"
+          placeholder="Enter API key..."
+          [value]="apiKey()"
+          (input)="updateApiKey($event)"
+        />
+      </div>
+    </label>
+
+    <button type="button" (click)="saveApiKey()" [disabled]="saving() || !apiKey().trim()">
+      <lucide-icon [img]="icons.save" size="18"></lucide-icon>
+      {{ saving() ? 'Saving' : 'Save API Key' }}
+    </button>
+
+    <label style="margin-top: 16px;">
+      Console API Key (Browser Authentication)
+      <div class="secret-input">
+        <lucide-icon [img]="icons.key" size="18"></lucide-icon>
+        <input
+          type="password"
+          autocomplete="off"
+          placeholder="Enter console API key to authenticate requests..."
+          [value]="consoleApiKey()"
+          (input)="updateConsoleApiKey($event)"
+        />
+      </div>
+    </label>
+
+    <button type="button" (click)="saveConsoleApiKey()">
+      <lucide-icon [img]="icons.save" size="18"></lucide-icon>
+      Save Console Key
+    </button>
+
+    @if (message()) {
+      <div class="notice success">{{ message() }}</div>
+    }
+
+    @if (error()) {
+      <div class="notice error">{{ error() }}</div>
+    }
+
+    <div class="settings-grid">
+      <label>
+        Base URL
+        <input [value]="settings()?.baseUrl ?? ''" disabled />
+      </label>
+      <label>
+        Default model
+        <input [value]="settings()?.defaultModel ?? ''" disabled />
+      </label>
+      <label>
+        Timeout
+        <input [value]="settings()?.timeoutSeconds ?? 0" disabled />
+      </label>
+      <label>
+        Retry count
+        <input [value]="settings()?.retryCount ?? 0" disabled />
+      </label>
+    </div>
+  </div>
+
+
+
+  <section class="panel model-config-panel" style="margin-top: 24px;">
+    <div class="section-title">
+      <div>
+        <p>Model Registry</p>
+        <h2>Manage Seeded and Custom Models</h2>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span>{{ models().length }} models registered</span>
+        <button type="button" (click)="syncModelsFromProvider()" [disabled]="syncingModels()" style="margin: 0; height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; font-size: 12px;">
+          <lucide-icon [img]="icons.activity" size="14"></lucide-icon>
+          {{ syncingModels() ? 'Syncing...' : 'Sync from NVIDIA' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Model Management List -->
+    <div class="model-list" style="margin-top: 16px;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left;">
+        <thead>
+          <tr style="border-bottom: 1px solid #1b2a38; color: #8fa3b7; font-size: 13px;">
+            <th style="padding: 8px;">Display Name</th>
+            <th style="padding: 8px;">Model Key (Identifier)</th>
+            <th style="padding: 8px;">Context Window</th>
+            <th style="padding: 8px; text-align: right;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (m of models(); track m.id) {
+            <tr style="border-bottom: 1px solid #14212d; font-size: 14px;">
+              <td style="padding: 10px 8px; font-weight: 600;">{{ m.displayName }}</td>
+              <td style="padding: 10px 8px;"><code>{{ m.model }}</code></td>
+              <td style="padding: 10px 8px; color: #8fa3b7;">{{ m.contextWindow ? m.contextWindow.toLocaleString() + ' tokens' : 'Default' }}</td>
+              <td style="padding: 10px 8px; text-align: right;">
+                <button class="secondary" type="button" (click)="deleteModel(m.id)" style="padding: 4px 8px; font-size: 12px; border-color: #673034; color: #f43f5e; background: rgba(244,63,94,0.05); margin: 0;">
+                  Remove
+                </button>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="4" style="padding: 16px; text-align: center; color: #8fa3b7;">No registered models found.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Add Model Form -->
+    <div style="border-top: 1px solid #1b2a38; margin-top: 24px; padding-top: 24px;">
+      <p style="margin: 0 0 4px; color: #76b900; font-size: 12px; font-weight: 700; text-transform: uppercase;">New Model</p>
+      <h3 style="margin: 0 0 16px; color: #ffffff;">Register Custom Model</h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) auto; gap: 16px; align-items: flex-end;">
+        <label>
+          Model Key (Identifier)
+          <input type="text" [value]="newModelKey()" (input)="updateNewModelKey($event)" placeholder="e.g. meta/llama-3.2-11b" />
+        </label>
+        <label>
+          Display Name
+          <input type="text" [value]="newModelDisplayName()" (input)="updateNewModelDisplayName($event)" placeholder="e.g. Llama 3.2 11B" />
+        </label>
+        <label>
+          Context Window (Optional)
+          <input type="number" [value]="newModelContext() ?? ''" (input)="updateNewModelContext($event)" placeholder="e.g. 131072" />
+        </label>
+        <button type="button" (click)="addModel()" style="margin: 0;">
+          <lucide-icon [img]="icons.save" size="18"></lucide-icon>
+          Add Model
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- API Credentials Manager -->
+  <section class="panel credentials-panel" style="margin-top: 24px;">
+    <div class="section-title" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1b2a38; padding-bottom: 16px; margin-bottom: 16px;">
+      <div>
+        <p style="margin: 0 0 4px; color: #76b900; font-size: 12px; font-weight: 700; text-transform: uppercase;">API Credentials Manager</p>
+        <h2 style="margin: 0; color: #ffffff;">Configure Provider API Keys</h2>
+      </div>
+      <span style="color: #8fa3b7; font-size: 13px;">{{ credentials().length }} keys saved</span>
+    </div>
+
+    <!-- Credentials List -->
+    <div class="credentials-list" style="margin-top: 16px; overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left;">
+        <thead>
+          <tr style="border-bottom: 1px solid #1b2a38; color: #8fa3b7; font-size: 13px;">
+            <th style="padding: 8px;">Name</th>
+            <th style="padding: 8px;">Provider</th>
+            <th style="padding: 8px;">Base URL</th>
+            <th style="padding: 8px;">API Key</th>
+            <th style="padding: 8px; text-align: right;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (c of credentials(); track c.id) {
+            <tr style="border-bottom: 1px solid #14212d; font-size: 14px;">
+              <td style="padding: 10px 8px; font-weight: 600; color: #ffffff; display: flex; align-items: center; gap: 8px; border-bottom: none;">
+                {{ c.name }}
+                @if (c.isDefault) {
+                  <span class="badge default-badge" style="padding: 2px 6px; background: rgba(118,185,0,0.1); border: 1px solid #76b900; border-radius: 4px; font-size: 10px; font-weight: 800; color: #76b900; text-transform: uppercase;">Default</span>
+                }
+              </td>
+              <td style="padding: 10px 8px;"><span class="badge" style="padding: 2px 6px; background: #111a24; border: 1px solid #1a2532; border-radius: 4px; font-size: 11px; font-weight: 700; color: #76b900;">{{ c.provider }}</span></td>
+              <td style="padding: 10px 8px; color: #8fa3b7; max-width: 250px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">{{ c.baseUrl || 'Default' }}</td>
+              <td style="padding: 10px 8px;">
+                @if (c.apiKeyConfigured) {
+                  <code>{{ c.maskedApiKey }}</code>
+                } @else {
+                  <span style="color: #f59e0b; font-size: 12px;">Not configured</span>
+                }
+              </td>
+              <td style="padding: 10px 8px; text-align: right;">
+                <button class="secondary" type="button" (click)="editCredential(c)" style="padding: 4px 8px; font-size: 12px; border-color: #1a2636; color: #76b900; background: rgba(118,185,0,0.05); margin-right: 8px; min-height: unset; height: auto; cursor: pointer;">
+                  Edit
+                </button>
+                <button class="secondary" type="button" (click)="deleteCredential(c.id)" style="padding: 4px 8px; font-size: 12px; border-color: #673034; color: #f43f5e; background: rgba(244,63,94,0.05); margin: 0; min-height: unset; height: auto; cursor: pointer;">
+                  Remove
+                </button>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="5" style="padding: 16px; text-align: center; color: #8fa3b7;">No saved credentials found.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Add Credential Form -->
+    <div style="border-top: 1px solid #1b2a38; margin-top: 24px; padding-top: 24px;">
+      <p style="margin: 0 0 4px; color: #76b900; font-size: 12px; font-weight: 700; text-transform: uppercase;">{{ editingCredentialId() ? 'Edit Credential' : 'New Credential' }}</p>
+      <h3 style="margin: 0 0 16px; color: #ffffff;">{{ editingCredentialId() ? 'Update API Provider Key' : 'Add API Provider Key' }}</h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) auto; gap: 16px; align-items: flex-end;">
+        <label>
+          Friendly Name
+          <input type="text" [value]="newCredName()" (input)="newCredName.set($any($event.target).value)" placeholder="e.g. My Gemini Key, Anthropic Dev" />
+        </label>
+        <label>
+          Provider
+          <select [value]="newCredProvider()" (change)="newCredProvider.set($any($event.target).value)" style="background: #0d121a; border: 1px solid #1a2636; color: #e6edf3; padding: 8px; border-radius: 6px; font-size: 13px; outline: none; width: 100%; height: 35px; box-sizing: border-box; cursor: pointer;">
+            <option value="OmniAgent">OmniAgent / Nvidia NIM</option>
+            <option value="OpenAI">OpenAI</option>
+            <option value="Anthropic">Anthropic</option>
+            <option value="Gemini">Gemini</option>
+            <option value="Ollama">Ollama</option>
+            <option value="Custom">Custom / OpenAI-Compatible</option>
+          </select>
+        </label>
+        <label>
+          Base URL (Optional)
+          <input type="text" [value]="newCredBaseUrl()" (input)="newCredBaseUrl.set($any($event.target).value)" placeholder="e.g. https://api.openai.com/v1" />
+        </label>
+        <label>
+          API Key
+          <input type="password" [value]="newCredApiKey()" (input)="newCredApiKey.set($any($event.target).value)" [placeholder]="editingCredentialId() ? 'Leave blank to keep current key' : 'Enter API Key...'" autocomplete="off" />
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #8fa3b7; font-size: 13px; margin: 0 0 10px 0; grid-column: span 2;">
+          <input type="checkbox" [checked]="newCredIsDefault()" (change)="newCredIsDefault.set($any($event.target).checked)" style="width: 16px; height: 16px; accent-color: #76b900; cursor: pointer;" />
+          Set as Default Credential (agents fallback to this if no key is specifically linked)
+        </label>
+        <div style="display: flex; gap: 8px; margin: 0;">
+          <button type="button" (click)="addCredential()" style="margin: 0; height: 35px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 16px;">
+            <lucide-icon [img]="icons.save" size="18"></lucide-icon>
+            {{ editingCredentialId() ? 'Save Changes' : 'Add Key' }}
+          </button>
+          @if (editingCredentialId()) {
+            <button class="secondary" type="button" (click)="cancelEdit()" style="margin: 0; height: 35px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 16px; border-color: #1a2636; color: #8fa3b7; background: #0d121a; cursor: pointer;">
+              Cancel
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel skills-panel" style="margin-top: 24px;">
+    <div class="section-title" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1b2a38; padding-bottom: 16px; margin-bottom: 16px;">
+      <div>
+        <p style="margin: 0 0 4px; color: #76b900; font-size: 12px; font-weight: 700; text-transform: uppercase;">Skill Library</p>
+        <h2 style="margin: 0; color: #ffffff;">Project Skills for Studio Tasks</h2>
+      </div>
+      <span style="color: #8fa3b7; font-size: 13px;">{{ skillList().length }} skills</span>
+    </div>
+
+    <p style="margin: 0 0 16px; color: #8fa3b7; font-size: 13px;">
+      Skills are reusable convention packs (stack templates, security requirements, quality bars). Selected skills in the Studio are injected into every agent's prompt for that task.
+    </p>
+
+    <!-- Skills List -->
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left;">
+        <thead>
+          <tr style="border-bottom: 1px solid #1b2a38; color: #8fa3b7; font-size: 13px;">
+            <th style="padding: 8px;">Name</th>
+            <th style="padding: 8px;">Category</th>
+            <th style="padding: 8px;">Description</th>
+            <th style="padding: 8px;">Status</th>
+            <th style="padding: 8px; text-align: right;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (s of skillList(); track s.id) {
+            <tr style="border-bottom: 1px solid #14212d; font-size: 14px;">
+              <td style="padding: 10px 8px; font-weight: 600; color: #ffffff;">{{ s.name }}</td>
+              <td style="padding: 10px 8px;"><span class="badge" style="padding: 2px 6px; background: #111a24; border: 1px solid #1a2532; border-radius: 4px; font-size: 11px; font-weight: 700; color: #76b900;">{{ s.category }}</span></td>
+              <td style="padding: 10px 8px; color: #8fa3b7; max-width: 320px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">{{ s.description }}</td>
+              <td style="padding: 10px 8px;">
+                <button class="secondary" type="button" (click)="toggleSkillEnabled(s)"
+                  [style.color]="s.enabled ? '#76b900' : '#8fa3b7'"
+                  [style.border-color]="s.enabled ? '#76b900' : '#1a2636'"
+                  style="padding: 2px 8px; font-size: 11px; font-weight: 700; background: transparent; margin: 0; min-height: unset; height: auto; cursor: pointer; border-radius: 999px;">
+                  {{ s.enabled ? 'Enabled' : 'Disabled' }}
+                </button>
+              </td>
+              <td style="padding: 10px 8px; text-align: right; white-space: nowrap;">
+                <button class="secondary" type="button" (click)="editSkill(s)" style="padding: 4px 8px; font-size: 12px; border-color: #1a2636; color: #76b900; background: rgba(118,185,0,0.05); margin-right: 8px; min-height: unset; height: auto; cursor: pointer;">
+                  Edit
+                </button>
+                <button class="secondary" type="button" (click)="deleteSkill(s.id)" style="padding: 4px 8px; font-size: 12px; border-color: #673034; color: #f43f5e; background: rgba(244,63,94,0.05); margin: 0; min-height: unset; height: auto; cursor: pointer;">
+                  Remove
+                </button>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="5" style="padding: 16px; text-align: center; color: #8fa3b7;">No skills defined.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Add/Edit Skill Form -->
+    <div style="border-top: 1px solid #1b2a38; margin-top: 24px; padding-top: 24px;">
+      <p style="margin: 0 0 4px; color: #76b900; font-size: 12px; font-weight: 700; text-transform: uppercase;">{{ editingSkillId() ? 'Edit Skill' : 'New Skill' }}</p>
+      <h3 style="margin: 0 0 16px; color: #ffffff;">{{ editingSkillId() ? 'Update Skill' : 'Add Skill' }}</h3>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <label>
+          Name
+          <input type="text" [value]="skillName()" (input)="skillName.set($any($event.target).value)" placeholder="e.g. Go REST API" />
+        </label>
+        <label>
+          Category
+          <input type="text" [value]="skillCategory()" (input)="skillCategory.set($any($event.target).value)" placeholder="Backend / Frontend / Security / Quality..." />
+        </label>
+        <label style="grid-column: span 2;">
+          Description (shown as tooltip in Studio)
+          <input type="text" [value]="skillDescription()" (input)="skillDescription.set($any($event.target).value)" placeholder="Short summary of what this skill enforces" />
+        </label>
+        <label style="grid-column: span 2;">
+          Instructions (injected into agent prompts)
+          <textarea rows="5" [value]="skillInstructions()" (input)="skillInstructions.set($any($event.target).value)" placeholder="Concrete, imperative conventions the agents must follow..." style="width: 100%; background: #0d121a; border: 1px solid #1a2636; color: #e6edf3; padding: 8px; border-radius: 6px; font-size: 13px; outline: none; box-sizing: border-box; resize: vertical;"></textarea>
+        </label>
+        <label style="grid-column: span 2;">
+          Keywords (comma-separated — drives auto-suggestion from the Studio prompt)
+          <input type="text" [value]="skillKeywords()" (input)="skillKeywords.set($any($event.target).value)" placeholder="e.g. go,golang,gin" />
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #8fa3b7; font-size: 13px; margin: 0;">
+          <input type="checkbox" [checked]="skillEnabled()" (change)="skillEnabled.set($any($event.target).checked)" style="width: 16px; height: 16px; accent-color: #76b900; cursor: pointer;" />
+          Enabled (selectable in Studio)
+        </label>
+        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+          <button type="button" (click)="saveSkill()" style="margin: 0; height: 35px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 16px;">
+            <lucide-icon [img]="icons.save" size="18"></lucide-icon>
+            {{ editingSkillId() ? 'Save Changes' : 'Add Skill' }}
+          </button>
+          @if (editingSkillId()) {
+            <button class="secondary" type="button" (click)="cancelSkillEdit()" style="margin: 0; height: 35px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 16px; border-color: #1a2636; color: #8fa3b7; background: #0d121a; cursor: pointer;">
+              Cancel
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  </section>
+</section>

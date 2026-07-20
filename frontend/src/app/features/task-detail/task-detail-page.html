@@ -1,0 +1,121 @@
+<section class="page">
+  <header class="page-header">
+    <div>
+      <a routerLink="/history">History</a>
+      <p>Task Detail</p>
+      <h1>{{ task()?.title ?? taskId }}</h1>
+    </div>
+    <button type="button" (click)="loadTask()" [disabled]="loading()">Refresh</button>
+  </header>
+
+  @if (task(); as currentTask) {
+    <div class="summary-grid">
+      <div>
+        <span>Status</span>
+        <strong [class]="currentTask.status.toLowerCase()">{{ currentTask.status }}</strong>
+      </div>
+      <div>
+        <span>Total tokens</span>
+        <strong>{{ currentTask.totalTokens }}</strong>
+      </div>
+      <div>
+        <span>Input / output</span>
+        <strong>{{ currentTask.totalInputTokens }} / {{ currentTask.totalOutputTokens }}</strong>
+      </div>
+      <div>
+        <span>Latency</span>
+        <strong>{{ formatDuration(currentTask.totalLatencyMs) }}</strong>
+      </div>
+    </div>
+
+    <section class="detail-grid">
+      <div class="panel prompt-panel">
+        <div class="panel-title">
+          <span>Prompt</span>
+          <code>{{ currentTask.createdAt | date:'HH:mm:ss · MMM d, y' }}</code>
+        </div>
+        <pre>{{ currentTask.inputPrompt }}</pre>
+        @if (currentTask.errorMessage) {
+          <div class="error">{{ currentTask.errorMessage }}</div>
+        }
+      </div>
+
+      <div class="panel timeline-panel">
+        <div class="panel-title">
+          <span>Execution timeline</span>
+          <code>{{ currentTask.consoleEvents.length }} events</code>
+        </div>
+        <div class="timeline">
+          @for (event of currentTask.consoleEvents; track event.id) {
+            <div class="timeline-row">
+              <time>{{ event.createdAt | date:'HH:mm:ss' }}</time>
+              <code>{{ event.eventType }}</code>
+              <span>{{ event.message }}</span>
+            </div>
+          }
+        </div>
+      </div>
+    </section>
+
+    <section class="agent-layout">
+      <div class="agent-list">
+        @for (agent of currentTask.agentRuns; track agent.id) {
+          <button
+            type="button"
+            [class.active]="selectedAgent()?.id === agent.id"
+            (click)="selectAgent(agent.id)"
+          >
+            <span>{{ agent.executionOrder }}. {{ agent.agentName }}</span>
+            <code [class]="agent.status.toLowerCase()">{{ agent.status }}</code>
+          </button>
+        }
+      </div>
+
+      <div class="panel agent-detail">
+        @if (selectedAgent(); as agent) {
+          <div class="panel-title">
+            <span>{{ agent.agentName }}</span>
+            <code>{{ formatDuration(agent.latencyMs) }}</code>
+          </div>
+
+          <div class="agent-meta">
+            <span>{{ agent.agentType }}</span>
+            <span>{{ agent.startedAt | date:'HH:mm:ss' }} - {{ agent.completedAt | date:'HH:mm:ss' }}</span>
+          </div>
+
+          @if (agent.errorMessage) {
+            <div class="error">{{ agent.errorMessage }}</div>
+          }
+
+          <pre class="output">{{ agent.output || 'No output recorded.' }}</pre>
+
+          <details>
+            <summary>Agent input</summary>
+            <pre>{{ agent.input || 'No input recorded.' }}</pre>
+          </details>
+
+          <div class="model-table">
+            <div class="model-head">
+              <span>Provider / model</span>
+              <span>Status</span>
+              <span>Tokens</span>
+              <span>Latency</span>
+            </div>
+            @for (call of modelCallsFor(agent.id); track call.id) {
+              <div class="model-row">
+                <span>{{ call.provider }} · {{ call.model }}</span>
+                <code [class]="call.status.toLowerCase()">{{ call.status }}</code>
+                <span>{{ call.inputTokens }} / {{ call.outputTokens }} / {{ call.totalTokens }}</span>
+                <span>{{ formatDuration(call.latencyMs) }}</span>
+              </div>
+            } @empty {
+              <div class="model-empty">No model calls recorded for this agent.</div>
+            }
+          </div>
+        }
+      </div>
+    </section>
+  } @else {
+    <div class="panel empty">{{ loading() ? 'Loading task detail...' : 'Task not found.' }}</div>
+  }
+</section>

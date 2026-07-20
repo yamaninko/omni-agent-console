@@ -1,0 +1,662 @@
+import { Component, OnDestroy, OnInit, computed, inject, signal, effect, ViewChild, ElementRef } from '@angular/core';
+import { DatePipe } from '@angular/common';
+import { Bot, CirclePlay, LucideAngularModule, RadioTower, Send, SquareTerminal, Trash2, Plus, History, FileText, RefreshCw, ChevronDown, ChevronRight, Pencil, CheckCircle, AlertCircle, XCircle, Loader } from 'lucide-angular';
+import { Router, ActivatedRoute } from '@angular/router';
+import { TaskApiClient } from '../../core/api/task-api-client';
+import { ConsoleStreamService } from '../../core/realtime/console-stream.service';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { ConsoleEvent, RuntimeAgent, UsageSummary, TaskDetail, TaskSummary, SkillDefinition } from '../../core/models';
+
+@Component({
+  selector: 'app-studio-page',
+  imports: [DatePipe, LucideAngularModule],
+  templateUrl: './studio-page.html',
+  styleUrl: './studio-page.scss'
+})
+export class StudioPage implements OnInit, OnDestroy {
+  private readonly api = inject(TaskApiClient);
+  private readonly consoleStream = inject(ConsoleStreamService);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly sanitizer = inject(DomSanitizer);
+
+  protected readonly icons = {
+    bot: Bot,
+    play: CirclePlay,
+    realtime: RadioTower,
+    send: Send,
+    terminal: SquareTerminal,
+    trash: Trash2,
+    plus: Plus,
+    history: History,
+    file: FileText,
+    refresh: RefreshCw,
+    chevronDown: ChevronDown,
+    chevronRight: ChevronRight,
+    edit: Pencil,
+    checkCircle: CheckCircle,
+    alertCircle: AlertCircle,
+    xCircle: XCircle,
+    loader: Loader
+  };
+
+  protected readonly prompt = signal('');
+  protected readonly promptPlaceholder = 'Bu API dokumanina gore client SDK tasarla.';
+  protected readonly workspacePath = signal('/workspace/proje');
+  protected readonly skills = signal<SkillDefinition[]>([]);
+  private readonly manualSkillIds = signal<string[]>([]);
+  private readonly dismissedAutoIds = signal<string[]>([]);
+  protected readonly autoSuggestedIds = signal<string[]>([]);
+  protected readonly suggestQuestions = signal<string[]>([]);
+  protected readonly skillInfo = signal<SkillDefinition | null>(null);
+  private suggestTimer?: any;
+
+  // Effective selection = manual picks + prompt-based suggestions the user hasn't dismissed.
+  protected readonly selectedSkillIds = computed(() => {
+    const manual = this.manualSkillIds();
+    const dismissed = new Set(this.dismissedAutoIds());
+    const auto = this.autoSuggestedIds().filter(id => !dismissed.has(id) && !manual.includes(id));
+    return [...manual, ...auto];
+  });
+  protected readonly showRecentTasks = signal(true);
+  protected readonly showAgents = signal(false);
+  protected readonly showActiveTaskCollapse = signal(true);
+  protected readonly showUsageCollapse = signal(true);
+  protected readonly activeTaskId = signal<string | null>(null);
+  protected readonly activeTask = signal<TaskDetail | null>(null);
+  protected readonly agents = signal<RuntimeAgent[]>([]);
+  protected readonly recentTasks = signal<TaskSummary[]>([]);
+  protected readonly usage = signal<UsageSummary | null>(null);
+  protected readonly pending = signal(false);
+  protected readonly running = signal(false);
+  protected readonly consoleEvents = computed<ConsoleEvent[]>(() => this.consoleStream.events());
+  @ViewChild('terminalEl') private terminalEl?: ElementRef<HTMLDivElement>;
+  private userScrolledUp = false;
+  private statusPoll?: ReturnType<typeof setInterval>;
+  protected readonly currentTime = signal<Date>(new Date());
+  private timeInterval?: any;
+
+  constructor() {
+    effect(() => {
+      const events = this.consoleEvents();
+      if (events.length > 0) {
+        this.scrollToBottomIfNeeded();
+      }
+    });
+  }
+
+  ngOnInit(): void {
+    let savedPath = localStorage.getItem('studio_workspace_path');
+    if (savedPath) {
+      if (!savedPath.startsWith('/workspace/')) {
+        const cleanSub = savedPath.replace(/^\/+|\/+$/g, '').split('/').pop() || 'proje';
+        savedPath = `/workspace/${cleanSub}`;
+        localStorage.setItem('studio_workspace_path', savedPath);
+      }
+      this.workspacePath.set(savedPath);
+    }
+    this.api.listRuntimeAgents().subscribe({
+      next: (agents) => this.agents.set(agents),
+      error: () => this.agents.set(this.fallbackAgents())
+    });
+
+    this.api.listSkills().subscribe({
+      next: (skills) => {
+        this.skills.set(skills.filter(s => s.enabled));
+        const saved = localStorage.getItem('studio_selected_skills');
+        if (saved) {
+          try {
+            const ids: string[] = JSON.parse(saved);
+            this.manualSkillIds.set(ids.filter(id => skills.some(s => s.id === id && s.enabled)));
+          } catch { }
+        }
+      },
+      error: () => this.skills.set([])
+    });
+
+    this.loadRecentTasks();
+
+    // Load task directly from URL query param if present
+    this.route.queryParams.subscribe(params => {
+      const taskId = params['task'];
+      if (taskId) {
+        if (taskId !== this.activeTaskId()) {
+          this.selectRecentTask(taskId, false);
+        }
+      } else {
+        this.activeTaskId.set(null);
+        this.activeTask.set(null);
+        this.consoleStream.reset();
+        this.stopStatusPolling();
+      }
+    });
+
+    this.api.getUsageSummary().subscribe({
+      next: (usage) => this.usage.set(usage),
+      error: () => this.usage.set(null)
+    });
+
+    this.timeInterval = setInterval(() => {
+      this.currentTime.set(new Date());
+    }, 1000);
+  }
+
+  ngOnDestroy(): void {
+    this.stopStatusPolling();
+    if (this.timeInterval) {
+      clearInterval(this.timeInterval);
+    }
+    clearTimeout(this.suggestTimer);
+  }
+
+  protected startTask(): void {
+    const prompt = this.prompt().trim();
+    const workspace = this.workspacePath().trim();
+    if (!prompt || !workspace || this.pending() || this.running()) {
+      return;
+    }
+
+    this.pending.set(true);
+    this.running.set(false);
+    this.userScrolledUp = false;
+    this.activeTask.set(null);
+    this.consoleStream.reset();
+    this.stopStatusPolling();
+
+    const skillIds = this.selectedSkillIds();
+    const contextJson = JSON.stringify(
+      skillIds.length > 0 ? { workspacePath: workspace, skillIds } : { workspacePath: workspace });
+
+    this.api.createTask(prompt, contextJson).subscribe({
+      next: async (task) => {
+        this.prompt.set('');
+        this.autoSuggestedIds.set([]);
+        this.dismissedAutoIds.set([]);
+        this.suggestQuestions.set([]);
+        this.skillInfo.set(null);
+        this.activeTaskId.set(task.id);
+        this.router.navigate([], { queryParams: { task: task.id }, queryParamsHandling: 'merge' });
+        this.loadRecentTasks();
+        await this.consoleStream.connect(task.id);
+        this.api.getTaskEvents(task.id).subscribe({
+          next: (events) => this.consoleStream.setEvents(events)
+        });
+        this.api.runTask(task.id).subscribe({
+          complete: () => {
+            this.pending.set(false);
+            this.running.set(true);
+            this.startStatusPolling(task.id);
+            this.loadUsage();
+          },
+          error: () => {
+            this.pending.set(false);
+            this.running.set(false);
+            this.loadUsage();
+          }
+        });
+      },
+      error: () => this.pending.set(false)
+    });
+  }
+
+  protected updatePrompt(event: Event): void {
+    const value = (event.target as HTMLTextAreaElement).value;
+    this.prompt.set(value);
+    clearTimeout(this.suggestTimer);
+    this.suggestTimer = setTimeout(() => this.fetchSkillSuggestions(value), 600);
+  }
+
+  private fetchSkillSuggestions(prompt: string): void {
+    const trimmed = prompt.trim();
+    if (trimmed.length < 12) {
+      this.autoSuggestedIds.set([]);
+      this.suggestQuestions.set([]);
+      return;
+    }
+
+    this.api.suggestSkills(trimmed).subscribe({
+      next: (result) => {
+        this.autoSuggestedIds.set(result.skillIds);
+        this.suggestQuestions.set(result.questions);
+      },
+      error: () => { }
+    });
+  }
+
+  protected toggleSkill(id: string): void {
+    this.skillInfo.set(this.skills().find(s => s.id === id) ?? null);
+
+    const manual = this.manualSkillIds();
+    if (manual.includes(id)) {
+      this.persistManualSkills(manual.filter(x => x !== id));
+    } else if (this.isAutoSuggested(id)) {
+      // Deselecting an auto-suggested chip dismisses it for this prompt.
+      this.dismissedAutoIds.set([...this.dismissedAutoIds(), id]);
+    } else {
+      this.persistManualSkills([...manual, id]);
+      this.dismissedAutoIds.set(this.dismissedAutoIds().filter(x => x !== id));
+    }
+  }
+
+  private persistManualSkills(ids: string[]): void {
+    this.manualSkillIds.set(ids);
+    localStorage.setItem('studio_selected_skills', JSON.stringify(ids));
+  }
+
+  protected isSkillSelected(id: string): boolean {
+    return this.selectedSkillIds().includes(id);
+  }
+
+  protected isAutoSuggested(id: string): boolean {
+    return this.autoSuggestedIds().includes(id)
+      && !this.manualSkillIds().includes(id)
+      && !this.dismissedAutoIds().includes(id);
+  }
+
+  protected autoSuggestedCount(): number {
+    return this.autoSuggestedIds().filter(id => this.isAutoSuggested(id)).length;
+  }
+
+  protected getWorkspaceSubfolder(): string {
+    const path = this.workspacePath();
+    if (path.startsWith('/workspace/')) {
+      return path.substring('/workspace/'.length);
+    }
+    if (path.startsWith('/workspace')) {
+      return path.substring('/workspace'.length);
+    }
+    return path;
+  }
+
+  protected updateWorkspaceSubfolder(event: Event): void {
+    const subfolder = (event.target as HTMLInputElement).value;
+    const cleanSub = subfolder.replace(/^\/+|\/+$/g, '');
+    const fullPath = subfolder.trim() ? `/workspace/${cleanSub}` : '';
+    this.workspacePath.set(fullPath);
+    localStorage.setItem('studio_workspace_path', fullPath);
+  }
+
+  protected loadRecentTasks(): void {
+    this.api.listTasks().subscribe({
+      next: (tasks) => this.recentTasks.set(tasks.slice(0, 8)),
+      error: () => this.recentTasks.set([])
+    });
+  }
+
+  protected selectRecentTask(taskId: string, updateUrl = true): void {
+    if (this.pending()) return;
+    
+    this.activeTaskId.set(taskId);
+    this.userScrolledUp = false;
+    this.stopStatusPolling();
+    this.consoleStream.reset();
+
+    if (updateUrl) {
+      this.router.navigate([], { queryParams: { task: taskId }, queryParamsHandling: 'merge' });
+    }
+
+    this.api.getTask(taskId).subscribe({
+      next: async (task) => {
+        this.activeTask.set(task);
+        this.prompt.set(task.inputPrompt);
+        this.consoleStream.setEvents(task.consoleEvents);
+        
+        if (task.status === 'Running' || task.status === 'Pending') {
+          this.running.set(true);
+          await this.consoleStream.connect(taskId);
+          this.startStatusPolling(taskId);
+        } else {
+          this.running.set(false);
+        }
+      }
+    });
+  }
+
+  protected startNewTask(): void {
+    if (this.pending() || this.running()) return;
+    this.activeTaskId.set(null);
+    this.userScrolledUp = false;
+    this.activeTask.set(null);
+    this.prompt.set('');
+    this.consoleStream.reset();
+    this.stopStatusPolling();
+    this.router.navigate([], { queryParams: { task: null }, queryParamsHandling: 'merge' });
+  }
+
+  protected clearConsole(): void {
+    this.consoleStream.setEvents([]);
+  }
+
+  protected getCleanPrompt(message: string): string {
+    const prefix = 'Task execution started with prompt: "';
+    if (message.startsWith(prefix) && message.endsWith('"')) {
+      return message.substring(prefix.length, message.length - 1);
+    }
+    return message.replace('Task execution started with prompt: ', '').replace(/^"|"$/g, '');
+  }
+
+  protected getAgentOutput(payloadJson: string | null | undefined): string {
+    if (!payloadJson) return '';
+    try {
+      const obj = JSON.parse(payloadJson);
+      return obj.output || '';
+    } catch {
+      return '';
+    }
+  }
+
+  protected getAgentName(payloadJson: string | null | undefined): string {
+    if (!payloadJson) return 'Agent';
+    try {
+      const obj = JSON.parse(payloadJson);
+      return obj.agentName || 'Agent';
+    } catch {
+      return 'Agent';
+    }
+  }
+
+  protected parseMarkdown(text: string | null | undefined): SafeHtml {
+    if (!text) return '';
+
+    // Escape HTML first to prevent XSS
+    let html = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    // 1. Code blocks: ```language ... ```
+    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (match, lang, code) => {
+      const language = lang || 'code';
+      return `
+        <div class="code-block-container" style="background: #090e14; border: 1px solid #1a2636; border-radius: 6px; margin: 12px 0; overflow: hidden; font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Monaco, Consolas, monospace; text-align: left;">
+          <div class="code-block-header" style="background: #0d131a; padding: 6px 12px; font-size: 11px; color: #76b900; font-weight: 700; border-bottom: 1px solid #14212d; display: flex; justify-content: space-between; align-items: center; text-transform: uppercase;">
+            <span>${language}</span>
+          </div>
+          <pre style="margin: 0; padding: 12px; overflow-x: auto; color: #e6edf3; font-size: 12.5px; line-height: 1.5; white-space: pre;"><code>${code}</code></pre>
+        </div>
+      `;
+    });
+
+    // 2. Headers: ## Title, ### Title, # Title
+    html = html.replace(/^### (.*?)$/gm, '<h4 style="color: #76b900; font-size: 14px; margin: 16px 0 8px; font-weight: 700;">$1</h4>');
+    html = html.replace(/^## (.*?)$/gm, '<h3 style="color: #ffffff; font-size: 16px; margin: 20px 0 10px; font-weight: 700; border-bottom: 1px solid #1a2636; padding-bottom: 4px;">$1</h3>');
+    html = html.replace(/^# (.*?)$/gm, '<h2 style="color: #ffffff; font-size: 18px; margin: 24px 0 12px; font-weight: 800;">$1</h2>');
+
+    // 3. Bold: **text**
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #ffffff; font-weight: 700;">$1</strong>');
+
+    // 4. Inline code: `code`
+    html = html.replace(/`(.*?)`/g, '<code style="background: #111a24; border: 1px solid #1a2532; padding: 2px 6px; border-radius: 4px; color: #76b900; font-family: inherit; font-size: 12px; font-weight: 600;">$1</code>');
+
+    // 5. Bullet lists: - item or * item
+    html = html.replace(/^[-\*]\s+(.*?)$/gm, '<li style="margin-left: 20px; margin-bottom: 4px; list-style-type: disc; color: #e6edf3;">$1</li>');
+
+    // 6. Line breaks
+    html = html.replace(/\n/g, '<br>');
+
+    return this.sanitizer.bypassSecurityTrustHtml(html);
+  }
+
+  protected getActiveTaskInputTokens(): number {
+    const task = this.activeTask();
+    if (!task) return 0;
+    if (task.status !== 'Running' && task.status !== 'Pending') {
+      return task.totalInputTokens;
+    }
+    return task.modelCallLogs?.reduce((acc, log) => acc + log.inputTokens, 0) ?? 0;
+  }
+
+  protected getActiveTaskOutputTokens(): number {
+    const task = this.activeTask();
+    if (!task) return 0;
+    if (task.status !== 'Running' && task.status !== 'Pending') {
+      return task.totalOutputTokens;
+    }
+    return task.modelCallLogs?.reduce((acc, log) => acc + log.outputTokens, 0) ?? 0;
+  }
+
+  protected getActiveTaskTotalTokens(): number {
+    const task = this.activeTask();
+    if (!task) return 0;
+    if (task.status !== 'Running' && task.status !== 'Pending') {
+      return task.totalTokens;
+    }
+    return task.modelCallLogs?.reduce((acc, log) => acc + log.totalTokens, 0) ?? 0;
+  }
+
+  protected getActiveTaskLatency(): number {
+    const task = this.activeTask();
+    if (!task) return 0;
+    if (task.status !== 'Running' && task.status !== 'Pending') {
+      return task.totalLatencyMs;
+    }
+    return task.modelCallLogs?.reduce((acc, log) => acc + log.latencyMs, 0) ?? 0;
+  }
+
+  protected toggleRecentTasks(): void {
+    this.showRecentTasks.update(v => !v);
+  }
+
+  protected toggleAgents(): void {
+    this.showAgents.update(v => !v);
+  }
+
+  protected toggleActiveTaskCollapse(): void {
+    this.showActiveTaskCollapse.update(v => !v);
+  }
+
+  protected toggleUsageCollapse(): void {
+    this.showUsageCollapse.update(v => !v);
+  }
+
+  protected cancelActiveTask(): void {
+    const taskId = this.activeTaskId();
+    if (!taskId || !this.running()) {
+      return;
+    }
+
+    this.api.cancelTask(taskId).subscribe({
+      complete: () => {
+        this.running.set(false);
+        this.stopStatusPolling();
+        this.loadUsage();
+      },
+      // Cancel request failed → the task is still running; keep the running
+      // state so the user can retry instead of throwing an unhandled error.
+      error: () => { }
+    });
+  }
+
+  protected rerunActiveTask(): void {
+    const taskId = this.activeTaskId();
+    if (!taskId || this.pending() || this.running()) {
+      return;
+    }
+
+    this.pending.set(true);
+    this.running.set(false);
+    this.userScrolledUp = false;
+    const currentEvents = this.consoleStream.events();
+    const promptEvent = currentEvents.find(e => e.eventType === 'TaskStarted');
+    if (promptEvent) {
+      this.consoleStream.setEvents([promptEvent]);
+    } else {
+      this.consoleStream.reset();
+    }
+    this.stopStatusPolling();
+
+    this.api.runTask(taskId).subscribe({
+      complete: () => {
+        this.pending.set(false);
+        this.running.set(true);
+        this.startStatusPolling(taskId);
+        this.loadUsage();
+        this.loadRecentTasks();
+      },
+      error: () => {
+        this.pending.set(false);
+        this.running.set(false);
+        this.loadUsage();
+      }
+    });
+  }
+
+  protected getActiveWorkspacePath(): string {
+    const task = this.activeTask();
+    if (!task || !task.inputContextJson) {
+      return '';
+    }
+    try {
+      const context = JSON.parse(task.inputContextJson);
+      return context.workspacePath || '';
+    } catch {
+      return '';
+    }
+  }
+
+  protected sampleEvents(): ConsoleEvent[] {
+    return [
+      {
+        id: 'sample-1',
+        taskRunId: 'sample',
+        eventType: 'TaskCreated',
+        message: 'Console stream waiting for a task',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 'sample-2',
+        taskRunId: 'sample',
+        eventType: 'AgentStep',
+        message: 'Planner -> Research -> Coder -> Reviewer pipeline scaffold ready',
+        createdAt: new Date().toISOString()
+      }
+    ];
+  }
+
+  private fallbackAgents(): RuntimeAgent[] {
+    return [
+      { name: 'Planner Agent', type: 'Planner', description: 'Execution planning' },
+      { name: 'Research Agent', type: 'Research', description: 'Context analysis' },
+      { name: 'Coder Agent', type: 'Coder', description: 'Technical output' },
+      { name: 'Reviewer Agent', type: 'Reviewer', description: 'Quality review' },
+      { name: 'Ops Monitor Agent', type: 'OpsMonitor', description: 'Usage telemetry' }
+    ];
+  }
+
+  private loadUsage(): void {
+    this.api.getUsageSummary().subscribe({
+      next: (usage) => this.usage.set(usage),
+      error: () => this.usage.set(null)
+    });
+  }
+
+  private startStatusPolling(taskId: string): void {
+    this.stopStatusPolling();
+
+    this.statusPoll = setInterval(() => {
+      this.api.getTask(taskId).subscribe({
+        next: (task) => {
+          this.activeTask.set(task);
+          if (task.status !== 'Running' && task.status !== 'Pending') {
+            this.running.set(false);
+            this.stopStatusPolling();
+            this.loadUsage();
+            this.consoleStream.setEvents(task.consoleEvents);
+          }
+        },
+        error: () => {
+          this.running.set(false);
+          this.stopStatusPolling();
+        }
+      });
+    }, 2000);
+  }
+
+  private stopStatusPolling(): void {
+    if (!this.statusPoll) {
+      return;
+    }
+
+    clearInterval(this.statusPoll);
+    this.statusPoll = undefined;
+  }
+
+  protected onTerminalScroll(event: Event): void {
+    const el = event.target as HTMLDivElement;
+    if (!el) return;
+    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 15;
+    this.userScrolledUp = !isAtBottom;
+  }
+
+  protected editingTaskId = signal<string | null>(null);
+  protected editingTitle = signal<string>('');
+
+  protected startRename(taskId: string, currentTitle: string, event: Event): void {
+    event.stopPropagation();
+    this.editingTaskId.set(taskId);
+    this.editingTitle.set(currentTitle);
+    setTimeout(() => {
+      const el = document.querySelector('input[type="text"][style*="background: #080d13"]') as HTMLInputElement;
+      if (el) {
+        el.focus();
+        el.select();
+      }
+    }, 50);
+  }
+
+  protected updateEditingTitle(event: Event): void {
+    this.editingTitle.set((event.target as HTMLInputElement).value);
+  }
+
+  protected saveRename(taskId: string): void {
+    const newTitle = this.editingTitle().trim();
+    if (!newTitle) {
+      this.cancelRename();
+      return;
+    }
+
+    this.api.renameTask(taskId, newTitle).subscribe({
+      complete: () => {
+        this.cancelRename();
+        this.loadRecentTasks();
+        const currentTask = this.activeTask();
+        if (currentTask && currentTask.id === taskId) {
+          this.activeTask.set({ ...currentTask, title: newTitle });
+        }
+      },
+      // Rename failed → close the edit box and keep the original title.
+      error: () => this.cancelRename()
+    });
+  }
+
+  protected cancelRename(): void {
+    this.editingTaskId.set(null);
+    this.editingTitle.set('');
+  }
+
+  protected deleteTask(taskId: string, event: Event): void {
+    event.stopPropagation();
+    if (confirm('Are you sure you want to delete this task?')) {
+      this.api.deleteTask(taskId).subscribe({
+        complete: () => {
+          this.loadRecentTasks();
+          if (this.activeTaskId() === taskId) {
+            this.startNewTask();
+          }
+        },
+        // Delete failed → refresh the list so the UI reflects reality.
+        error: () => this.loadRecentTasks()
+      });
+    }
+  }
+
+  private scrollToBottomIfNeeded(): void {
+    setTimeout(() => {
+      if (!this.terminalEl) return;
+      const el = this.terminalEl.nativeElement;
+      if (!this.userScrolledUp) {
+        el.scrollTop = el.scrollHeight;
+      }
+    }, 0);
+  }
+}

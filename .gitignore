@@ -1,0 +1,15 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/.angular/
+.env
+.DS_Store
+*.user
+*.suo
+
+# memanto session memory cache — never commit
+MEMORY.md
+
+# runtime-generated agent workspace output
+workspace/
