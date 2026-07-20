@@ -9,7 +9,7 @@ public sealed class ModelFallbackTests
     [Fact]
     public void Chain_IsPrimaryPlusFallbacksInOrder()
     {
-        var chain = AgentOrchestratorService.BuildModelChain(
+        var chain = ModelChainExecutor.BuildModelChain(
             "qwen/qwen3.5-122b-a10b",
             "deepseek-ai/deepseek-v4-flash, openai/gpt-oss-120b");
 
@@ -21,7 +21,7 @@ public sealed class ModelFallbackTests
     [Fact]
     public void Chain_DeduplicatesCaseInsensitively()
     {
-        var chain = AgentOrchestratorService.BuildModelChain(
+        var chain = ModelChainExecutor.BuildModelChain(
             "meta/llama-3.1-8b-instruct",
             "META/LLAMA-3.1-8B-INSTRUCT, stepfun-ai/step-3.7-flash,, stepfun-ai/step-3.7-flash");
 
@@ -34,7 +34,7 @@ public sealed class ModelFallbackTests
     [InlineData("   ")]
     public void Chain_WithoutFallbacks_IsJustThePrimary(string? fallbacks)
     {
-        var chain = AgentOrchestratorService.BuildModelChain("meta/llama-3.1-8b-instruct", fallbacks);
+        var chain = ModelChainExecutor.BuildModelChain("meta/llama-3.1-8b-instruct", fallbacks);
         Assert.Equal(["meta/llama-3.1-8b-instruct"], chain);
     }
 
@@ -47,13 +47,13 @@ public sealed class ModelFallbackTests
     [InlineData(ProviderErrorCode.UnknownError)]
     public void TransientOrModelSpecificErrors_TriggerFallback(ProviderErrorCode code)
     {
-        Assert.True(AgentOrchestratorService.ShouldFallbackToNextModel(code));
+        Assert.True(ModelChainExecutor.ShouldFallbackToNextModel(code));
     }
 
     [Fact]
     public void AuthFailure_DoesNotTriggerFallback()
     {
         // The whole chain uses the same key; a 401 would fail on every model.
-        Assert.False(AgentOrchestratorService.ShouldFallbackToNextModel(ProviderErrorCode.Unauthorized));
+        Assert.False(ModelChainExecutor.ShouldFallbackToNextModel(ProviderErrorCode.Unauthorized));
     }
 }

@@ -33,20 +33,20 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly AgentConsoleDbContext dbContext;
     private readonly IConsoleEventService consoleEvents;
-    private readonly IModelProvider modelProvider;
+    private readonly ModelChainExecutor chainExecutor;
     private readonly IModelRouter modelRouter;
     private readonly ITokenUsageExtractor tokenUsageExtractor;
 
     public AgentOrchestratorService(
         AgentConsoleDbContext dbContext,
         IConsoleEventService consoleEvents,
-        IModelProvider modelProvider,
+        ModelChainExecutor chainExecutor,
         IModelRouter modelRouter,
         ITokenUsageExtractor tokenUsageExtractor)
     {
         this.dbContext = dbContext;
         this.consoleEvents = consoleEvents;
-        this.modelProvider = modelProvider;
+        this.chainExecutor = chainExecutor;
         this.modelRouter = modelRouter;
         this.tokenUsageExtractor = tokenUsageExtractor;
     }
@@ -291,7 +291,7 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
                 null,
                 ConsoleEventType.TaskFailed,
                 $"Task failed: {exception.Message}",
-                BuildErrorPayload(exception),
+                RunTelemetry.BuildErrorPayload(exception),
                 cancellationToken);
         }
     }
@@ -368,7 +368,7 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
         var agentStopwatch = Stopwatch.StartNew();
         try
         {
-            var response = await ExecuteWithModelChainAsync(
+            var response = await chainExecutor.ExecuteAsync(
                 modelRequest,
                 agentDefinition,
                 modelCall,
@@ -436,7 +436,7 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
                 agentRun.Id,
                 ConsoleEventType.AgentFailed,
                 $"{agentDefinition.Name} failed: {exception.Message}",
-                BuildErrorPayload(exception),
+                RunTelemetry.BuildErrorPayload(exception),
                 cancellationToken);
 
             throw;
@@ -556,7 +556,7 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
                 try
                 {
                     iterationStopwatch.Restart();
-                    response = await ExecuteWithModelChainAsync(
+                    response = await chainExecutor.ExecuteAsync(
                         modelRequest,
                         agentDefinition,
                         modelCall,
@@ -582,7 +582,7 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
                         agentRun.Id,
                         ConsoleEventType.Warning,
                         $"Model chain failed at iteration {iteration} ({exception.ErrorCode}); finishing with the {tools.WrittenFiles.Count} file(s) already written.",
-                        BuildErrorPayload(exception),
+                        RunTelemetry.BuildErrorPayload(exception),
                         cancellationToken);
 
                     finalContent = $"The model provider became unavailable at iteration {iteration}; " +
@@ -712,7 +712,7 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
                 agentRun.Id,
                 ConsoleEventType.AgentFailed,
                 $"{agentDefinition.Name} failed: {exception.Message}",
-                BuildErrorPayload(exception),
+                RunTelemetry.BuildErrorPayload(exception),
                 cancellationToken);
 
             throw;
@@ -747,68 +747,6 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
         };
     }
 
-    /// <summary>
-    /// Walks the agent's primary → fallback model chain until one model returns a
-    /// usable answer (text content or tool calls). Updates <paramref name="modelCall"/>
-    /// to the model actually used so usage tracking reflects fallbacks.
-    /// </summary>
-    private async Task<ModelResponse> ExecuteWithModelChainAsync(
-        ModelRequest modelRequest,
-        AgentDefinition agentDefinition,
-        ModelCallLog modelCall,
-        Guid taskRunId,
-        Guid agentRunId,
-        CancellationToken cancellationToken)
-    {
-        var modelChain = BuildModelChain(modelRequest.Model, agentDefinition.FallbackModels);
-        ModelResponse response = null!;
-
-        for (var chainIndex = 0; chainIndex < modelChain.Count; chainIndex++)
-        {
-            var chainModel = modelChain[chainIndex];
-
-            if (chainIndex > 0)
-            {
-                modelCall.Model = chainModel;
-                await dbContext.SaveChangesAsync(CancellationToken.None);
-            }
-
-            try
-            {
-                response = await ExecuteModelCallWithRetryAsync(
-                    modelRequest with { Model = chainModel },
-                    agentDefinition.RetryCount,
-                    taskRunId,
-                    agentRunId,
-                    cancellationToken);
-
-                // Congested free-tier endpoints occasionally return HTTP 200 with
-                // zero completion tokens; no text and no tool calls is a failure.
-                if (string.IsNullOrWhiteSpace(response.Content) && response.ToolCalls is not { Count: > 0 })
-                {
-                    throw new ProviderException(
-                        ProviderErrorCode.UnknownError,
-                        $"Model {chainModel} returned an empty response (0 completion tokens).");
-                }
-
-                break;
-            }
-            catch (ProviderException exception) when (
-                chainIndex < modelChain.Count - 1 && ShouldFallbackToNextModel(exception.ErrorCode))
-            {
-                await consoleEvents.WriteAsync(
-                    taskRunId,
-                    agentRunId,
-                    ConsoleEventType.Warning,
-                    $"Model {chainModel} failed ({exception.ErrorCode}: {exception.Message}); falling back to {modelChain[chainIndex + 1]}.",
-                    BuildErrorPayload(exception),
-                    CancellationToken.None);
-            }
-        }
-
-        return response;
-    }
-
     private static Dictionary<string, string> BuildRequestMetadata(
         TaskRun taskRun,
         AgentRun agentRun,
@@ -823,36 +761,6 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
             ["customApiKey"] = agentDefinition.ApiCredential != null ? (agentDefinition.ApiCredential.ApiKey ?? "") : (agentDefinition.CustomApiKey ?? ""),
             ["provider"] = agentDefinition.ApiCredential != null ? (agentDefinition.ApiCredential.Provider ?? "") : agentDefinition.Provider.ToString()
         };
-    }
-
-    private async Task<ModelResponse> ExecuteModelCallWithRetryAsync(
-        ModelRequest request,
-        int retryCount,
-        Guid taskRunId,
-        Guid agentRunId,
-        CancellationToken cancellationToken)
-    {
-        var maxRetries = Math.Max(0, retryCount);
-
-        for (var attempt = 0; ; attempt++)
-        {
-            try
-            {
-                return await modelProvider.CreateChatCompletionAsync(request, cancellationToken);
-            }
-            catch (ProviderException exception) when (attempt < maxRetries && IsTransient(exception.ErrorCode))
-            {
-                var delay = TimeSpan.FromMilliseconds(Math.Min(4000, 500 * Math.Pow(2, attempt)));
-                await consoleEvents.WriteAsync(
-                    taskRunId,
-                    agentRunId,
-                    ConsoleEventType.Warning,
-                    $"Provider call retry {attempt + 1}/{maxRetries} after {exception.ErrorCode}.",
-                    BuildErrorPayload(exception),
-                    cancellationToken);
-                await Task.Delay(delay, cancellationToken);
-            }
-        }
     }
 
     private async Task RecalculateTaskTotalsAsync(TaskRun taskRun, CancellationToken cancellationToken)
@@ -962,14 +870,6 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    private static bool IsTransient(ProviderErrorCode errorCode)
-    {
-        return errorCode is ProviderErrorCode.RateLimit
-            or ProviderErrorCode.Timeout
-            or ProviderErrorCode.ProviderUnavailable
-            or ProviderErrorCode.UnknownError;
-    }
-
     private static string TrimForPrompt(string value, int maxLength)
     {
         if (value.Length <= maxLength)
@@ -1064,17 +964,6 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
         }, JsonOptions);
     }
 
-    private static string BuildErrorPayload(Exception exception)
-    {
-        return JsonSerializer.Serialize(new
-        {
-            error = exception.Message,
-            errorCode = exception is ProviderException providerException
-                ? providerException.ErrorCode.ToString()
-                : ProviderErrorCode.UnknownError.ToString()
-        }, JsonOptions);
-    }
-
     private static decimal CalculateEstimatedCost(string model, int inputTokens, int outputTokens)
     {
         var pricing = new Dictionary<string, (decimal Input, decimal Output)>(StringComparer.OrdinalIgnoreCase)
@@ -1096,40 +985,6 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
         return inputCost + outputCost;
     }
 
-
-    /// <summary>
-    /// Primary model first, then the comma-separated fallbacks in order,
-    /// de-duplicated case-insensitively. Public for unit testing.
-    /// </summary>
-    public static IReadOnlyList<string> BuildModelChain(string primaryModel, string? fallbackModels)
-    {
-        var chain = new List<string>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        void Add(string? model)
-        {
-            var trimmed = model?.Trim();
-            if (!string.IsNullOrEmpty(trimmed) && seen.Add(trimmed))
-            {
-                chain.Add(trimmed);
-            }
-        }
-
-        Add(primaryModel);
-        foreach (var fallback in (fallbackModels ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries))
-        {
-            Add(fallback);
-        }
-
-        return chain;
-    }
-
-    /// <summary>
-    /// A different model is worth trying for everything except auth failures —
-    /// the same key is used for the whole chain, so 401 would fail everywhere.
-    /// </summary>
-    public static bool ShouldFallbackToNextModel(ProviderErrorCode errorCode) =>
-        errorCode != ProviderErrorCode.Unauthorized;
 
     // Context JSON is user-controlled; unknown properties and malformed ids are ignored.
     private static (string? WorkspacePath, List<Guid> SkillIds) ParseTaskContext(string? inputContextJson)
