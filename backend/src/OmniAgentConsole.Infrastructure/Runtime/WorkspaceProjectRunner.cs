@@ -106,6 +106,11 @@ public sealed class WorkspaceProjectRunner : IWorkspaceProjectRunner
         var layout = WorkspaceProjectDetector.Detect(effectiveRoot, path)!;
         activeProjects[detect.ComposeProjectName] = 0;
 
+        // If already up, treat Start as rebuild + recreate (user expectation on
+        // second Start click). --force-recreate replaces containers; --build
+        // picks up code changes under /workspace.
+        var wasRunning = await IsProjectRunningAsync(layout, detect.ComposeProjectName, cancellationToken);
+
         try
         {
             ProcessResult result;
@@ -115,7 +120,7 @@ public sealed class WorkspaceProjectRunner : IWorkspaceProjectRunner
                     layout.FullRoot,
                     [
                         "compose", "-p", detect.ComposeProjectName,
-                        "up", "-d", "--build"
+                        "up", "-d", "--build", "--force-recreate", "--remove-orphans"
                     ],
                     new Dictionary<string, string> { ["HOST_PORT"] = detect.SuggestedHostPort.ToString() },
                     cancellationToken);
@@ -132,7 +137,7 @@ public sealed class WorkspaceProjectRunner : IWorkspaceProjectRunner
                     return new ProjectRunActionResponse(false, "failed", "docker build failed.", Truncate(build.Output));
                 }
 
-                // Replace any previous container with the same name.
+                // Always replace any previous container with the same name.
                 await RunDockerAsync(layout.FullRoot, ["rm", "-f", detect.ComposeProjectName], null, cancellationToken);
                 var containerPort = WorkspaceProjectDetector.GuessContainerPort(layout.FullRoot);
                 result = await RunDockerAsync(
@@ -148,11 +153,12 @@ public sealed class WorkspaceProjectRunner : IWorkspaceProjectRunner
             }
 
             var ok = result.ExitCode == 0;
+            var verb = wasRunning ? "recreated (build + force-recreate)" : "starting";
             return new ProjectRunActionResponse(
                 ok,
                 ok ? "starting" : "failed",
                 ok
-                    ? $"Project starting. Health: {detect.HealthUrl}"
+                    ? $"Project {verb}. Health: {detect.HealthUrl}"
                     : "docker command failed.",
                 Truncate(result.Output));
         }
@@ -422,6 +428,32 @@ public sealed class WorkspaceProjectRunner : IWorkspaceProjectRunner
                 false, 0, sw.ElapsedMilliseconds, null, "", new Dictionary<string, string>(),
                 exception.Message);
         }
+    }
+
+    private async Task<bool> IsProjectRunningAsync(
+        ProjectLayout layout,
+        string composeProjectName,
+        CancellationToken cancellationToken)
+    {
+        ProcessResult ps;
+        if (layout.HasCompose)
+        {
+            ps = await RunDockerAsync(
+                layout.FullRoot,
+                ["compose", "-p", composeProjectName, "ps", "--status", "running", "-q"],
+                null,
+                cancellationToken);
+        }
+        else
+        {
+            ps = await RunDockerAsync(
+                layout.FullRoot,
+                ["ps", "-q", "--filter", $"name=^{composeProjectName}$"],
+                null,
+                cancellationToken);
+        }
+
+        return ps.ExitCode == 0 && !string.IsNullOrWhiteSpace(ps.Output);
     }
 
     private async Task<ProcessResult> RunDockerAsync(

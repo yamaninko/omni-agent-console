@@ -92,7 +92,7 @@
             <div class="run-actions">
               <button type="button" class="run-btn primary" (click)="startProject()" [disabled]="projectBusy()">
                 <lucide-icon [img]="icons.play" size="14"></lucide-icon>
-                Start (docker)
+                {{ projectStatus()?.state === 'running' ? 'Restart (build + recreate)' : 'Start (docker)' }}
               </button>
               <button type="button" class="run-btn secondary" (click)="stopProject()" [disabled]="projectBusy()">
                 <lucide-icon [img]="icons.stop" size="14"></lucide-icon>

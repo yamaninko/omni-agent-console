@@ -105,11 +105,12 @@ public static partial class WorkspaceProjectDetector
     {
         if (layout.HasCompose)
         {
-            return $"cd {ShellQuote(layout.RelativeRoot == "." ? "." : layout.RelativeRoot)} && HOST_PORT={hostPort} docker compose -p {composeProjectName} up -d --build";
+            // --force-recreate so a second Start rebuilds/replaces a running stack.
+            return $"cd {ShellQuote(layout.RelativeRoot == "." ? "." : layout.RelativeRoot)} && HOST_PORT={hostPort} docker compose -p {composeProjectName} up -d --build --force-recreate --remove-orphans";
         }
 
-        // Dockerfile-only fallback.
-        return $"cd {ShellQuote(layout.RelativeRoot == "." ? "." : layout.RelativeRoot)} && docker build -t {composeProjectName} . && docker run -d --rm --name {composeProjectName} -p {hostPort}:{GuessContainerPort(layout.FullRoot)} {composeProjectName}";
+        // Dockerfile-only fallback (rm -f then run = recreate).
+        return $"cd {ShellQuote(layout.RelativeRoot == "." ? "." : layout.RelativeRoot)} && docker build -t {composeProjectName} . && docker rm -f {composeProjectName} 2>/dev/null; docker run -d --rm --name {composeProjectName} -p {hostPort}:{GuessContainerPort(layout.FullRoot)} {composeProjectName}";
     }
 
     public static string BuildDownCommand(ProjectLayout layout, string composeProjectName)

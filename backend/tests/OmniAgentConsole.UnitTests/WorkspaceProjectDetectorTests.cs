@@ -54,7 +54,7 @@ public sealed class WorkspaceProjectDetectorTests
         var layout = new ProjectLayout("/tmp/x", "fastapi", true, true, "docker-compose.yml");
         var cmd = WorkspaceProjectDetector.BuildUpCommand(layout, "omni-fastapi", 18321);
         Assert.Contains("HOST_PORT=18321", cmd);
-        Assert.Contains("docker compose -p omni-fastapi up -d --build", cmd);
+        Assert.Contains("docker compose -p omni-fastapi up -d --build --force-recreate --remove-orphans", cmd);
     }
 
     [Fact]

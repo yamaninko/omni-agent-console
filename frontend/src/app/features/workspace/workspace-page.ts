@@ -181,7 +181,12 @@ export class WorkspacePage implements OnInit, OnDestroy {
     }
 
     this.projectBusy.set(true);
-    this.projectMessage.set('Building and starting… (may take 1–3 minutes)');
+    const recreating = this.projectStatus()?.state === 'running';
+    this.projectMessage.set(
+      recreating
+        ? 'Rebuilding and recreating containers… (may take 1–3 minutes)'
+        : 'Building and starting… (may take 1–3 minutes)'
+    );
     this.api.workspaceProjectUp(info.projectRoot).subscribe({
       next: (res) => {
         this.projectBusy.set(false);
