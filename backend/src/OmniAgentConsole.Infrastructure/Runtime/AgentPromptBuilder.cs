@@ -17,12 +17,14 @@ internal static class AgentPromptBuilder
         TaskRun taskRun,
         AgentDefinition agentDefinition,
         IReadOnlyList<AgentOutput> previousOutputs,
-        string? skillsBlock)
+        string? skillsBlock,
+        string? objectiveOverride = null,
+        string? roleInstructionOverride = null)
     {
         var systemPromptParts = new List<string>
         {
             agentDefinition.SystemPrompt.Trim(),
-            GetRoleInstruction(agentDefinition.Type)
+            roleInstructionOverride ?? GetRoleInstruction(agentDefinition.Type)
         };
 
         if (!string.IsNullOrWhiteSpace(skillsBlock))
@@ -59,7 +61,7 @@ internal static class AgentPromptBuilder
 
         userBuilder.AppendLine();
         userBuilder.AppendLine("Current agent objective:");
-        userBuilder.AppendLine(GetObjective(agentDefinition.Type));
+        userBuilder.AppendLine(objectiveOverride ?? GetObjective(agentDefinition.Type));
 
         return
         [

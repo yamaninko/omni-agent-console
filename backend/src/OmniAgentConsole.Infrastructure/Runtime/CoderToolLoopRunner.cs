@@ -41,6 +41,13 @@ public sealed class CoderToolLoopRunner
         this.chainExecutor = chainExecutor;
     }
 
+    /// <param name="objectiveOverride">
+    /// When set (e.g. Reviewer fix loop), replaces the default Coder objective and
+    /// injects a fix-focused role instruction.
+    /// </param>
+    /// <param name="displayNameSuffix">
+    /// Optional console/agent-run name suffix, e.g. " (fix loop)".
+    /// </param>
     public async Task<AgentOutput> RunAsync(
         TaskRun taskRun,
         AgentDefinition agentDefinition,
@@ -48,14 +55,20 @@ public sealed class CoderToolLoopRunner
         int executionOrder,
         string? skillsBlock,
         string exportRoot,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? objectiveOverride = null,
+        string? displayNameSuffix = null)
     {
         var route = modelRouter.Resolve(agentDefinition);
+        var displayName = string.IsNullOrWhiteSpace(displayNameSuffix)
+            ? agentDefinition.Name
+            : agentDefinition.Name + displayNameSuffix;
+        var isFixLoop = !string.IsNullOrWhiteSpace(objectiveOverride);
         var agentRun = new AgentRun
         {
             TaskRunId = taskRun.Id,
             AgentDefinitionId = agentDefinition.Id,
-            AgentName = agentDefinition.Name,
+            AgentName = displayName,
             AgentType = agentDefinition.Type,
             Status = AgentRunStatus.Running,
             ExecutionOrder = executionOrder,
@@ -66,15 +79,29 @@ public sealed class CoderToolLoopRunner
         dbContext.AgentRuns.Add(agentRun);
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        var loopLabel = isFixLoop
+            ? $"{displayName} started using model: {route.Model} (fix loop, max {MaxToolIterations} iterations)"
+            : $"{displayName} started using model: {route.Model} (agentic tool loop, max {MaxToolIterations} iterations)";
+
         await consoleEvents.WriteAsync(
             taskRun.Id,
             agentRun.Id,
             ConsoleEventType.AgentStarted,
-            $"{agentDefinition.Name} started using model: {route.Model} (agentic tool loop, max {MaxToolIterations} iterations)",
+            loopLabel,
             RunTelemetry.BuildAgentPayload(agentDefinition, route),
             cancellationToken);
 
-        var messages = new List<ChatMessage>(AgentPromptBuilder.BuildMessages(taskRun, agentDefinition, previousOutputs, skillsBlock));
+        var roleOverride = isFixLoop
+            ? "You are in a single-pass FIX LOOP after a code review. Patch only the listed findings with write_file/read_file/list_files. Do not expand scope, do not rewrite unrelated files, do not create scratch scripts. When done, reply with a short plain-text summary of changes (no code blocks)."
+            : null;
+
+        var messages = new List<ChatMessage>(AgentPromptBuilder.BuildMessages(
+            taskRun,
+            agentDefinition,
+            previousOutputs,
+            skillsBlock,
+            objectiveOverride,
+            roleOverride));
         agentRun.Input = RunTelemetry.TrimForStorage(InputSanitizer.Redact(messages.Last().Content), 24000);
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -264,7 +291,7 @@ public sealed class CoderToolLoopRunner
                 RunTelemetry.BuildAgentResultPayload(agentRun),
                 cancellationToken);
 
-            return new AgentOutput(agentDefinition.Name, agentDefinition.Type, finalContent);
+            return new AgentOutput(displayName, agentDefinition.Type, finalContent);
         }
         catch (ProviderException exception)
         {

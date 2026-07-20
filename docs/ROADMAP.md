@@ -22,7 +22,7 @@
 | — | Reviewer→Coder fix loop | ⭐ Opsiyonel | §5.1 |
 | — | OpenSearch entegrasyonu | 🔮 Future | Profil arkasında, log ship yok |
 
-**Önerilen öncelik**: ~~A1–D~~ → (opsiyonel) **E** Reviewer→Coder fix loop.
+**Önerilen öncelik**: ~~A1–E tamam~~. Yeni işler ihtiyaç oldukça ROADMAP'e eklenir.
 
 ---
 
@@ -167,8 +167,12 @@ cd frontend && npm ci && npm test
 
 ## 5. Opsiyonel ürün kalemleri
 
-### 5.1 Reviewer → Coder fix loop (eğitim değeri yüksek)
-Reviewer bulgu üretti ise **tek** ek Coder turu: messages'a findings + "yalnız bu bulguları düzelt, write_file ile" → OpsMonitor en sonda. Console event: `Fix loop started` / `Fix loop skipped (no findings)`. Limit tek tur (maliyet/loop riski). Effort ~1 gün; mimari hazır (tool loop + previousOutputs).
+### 5.1 Reviewer → Coder fix loop — ✅ KAPANDI (2026-07-20, Sprint E)
+Reviewer sonrası **en fazla bir** Coder fix pass:
+- `ReviewerFixLoopPolicy.ShouldRunFixLoop` (pure heuristic: severity/bulgu marker'ları, bullet list; "no findings"/LGTM → skip)
+- Console: `Fix loop started: … (single pass)` / `Fix loop skipped (no findings).`
+- `CoderToolLoopRunner` `objectiveOverride` + display name `" (fix loop)"`; OpsMonitor zincirin en sonunda (fix çıktısı previousOutputs'ta)
+- Unit testler: clean bill / severity / TR markers / bullet list / objective metni
 
 ### 5.2 bash / run_tests tool
 Bilinçli YOK — sandbox'sız shell = RCE. İleride: ayrı sidecar container (network none, CPU/mem/timeout limitli). Ayrı proje.
@@ -190,9 +194,9 @@ Kod fallback'i eklendi; README listesi temkinli uyarı taşıyor. İş: 2 modell
 | B ✅ | Orchestrator PR-R1→R4 | tamam (2026-07-20) — 1442→487 satır, 113 test, canlı smoke |
 | C ✅ | Frontend test altyapısı + MVP specs | tamam (2026-07-20) — Vitest, 27 frontend test |
 | D ✅ | Vault secret-ref credentials | tamam (2026-07-20) — dual-read + migrate + 122 test |
-| E (ops.) | Reviewer→Coder fix loop | 1 gün |
+| E ✅ | Reviewer→Coder fix loop | tamam (2026-07-20) — tek pass, policy + orchestrator |
 
-Kalan: opsiyonel **E** (eğitim fix loop).
+Açık çekirdek sprint yok.
 
 ---
 

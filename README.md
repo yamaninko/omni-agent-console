@@ -2,7 +2,7 @@
 
 Web tabanlı, terminal hissiyatlı multi-agent studio. Backend .NET 10, frontend Angular 21; provider entegrasyonu OpenAI-compatible chat completion mantığıyla çalışır (NVIDIA NIM, OpenAI, Gemini OpenAI-compatible endpoint ve diğer uyumlu sağlayıcılar).
 
-Bir prompt girersiniz; Planner → Research → Coder → Reviewer → Ops Monitor ajan zinciri çalışır, üretilen kod dosyaları `workspace/` klasörüne gerçek proje yapısıyla yazılır, tüm akış realtime console'da izlenir.
+Bir prompt girersiniz; Planner → Research → Coder → Reviewer → (opsiyonel tek Coder **fix loop**) → Ops Monitor ajan zinciri çalışır, üretilen kod dosyaları `workspace/` klasörüne gerçek proje yapısıyla yazılır, tüm akış realtime console'da izlenir.
 
 ## Mevcut kapsam
 
@@ -16,6 +16,7 @@ Bir prompt girersiniz; Planner → Research → Coder → Reviewer → Ops Monit
 - SignalR realtime console stream; worker → API event akışı Redis pub/sub üzerinden
 - Docker Compose ile frontend, API, agent-worker, PostgreSQL, Redis, RabbitMQ ve Vault; optional OpenSearch profili
 - **Agentic tool loop (Coder)**: Coder ajanı Claude Code tarzı bir araç döngüsüyle çalışır — model `write_file` / `read_file` / `list_files` araçlarını çağırarak projeyi dosya dosya, kısa iterasyonlarla kurar (OpenAI-uyumlu function calling). Her tool call console'a canlı düşer, her iterasyon ayrı model çağrısı olarak usage'a işlenir; araç kullanmayan modeller için markdown fence export'u fallback olarak devrededir
+- **Reviewer → Coder fix loop**: Reviewer eyleme dönük bulgu ürettiyse Coder **tek** ek turda yalnız o bulguları workspace üzerinde düzeltir (`Fix loop started` / `Fix loop skipped` console event'leri); Ops Monitor en sonda çalışır
 
 ### Skill Library (proje konvansiyon paketleri)
 - 20 hazır skill: **Backend** (Node/Express/TS, Go, .NET, Java Spring Boot, Python FastAPI), **Frontend** (Angular, React, Flutter), **Data** (PostgreSQL + Migrations, ORM, MongoDB, Redis Caching, RabbitMQ Messaging), **Security** (JWT Authentication), **Quality** (Input Validation, Unit Tests, REST Conventions, Health Checks, README & Docs), **Packaging** (Dockerized Service)
@@ -228,4 +229,4 @@ cd frontend && npm run build
 
 ## Yol haritası
 
-Açık kalemler ve tam uygulama planları [docs/ROADMAP.md](docs/ROADMAP.md) dosyasındadır. Tamamlananlar: dual deployment / shared-lab, orchestrator refactor, frontend Vitest specs, credential Vault secret-ref. Opsiyonel: Reviewer→Coder fix loop. Kapanmış inceleme bulgularının arşivi de aynı belgede.
+Yol haritası ve kapanmış bulgu arşivi [docs/ROADMAP.md](docs/ROADMAP.md) dosyasındadır. Tamamlananlar: dual deployment / shared-lab, orchestrator refactor, frontend Vitest specs, credential Vault secret-ref, Reviewer→Coder fix loop.

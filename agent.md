@@ -159,11 +159,16 @@ This file records the execution history, features implemented, and architectural
 - Request metadata no longer carries raw keys (`apiCredentialId` + `agentDefinitionId`); `OmniAgentModelProvider` resolves via the resolver.
 - Migration `CredentialSecretRefs` (idempotent). Live: NVIDIA NIM row shows empty `ApiKey` + Vault path + `KeyLastFour`.
 
+### 26. 🔁 Reviewer → Coder Fix Loop (Sprint E)
+- After Reviewer, at most **one** extra Coder tool-loop pass when `ReviewerFixLoopPolicy.ShouldRunFixLoop` sees actionable findings (severity/bulgu markers or structured lists; skips LGTM / "no findings").
+- Console: `Fix loop started: Coder will address Reviewer findings (single pass).` or `Fix loop skipped (no findings).`
+- Fix pass uses `objectiveOverride` + role instruction + agent display name suffix `" (fix loop)"`; OpsMonitor still runs last with fix output in `previousOutputs`.
+
 ---
 
 ## 📈 Verification Status
 
-- **Unit Tests (backend)**: 122 tests build and pass (path guard, export, tools, requeue, suggestion, fallback, sanitizer, shared-lab, credential secret policy, token usage).
+- **Unit Tests (backend)**: 131 tests build and pass (path guard, export, tools, requeue, suggestion, fallback, sanitizer, shared-lab, credential secret policy, reviewer fix-loop policy, token usage).
 - **Unit Tests (frontend)**: 27 Vitest tests pass (`cd frontend && npm test`).
 - **Frontend Compiler**: Angular 21 builds successfully (only pre-existing SCSS budget warnings).
 - **Docker Compose**: All containers (Postgres, RabbitMQ, Redis, Vault, API, Frontend, Worker) built and running under the `omni-agent-console` project name.

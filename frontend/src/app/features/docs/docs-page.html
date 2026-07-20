@@ -56,6 +56,13 @@
           </div>
           <div class="step-card">
             <div class="step-header">
+              <span class="badge">4b</span>
+              <span>Fix loop (optional)</span>
+            </div>
+            <p>If the Reviewer produces actionable findings, the Coder runs <strong>one</strong> extra tool-loop pass to patch only those items (<code>Fix loop started</code> / <code>Fix loop skipped</code> in the console).</p>
+          </div>
+          <div class="step-card">
+            <div class="step-header">
               <span class="badge">5</span>
               <span>OpsMonitor Agent</span>
             </div>
@@ -368,6 +375,7 @@
         <h3>5. Agentic Tool Loop (Coder)</h3>
         <p>
           The Coder no longer produces the whole project in a single completion. It runs a <strong>tool-calling loop</strong> (the same pattern agentic CLIs like Claude Code use): the model is given three function tools — <code>write_file(path, content)</code>, <code>read_file(path)</code>, <code>list_files(path?)</code> — via the OpenAI-compatible <code>tools</code> parameter. Each iteration is one short chat completion; when the model requests tool calls, the worker executes them (<code>AgentWorkspaceTools</code>), streams a <code>🔧</code> console event per call, feeds the results back as <code>tool</code> messages, and continues. When the model answers without tool calls, that answer is the final summary. Hard limits: 24 iterations, 50 files per task, 1M chars per file.
+          After the Reviewer, a <strong>single optional fix loop</strong> may re-run the Coder with a findings-only objective (<code>ReviewerFixLoopPolicy</code>): console shows <code>Fix loop started</code> or <code>Fix loop skipped (no findings)</code>. OpsMonitor always runs last.
         </p>
         <ul>
           <li><strong>Per-iteration accounting:</strong> every iteration is its own model call log entry — token usage, latency, and cost stay accurate.</li>

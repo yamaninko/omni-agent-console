@@ -211,6 +211,20 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
 
                 previousOutputs.Add(output);
                 executionOrder++;
+
+                // Single post-Reviewer Coder fix pass (educational "AI reviewed → AI fixed").
+                if (agentType == AgentType.Reviewer)
+                {
+                    executionOrder = await MaybeRunReviewerFixLoopAsync(
+                        taskRun,
+                        definitions,
+                        previousOutputs,
+                        executionOrder,
+                        skillsBlock,
+                        workspacePath,
+                        output.Content,
+                        cancellationToken);
+                }
             }
 
             taskStopwatch.Stop();
@@ -453,6 +467,89 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
             await dbContext.SaveChangesAsync(CancellationToken.None);
             throw;
         }
+    }
+
+    /// <summary>
+    /// At most one extra Coder pass after Reviewer when findings look actionable.
+    /// Returns the next executionOrder value (bumped if a fix loop ran).
+    /// </summary>
+    private async Task<int> MaybeRunReviewerFixLoopAsync(
+        TaskRun taskRun,
+        IReadOnlyDictionary<AgentType, AgentDefinition> definitions,
+        List<AgentOutput> previousOutputs,
+        int executionOrder,
+        string? skillsBlock,
+        string? workspacePath,
+        string? reviewerContent,
+        CancellationToken cancellationToken)
+    {
+        if (!ReviewerFixLoopPolicy.ShouldRunFixLoop(reviewerContent))
+        {
+            await consoleEvents.WriteAsync(
+                taskRun.Id,
+                null,
+                ConsoleEventType.AgentStep,
+                "Fix loop skipped (no findings).",
+                null,
+                cancellationToken);
+            return executionOrder;
+        }
+
+        if (!definitions.TryGetValue(AgentType.Coder, out var coderDefinition))
+        {
+            await consoleEvents.WriteAsync(
+                taskRun.Id,
+                null,
+                ConsoleEventType.Warning,
+                "Fix loop skipped: Coder agent is disabled or not configured.",
+                null,
+                cancellationToken);
+            return executionOrder;
+        }
+
+        if (string.IsNullOrWhiteSpace(workspacePath)
+            || !WorkspacePathGuard.TryResolve(WorkspaceRoot, workspacePath, out var fixExportRoot))
+        {
+            await consoleEvents.WriteAsync(
+                taskRun.Id,
+                null,
+                ConsoleEventType.Warning,
+                "Fix loop skipped: workspace path is missing or outside the workspace root.",
+                null,
+                cancellationToken);
+            return executionOrder;
+        }
+
+        await dbContext.Entry(taskRun).ReloadAsync(cancellationToken);
+        if (taskRun.Status == TaskRunStatus.Cancelled)
+        {
+            throw new OperationCanceledException(cancellationToken);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await consoleEvents.WriteAsync(
+            taskRun.Id,
+            null,
+            ConsoleEventType.AgentStep,
+            "Fix loop started: Coder will address Reviewer findings (single pass).",
+            null,
+            cancellationToken);
+
+        var fixObjective = ReviewerFixLoopPolicy.BuildFixLoopObjective(reviewerContent ?? string.Empty);
+        var fixOutput = await coderToolLoop.RunAsync(
+            taskRun,
+            coderDefinition,
+            previousOutputs,
+            executionOrder,
+            skillsBlock,
+            fixExportRoot,
+            cancellationToken,
+            objectiveOverride: fixObjective,
+            displayNameSuffix: " (fix loop)");
+
+        previousOutputs.Add(fixOutput);
+        return executionOrder + 1;
     }
 
     private async Task RecalculateTaskTotalsAsync(TaskRun taskRun, CancellationToken cancellationToken)
