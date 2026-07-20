@@ -142,6 +142,11 @@ This file records the execution history, features implemented, and architectural
 - **Verified live, both paths**: flag off = legacy behavior (200/201 without headers); flag on = 400 without session, A/B isolation (404s, empty list), workspacePath mapped in DB, 403 on credential write, suggest open, admin sees all; fail-fast confirmed (API not serving).
 - New `SharedLabPolicy` (pure, unit-tested: id charset, path-map idempotency, foreign-prefix rejection, admin-gate matrix, startup guard) + frontend session identity (localStorage + interceptor + hub query).
 
+### 23. 🧩 Orchestrator Refactor (Sprint B, R1–R4)
+- `AgentOrchestratorService` split behavior-preservingly from **1442 → 487 lines**, one commit per slice: `CodeBlockExporter` (legacy markdown export), `ModelChainExecutor` (chain walk/retry/fallback events; keeps the public static test surface), `AgentPromptBuilder` + `RunTelemetry` (messages/metadata/context vs. payloads/cost/hash/trims), `CoderToolLoopRunner` (the agentic tool loop as a composition of the above).
+- Target architecture now matches docs/ROADMAP.md §2.4: RunTaskAsync is a thin coordinator — Coder+workspace → CoderToolLoopRunner, else RunAgentAsync → ModelChainExecutor.
+- 113 tests green with unchanged asserts (export/fallback tests retargeted); live tool-loop smoke on the deployed stack.
+
 ---
 
 ## 📈 Verification Status

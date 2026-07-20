@@ -14,7 +14,7 @@
 | 4b | Credential at-rest (Vault secret-ref) | 🔲 Açık | §4 |
 | 5 | Tenant / sınıf izolasyonu | ✅ Kapandı (2026-07-20) | §1 — dual deployment uygulandı: laptop default, shared-lab `SHARED_LAB=true` ile; iki-path canlı doğrulama yapıldı |
 | 6 | InputSanitizer darlığı | ✅ Kapandı (kısmi, doğası gereği) | Genişletildi; pattern-dışı secret teorik risk |
-| 7 | Orchestrator god-class | 🔲 Açık | §2 |
+| 7 | Orchestrator god-class | ✅ Kapandı (2026-07-20) | §2 — R1–R4 dilimleri uygulandı; 1442 → 487 satır, davranış değişmedi |
 | 8 | Reasoning-only boş content | ✅ Kapandı | `reasoning_content`/`reasoning` fallback |
 | 9 | Frontend test yok | 🔲 Açık | §3 |
 | 10 | İlk commit | ✅ Kapandı | `4fd390c` |
@@ -97,6 +97,13 @@ Uygulama parçaları: `SharedLabPolicy` + `SharedLabOptions` (Application), `Api
 **Yapılmayacaklar**: refactor sırasında fix loop eklemek, message formatını değiştirmek, limitleri "iyileştirmek", repository pattern'e geçmek.
 
 **Kabul**: 79+ test yeşil (aynı assert'ler); canlı tool-loop task Completed; cancel mid-call anında; fallback event formatı aynı; koordinatör sınıf < ~500 satır.
+
+**UYGULANDI (2026-07-20)** — dilim başına ayrı commit, davranış değişikliği yok:
+- R1 `CodeBlockExporter` (`a1fade7`): legacy export + regex + uzantı seti + limitler; testler yeni tipe aynı assert'lerle taşındı
+- R2 `ModelChainExecutor` + `RunTelemetry.BuildErrorPayload` (`00d8a95`): chain walk, retry, sticky model desteği, fallback event'leri; `BuildModelChain`/`ShouldFallbackToNextModel` public static test yüzeyi yeni tipte
+- R4 `AgentPromptBuilder` + `RunTelemetry` genişletme (`552ce4a`): mesaj kurulumu, rol talimatları, skills bloğu, context parse, request metadata; payload/cost/hash/trim yardımcıları
+- R3 `CoderToolLoopRunner` (`9f7e7a8`): tool loop tamamı — ModelChainExecutor + AgentPromptBuilder + RunTelemetry + AgentWorkspaceTools + CodeBlockExporter kompozisyonu
+- Sonuç: `AgentOrchestratorService` **1442 → 487 satır** (ince koordinatör); 113 test aynı assert'lerle yeşil; canlı tool-loop smoke + hedef mimari §2.4'teki çizimle birebir
 
 ---
 
