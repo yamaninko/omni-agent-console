@@ -85,11 +85,15 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
         taskRun.ErrorMessage = null;
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        // Keep the console row under varchar(4000); full prompt lives on task_runs.InputPrompt.
+        var promptPreview = taskRun.InputPrompt.Length > 800
+            ? taskRun.InputPrompt[..800] + "…"
+            : taskRun.InputPrompt;
         await consoleEvents.WriteAsync(
             taskRun.Id,
             null,
             ConsoleEventType.TaskStarted,
-            $"Task execution started with prompt: \"{taskRun.InputPrompt}\"",
+            $"Task execution started with prompt: \"{promptPreview}\"",
             null,
             cancellationToken);
 

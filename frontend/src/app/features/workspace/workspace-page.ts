@@ -330,19 +330,22 @@ export class WorkspacePage implements OnInit, OnDestroy {
   }
 
   private buildPackagingFixPrompt(projectRoot: string, dockerLog: string): string {
-    const trimmedLog = dockerLog.length > 6000 ? dockerLog.slice(-6000) : dockerLog;
+    // Keep under console_events varchar(4000) when the orchestrator echoes the prompt;
+    // prefer the tail of the log where Docker prints the actual error.
+    const trimmedLog = dockerLog.length > 2800 ? dockerLog.slice(-2800) : dockerLog;
     return (
       `Workspace projesinin Docker packaging hatasını düzelt. Proje kökü: ${projectRoot}\n\n` +
       `SORUN: Workspace "Start (docker)" başarısız oldu. Aşağıdaki docker build/compose logunu oku ve ` +
-      `yalnızca packaging dosyalarını (Dockerfile, docker-compose.yml, .dockerignore, nginx.conf, package.json) ` +
+      `yalnızca packaging dosyalarını (Dockerfile, docker-compose.yml, .dockerignore, nginx.conf, package.json, go.mod) ` +
       `düzelt — uygulama kodunu gereksiz yere yeniden yazma.\n\n` +
       `Yaygın kurallar:\n` +
       `- package-lock.json yoksa Dockerfile asla zorunlu COPY package-lock.json yapmasın; ` +
       `  \`COPY package.json package-lock.json* ./\` ve \`npm ci\` yoksa \`npm install\` kullan.\n` +
+      `- Go: go.mod'ta gerçekten var olan module versiyonları kullan; Dockerfile \`go mod tidy\` ile build et.\n` +
       `- COPY ettiğin her dosya diskte olmalı (list_files ile doğrula).\n` +
       `- SPA: multi-stage node → nginx:alpine, /health 200, compose service adı app, ` +
       `  ports "\${HOST_PORT:-18080}:80", named volume tercih et, host bind mount kullanma.\n` +
-      `- container_name sabitleme; obsolete compose version: koyma.\n\n` +
+      `- container_name sabitleme; obsolete compose version: koyma; Redis portunu host'a yayınlama.\n\n` +
       `DOCKER LOG:\n\`\`\`\n${trimmedLog}\n\`\`\`\n\n` +
       `write_file ile düzeltmeleri uygula; bitince list_files ile Dockerfile ve docker-compose.yml olduğunu doğrula.`
     );

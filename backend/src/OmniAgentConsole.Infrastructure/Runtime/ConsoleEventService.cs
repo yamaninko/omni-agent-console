@@ -8,6 +8,12 @@ namespace OmniAgentConsole.Infrastructure.Runtime;
 
 public sealed class ConsoleEventService : IConsoleEventService
 {
+    /// <summary>
+    /// Matches <c>console_events.Message</c> varchar(4000). Long Fix-packaging prompts
+    /// (and other agent dumps) used to throw Postgres 22001 and poison-drop the task.
+    /// </summary>
+    public const int MaxMessageLength = 4000;
+
     private readonly AgentConsoleDbContext dbContext;
     private readonly IConsoleEventPublisher eventPublisher;
 
@@ -30,13 +36,33 @@ public sealed class ConsoleEventService : IConsoleEventService
             TaskRunId = taskRunId,
             AgentRunId = agentRunId,
             EventType = eventType,
-            Message = message,
+            Message = TruncateMessage(message),
             PayloadJson = payloadJson
         };
 
         dbContext.ConsoleEvents.Add(consoleEvent);
         await dbContext.SaveChangesAsync(cancellationToken);
         await eventPublisher.PublishAsync(ToEnvelope(consoleEvent), cancellationToken);
+    }
+
+    /// <summary>
+    /// Clamps console messages to the DB column limit without throwing.
+    /// </summary>
+    public static string TruncateMessage(string? message)
+    {
+        if (string.IsNullOrEmpty(message))
+        {
+            return string.Empty;
+        }
+
+        if (message.Length <= MaxMessageLength)
+        {
+            return message;
+        }
+
+        const string suffix = "…[truncated]";
+        var keep = MaxMessageLength - suffix.Length;
+        return message[..keep] + suffix;
     }
 
     private static ConsoleEventEnvelope ToEnvelope(ConsoleEvent consoleEvent)
