@@ -12,8 +12,18 @@ export function beginCreateOrRerun(): StudioRunFlags {
   return { pending: true, running: false };
 }
 
+/** Same lock as create/rerun — continue also queues before the worker starts. */
+export function beginContinue(): StudioRunFlags {
+  return { pending: true, running: false };
+}
+
 /** createTask HTTP failed before run was issued. */
 export function onCreateTaskError(): StudioRunFlags {
+  return { pending: false, running: false };
+}
+
+/** continueTask HTTP failed. */
+export function onContinueTaskError(): StudioRunFlags {
   return { pending: false, running: false };
 }
 

@@ -67,6 +67,10 @@ export class TaskApiClient {
     return this.http.post(`${API_BASE_URL}/tasks/${taskId}/run`, {});
   }
 
+  continueTask(taskId: string, prompt: string): Observable<unknown> {
+    return this.http.post(`${API_BASE_URL}/tasks/${taskId}/continue`, { prompt });
+  }
+
   cancelTask(taskId: string): Observable<unknown> {
     return this.http.post(`${API_BASE_URL}/tasks/${taskId}/cancel`, {});
   }

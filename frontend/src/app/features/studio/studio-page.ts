@@ -14,9 +14,11 @@ import {
 } from './debounced-action';
 import { applySkillToggle, isAutoSuggestedSkill, mergeSelectedSkillIds } from './skill-selection';
 import {
+  beginContinue,
   beginCreateOrRerun,
   onCancelAccepted,
   onCancelError,
+  onContinueTaskError,
   onCreateTaskError,
   onRunTaskAccepted,
   onRunTaskError,
@@ -59,7 +61,9 @@ export class StudioPage implements OnInit, OnDestroy {
   };
 
   protected readonly prompt = signal('');
+  protected readonly followUpPrompt = signal('');
   protected readonly promptPlaceholder = 'Bu API dokumanina gore client SDK tasarla.';
+  protected readonly followUpPlaceholder = 'Devam et: örn. login sayfasına şifre sıfırlama ekle…';
   protected readonly workspacePath = signal('/workspace/proje');
   protected readonly skills = signal<SkillDefinition[]>([]);
   /** Skills grouped by category for the Studio chip panel (Frontend first). */
@@ -258,6 +262,56 @@ export class StudioPage implements OnInit, OnDestroy {
     this.skillSuggestDebounce.schedule(value);
   }
 
+  protected updateFollowUpPrompt(event: Event): void {
+    this.followUpPrompt.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  protected onFollowUpKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      this.continueActiveTask();
+    }
+  }
+
+  protected continueActiveTask(): void {
+    const taskId = this.activeTaskId();
+    const prompt = this.followUpPrompt().trim();
+    if (!taskId || !prompt || this.pending() || this.running()) {
+      return;
+    }
+
+    this.applyRunFlags(beginContinue());
+    this.userScrolledUp = false;
+    this.stopStatusPolling();
+    // Keep console history — continue must not wipe prior turns.
+
+    this.api.continueTask(taskId, prompt).subscribe({
+      complete: () => {
+        this.followUpPrompt.set('');
+        this.applyRunFlags(onRunTaskAccepted());
+        this.startStatusPolling(taskId);
+        this.loadUsage();
+        this.loadRecentTasks();
+
+        void this.consoleStream.connect(taskId).then(() => {
+          this.api.getTaskEvents(taskId).subscribe({
+            next: (events) => this.consoleStream.setEvents(events),
+            error: () => { }
+          });
+        }).catch(() => {
+          this.api.getTaskEvents(taskId).subscribe({
+            next: (events) => this.consoleStream.setEvents(events),
+            error: () => { }
+          });
+        });
+      },
+      error: () => {
+        this.applyRunFlags(onContinueTaskError());
+        this.loadUsage();
+      }
+    });
+  }
+
   private fetchSkillSuggestions(prompt: string): void {
     const trimmed = prompt.trim();
     if (!shouldRequestSkillSuggestions(trimmed)) {
@@ -357,6 +411,7 @@ export class StudioPage implements OnInit, OnDestroy {
       next: async (task) => {
         this.activeTask.set(task);
         this.prompt.set(task.inputPrompt);
+        this.followUpPrompt.set('');
         this.consoleStream.setEvents(task.consoleEvents);
         
         if (task.status === 'Running' || task.status === 'Pending') {
@@ -376,6 +431,7 @@ export class StudioPage implements OnInit, OnDestroy {
     this.userScrolledUp = false;
     this.activeTask.set(null);
     this.prompt.set('');
+    this.followUpPrompt.set('');
     this.consoleStream.reset();
     this.stopStatusPolling();
     this.router.navigate([], { queryParams: { task: null }, queryParamsHandling: 'merge' });

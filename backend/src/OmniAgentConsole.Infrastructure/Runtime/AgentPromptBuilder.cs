@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using OmniAgentConsole.Application.Providers;
+using OmniAgentConsole.Application.Tasks;
 using OmniAgentConsole.Domain.Entities;
 using OmniAgentConsole.Domain.Enums;
 
@@ -21,10 +22,12 @@ internal static class AgentPromptBuilder
         string? objectiveOverride = null,
         string? roleInstructionOverride = null)
     {
+        var isContinuation = TaskContinuationContext.IsContinuation(taskRun.InputContextJson);
+
         var systemPromptParts = new List<string>
         {
             agentDefinition.SystemPrompt.Trim(),
-            roleInstructionOverride ?? GetRoleInstruction(agentDefinition.Type)
+            roleInstructionOverride ?? GetRoleInstruction(agentDefinition.Type, isContinuation)
         };
 
         if (!string.IsNullOrWhiteSpace(skillsBlock))
@@ -36,13 +39,33 @@ internal static class AgentPromptBuilder
         // the model ignores optional skills (seen with Angular/React marketing sites).
         systemPromptParts.Add(BuildMandatoryPackagingBlock());
 
+        if (isContinuation)
+        {
+            systemPromptParts.Add(
+                "This is a FOLLOW-UP turn on an existing workspace session. " +
+                "Prefer reading and editing existing files over recreating the project from scratch. " +
+                "Only change what the current follow-up requires; preserve unrelated existing work. " +
+                "If packaging files (Dockerfile, docker-compose.yml) already exist and still fit, keep them.");
+        }
+
         systemPromptParts.Add("Respond in the same language as the user prompt unless the user asks otherwise. Keep output concise and actionable.");
 
         var systemPrompt = string.Join("\n\n", systemPromptParts);
 
         var userBuilder = new StringBuilder();
-        userBuilder.AppendLine("User task:");
+        userBuilder.AppendLine(isContinuation ? "User task (current follow-up):" : "User task:");
         userBuilder.AppendLine(taskRun.InputPrompt.Trim());
+
+        var promptHistory = TaskContinuationContext.GetPromptHistory(taskRun.InputContextJson);
+        if (isContinuation && promptHistory.Count > 1)
+        {
+            userBuilder.AppendLine();
+            userBuilder.AppendLine("Earlier prompts in this session (oldest first):");
+            for (var i = 0; i < promptHistory.Count - 1; i++)
+            {
+                userBuilder.AppendLine($"[{i + 1}] {TrimForPrompt(promptHistory[i], 1500)}");
+            }
+        }
 
         if (!string.IsNullOrWhiteSpace(taskRun.InputContextJson))
         {
@@ -65,7 +88,7 @@ internal static class AgentPromptBuilder
 
         userBuilder.AppendLine();
         userBuilder.AppendLine("Current agent objective:");
-        userBuilder.AppendLine(objectiveOverride ?? GetObjective(agentDefinition.Type));
+        userBuilder.AppendLine(objectiveOverride ?? GetObjective(agentDefinition.Type, isContinuation));
 
         return
         [
@@ -154,8 +177,21 @@ internal static class AgentPromptBuilder
         return builder.ToString().TrimEnd();
     }
 
-    private static string GetRoleInstruction(AgentType agentType)
+    private static string GetRoleInstruction(AgentType agentType, bool isContinuation = false)
     {
+        if (isContinuation)
+        {
+            return agentType switch
+            {
+                AgentType.Planner => "Plan only the delta needed for this follow-up. Reuse the existing workspace; do not restart the whole project unless the user asks to rebuild.",
+                AgentType.Research => "Focus on what changed in this follow-up. Extract constraints that affect the existing codebase.",
+                AgentType.Coder => "Continue work in the existing workspace. Use list_files/read_file before writing. Call write_file only for files you create or change. Keep packaging files (README.md, Dockerfile, docker-compose.yml, .dockerignore) valid; update them only when the follow-up requires it. Compose service name must stay app; ports \"${HOST_PORT:-18080}:<containerPort>\"; healthcheck on GET /health. You cannot execute code or use a shell. When done, reply with a short plain-text summary of what changed.",
+                AgentType.Reviewer => "Review the follow-up changes against the existing project. Flag regressions and missing packaging. Return prioritized findings and concrete fixes.",
+                AgentType.OpsMonitor => "Summarize this follow-up turn: what changed, remaining risks, and whether the workspace still looks runnable.",
+                _ => "Complete the assigned agent role for this follow-up using the supplied context."
+            };
+        }
+
         return agentType switch
         {
             AgentType.Planner => "Create an execution plan. Include selected agents, ordered steps, assumptions, and model suitability notes.",
@@ -167,8 +203,21 @@ internal static class AgentPromptBuilder
         };
     }
 
-    private static string GetObjective(AgentType agentType)
+    private static string GetObjective(AgentType agentType, bool isContinuation = false)
     {
+        if (isContinuation)
+        {
+            return agentType switch
+            {
+                AgentType.Planner => "Produce a short delta plan for this follow-up.",
+                AgentType.Research => "Produce notes scoped to this follow-up.",
+                AgentType.Coder => "Apply the follow-up changes to the existing workspace without discarding unrelated work.",
+                AgentType.Reviewer => "Review the follow-up changes and suggest corrections.",
+                AgentType.OpsMonitor => "Produce a short operational summary for this follow-up turn.",
+                _ => "Produce the requested agent output for this follow-up."
+            };
+        }
+
         return agentType switch
         {
             AgentType.Planner => "Produce the MVP execution plan for this task.",

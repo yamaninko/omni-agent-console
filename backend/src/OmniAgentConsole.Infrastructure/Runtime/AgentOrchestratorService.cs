@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using OmniAgentConsole.Application.Agents;
 using OmniAgentConsole.Application.Providers;
 using OmniAgentConsole.Application.Runtime;
+using OmniAgentConsole.Application.Tasks;
 using OmniAgentConsole.Domain.Entities;
 using OmniAgentConsole.Domain.Enums;
 using OmniAgentConsole.Infrastructure.Persistence;
@@ -86,6 +87,7 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // Keep the console row under varchar(4000); full prompt lives on task_runs.InputPrompt.
+        var isContinuation = TaskContinuationContext.IsContinuation(taskRun.InputContextJson);
         var promptPreview = taskRun.InputPrompt.Length > 800
             ? taskRun.InputPrompt[..800] + "…"
             : taskRun.InputPrompt;
@@ -96,6 +98,17 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
             $"Task execution started with prompt: \"{promptPreview}\"",
             null,
             cancellationToken);
+
+        if (isContinuation)
+        {
+            await consoleEvents.WriteAsync(
+                taskRun.Id,
+                null,
+                ConsoleEventType.AgentStep,
+                "Follow-up turn: preserving prior console history and continuing in the existing workspace.",
+                null,
+                cancellationToken);
+        }
 
         var taskStopwatch = Stopwatch.StartNew();
         var previousOutputs = new List<AgentOutput>();
@@ -182,7 +195,11 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
                     g => g.OrderByDescending(x => x.UpdatedAt ?? x.CreatedAt).First()
                 );
 
-            var executionOrder = 1;
+            // Continue turns append agent runs; start after the highest prior order.
+            var maxPriorOrder = await dbContext.AgentRuns
+                .Where(x => x.TaskRunId == taskRun.Id)
+                .MaxAsync(x => (int?)x.ExecutionOrder, cancellationToken) ?? 0;
+            var executionOrder = maxPriorOrder + 1;
             foreach (var agentType in DefaultSequence)
             {
                 await dbContext.Entry(taskRun).ReloadAsync(cancellationToken);
