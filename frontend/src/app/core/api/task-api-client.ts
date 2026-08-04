@@ -9,6 +9,7 @@ import {
   ProviderHealthStatus,
   RuntimeAgent,
   TaskDetail,
+  TaskStatusSnapshot,
   TaskSummary,
   UpdateAgentDefinitionRequest,
   UpdateOmniAgentApiKeyResponse,
@@ -81,6 +82,11 @@ export class TaskApiClient {
 
   getTask(taskId: string): Observable<TaskDetail> {
     return this.http.get<TaskDetail>(`${API_BASE_URL}/tasks/${taskId}`);
+  }
+
+  /** Cheap status probe for Studio polling (no heavy graph). */
+  getTaskStatus(taskId: string): Observable<TaskStatusSnapshot> {
+    return this.http.get<TaskStatusSnapshot>(`${API_BASE_URL}/tasks/${taskId}/status`);
   }
 
   listTasks(): Observable<TaskSummary[]> {

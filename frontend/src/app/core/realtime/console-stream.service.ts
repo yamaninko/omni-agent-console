@@ -22,7 +22,7 @@ export class ConsoleStreamService {
           accessTokenFactory: apiKey ? () => apiKey : undefined
         })
         .withAutomaticReconnect()
-        .configureLogging(LogLevel.Information)
+        .configureLogging(LogLevel.Warning)
         .build();
 
       this.connection.on('ReceiveConsoleEvent', (event: ConsoleEvent) => {

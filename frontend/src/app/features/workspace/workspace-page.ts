@@ -597,7 +597,9 @@ export class WorkspacePage implements OnInit, OnDestroy {
 
   private startStatusPoll(projectRoot: string): void {
     this.stopStatusPoll();
-    this.statusPoll = setInterval(() => this.refreshProjectStatus(projectRoot), 4000);
+    // docker compose ps via the socket is expensive on Windows Docker Desktop;
+    // 8s is enough for a status badge without constant process spawning.
+    this.statusPoll = setInterval(() => this.refreshProjectStatus(projectRoot), 8000);
   }
 
   private stopStatusPoll(): void {

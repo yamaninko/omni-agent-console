@@ -167,7 +167,7 @@
         }
         @if (running() || pending()) {
           <div class="terminal-line active-running-line" style="margin-top: 8px;">
-            <span class="time">[{{ currentTime() | date:'HH:mm:ss' }}]</span>
+            <span class="time">[···]</span>
             <span class="type running-type">RUNNING</span>
             <span class="message" style="display: flex; align-items: center; gap: 8px; color: #76b900; font-weight: 600;">
               Agent orchestrator is executing the task

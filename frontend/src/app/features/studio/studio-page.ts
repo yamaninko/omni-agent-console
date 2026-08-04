@@ -120,8 +120,10 @@ export class StudioPage implements OnInit, OnDestroy {
   @ViewChild('terminalEl') private terminalEl?: ElementRef<HTMLDivElement>;
   private userScrolledUp = false;
   private statusPoll?: ReturnType<typeof setInterval>;
-  protected readonly currentTime = signal<Date>(new Date());
-  private timeInterval?: any;
+  /** Cache markdown → SafeHtml so console re-renders (SignalR / polls) do not re-parse large agent outputs. */
+  private readonly markdownCache = new Map<string, SafeHtml>();
+  private readonly markdownCacheOrder: string[] = [];
+  private static readonly MaxMarkdownCacheEntries = 64;
 
   constructor() {
     effect(() => {
@@ -182,18 +184,13 @@ export class StudioPage implements OnInit, OnDestroy {
       next: (usage) => this.usage.set(usage),
       error: () => this.usage.set(null)
     });
-
-    this.timeInterval = setInterval(() => {
-      this.currentTime.set(new Date());
-    }, 1000);
   }
 
   ngOnDestroy(): void {
     this.stopStatusPolling();
-    if (this.timeInterval) {
-      clearInterval(this.timeInterval);
-    }
     this.skillSuggestDebounce.cancel();
+    this.markdownCache.clear();
+    this.markdownCacheOrder.length = 0;
   }
 
   protected startTask(): void {
@@ -221,6 +218,23 @@ export class StudioPage implements OnInit, OnDestroy {
         this.suggestQuestions.set([]);
         this.skillInfo.set(null);
         this.activeTaskId.set(task.id);
+        // Lightweight shell so status poll / metrics work without a full GetById.
+        this.activeTask.set({
+          id: task.id,
+          title: task.title,
+          inputPrompt: prompt,
+          status: task.status,
+          createdAt: task.createdAt,
+          completedAt: task.completedAt,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          totalTokens: task.totalTokens ?? 0,
+          totalLatencyMs: task.totalLatencyMs ?? 0,
+          errorMessage: null,
+          agentRuns: [],
+          modelCallLogs: [],
+          consoleEvents: []
+        });
         this.router.navigate([], { queryParams: { task: task.id }, queryParamsHandling: 'merge' });
         this.loadRecentTasks();
 
@@ -439,6 +453,8 @@ export class StudioPage implements OnInit, OnDestroy {
 
   protected clearConsole(): void {
     this.consoleStream.setEvents([]);
+    this.markdownCache.clear();
+    this.markdownCacheOrder.length = 0;
   }
 
   protected getCleanPrompt(message: string): string {
@@ -471,6 +487,11 @@ export class StudioPage implements OnInit, OnDestroy {
 
   protected parseMarkdown(text: string | null | undefined): SafeHtml {
     if (!text) return '';
+
+    const cached = this.markdownCache.get(text);
+    if (cached !== undefined) {
+      return cached;
+    }
 
     // Escape HTML first to prevent XSS
     let html = text
@@ -508,43 +529,32 @@ export class StudioPage implements OnInit, OnDestroy {
     // 6. Line breaks
     html = html.replace(/\n/g, '<br>');
 
-    return this.sanitizer.bypassSecurityTrustHtml(html);
+    const safe = this.sanitizer.bypassSecurityTrustHtml(html);
+    this.markdownCache.set(text, safe);
+    this.markdownCacheOrder.push(text);
+    while (this.markdownCacheOrder.length > StudioPage.MaxMarkdownCacheEntries) {
+      const oldest = this.markdownCacheOrder.shift();
+      if (oldest !== undefined) {
+        this.markdownCache.delete(oldest);
+      }
+    }
+    return safe;
   }
 
   protected getActiveTaskInputTokens(): number {
-    const task = this.activeTask();
-    if (!task) return 0;
-    if (task.status !== 'Running' && task.status !== 'Pending') {
-      return task.totalInputTokens;
-    }
-    return task.modelCallLogs?.reduce((acc, log) => acc + log.inputTokens, 0) ?? 0;
+    return this.activeTask()?.totalInputTokens ?? 0;
   }
 
   protected getActiveTaskOutputTokens(): number {
-    const task = this.activeTask();
-    if (!task) return 0;
-    if (task.status !== 'Running' && task.status !== 'Pending') {
-      return task.totalOutputTokens;
-    }
-    return task.modelCallLogs?.reduce((acc, log) => acc + log.outputTokens, 0) ?? 0;
+    return this.activeTask()?.totalOutputTokens ?? 0;
   }
 
   protected getActiveTaskTotalTokens(): number {
-    const task = this.activeTask();
-    if (!task) return 0;
-    if (task.status !== 'Running' && task.status !== 'Pending') {
-      return task.totalTokens;
-    }
-    return task.modelCallLogs?.reduce((acc, log) => acc + log.totalTokens, 0) ?? 0;
+    return this.activeTask()?.totalTokens ?? 0;
   }
 
   protected getActiveTaskLatency(): number {
-    const task = this.activeTask();
-    if (!task) return 0;
-    if (task.status !== 'Running' && task.status !== 'Pending') {
-      return task.totalLatencyMs;
-    }
-    return task.modelCallLogs?.reduce((acc, log) => acc + log.latencyMs, 0) ?? 0;
+    return this.activeTask()?.totalLatencyMs ?? 0;
   }
 
   protected toggleRecentTasks(): void {
@@ -664,31 +674,69 @@ export class StudioPage implements OnInit, OnDestroy {
   private startStatusPolling(taskId: string): void {
     this.stopStatusPolling();
 
+    // Light /status endpoint only — full GetById used to re-download agent I/O +
+    // every console event every 2s and pinned Windows hosts under Docker Desktop.
     this.statusPoll = setInterval(() => {
-      this.api.getTask(taskId).subscribe({
-        next: (task) => {
-          this.activeTask.set(task);
+      this.api.getTaskStatus(taskId).subscribe({
+        next: (snap) => {
+          this.activeTask.update((current) => {
+            if (current && current.id === snap.id) {
+              return {
+                ...current,
+                title: snap.title || current.title,
+                status: snap.status,
+                completedAt: snap.completedAt,
+                totalInputTokens: snap.totalInputTokens,
+                totalOutputTokens: snap.totalOutputTokens,
+                totalTokens: snap.totalTokens,
+                totalLatencyMs: snap.totalLatencyMs,
+                errorMessage: snap.errorMessage
+              };
+            }
+            return {
+              id: snap.id,
+              title: snap.title,
+              inputPrompt: current?.inputPrompt ?? '',
+              status: snap.status,
+              createdAt: current?.createdAt ?? new Date().toISOString(),
+              completedAt: snap.completedAt,
+              totalInputTokens: snap.totalInputTokens,
+              totalOutputTokens: snap.totalOutputTokens,
+              totalTokens: snap.totalTokens,
+              totalLatencyMs: snap.totalLatencyMs,
+              errorMessage: snap.errorMessage,
+              agentRuns: current?.agentRuns ?? [],
+              modelCallLogs: current?.modelCallLogs ?? [],
+              consoleEvents: current?.consoleEvents ?? []
+            };
+          });
           // Keep sidebar Recent Tasks in sync while running (status icon).
           this.recentTasks.update((list) =>
             list.map((t) =>
-              t.id === task.id
+              t.id === snap.id
                 ? {
                     ...t,
-                    status: task.status,
-                    totalTokens: task.totalTokens,
-                    totalLatencyMs: task.totalLatencyMs,
-                    completedAt: task.completedAt
+                    status: snap.status,
+                    totalTokens: snap.totalTokens,
+                    totalLatencyMs: snap.totalLatencyMs,
+                    completedAt: snap.completedAt
                   }
                 : t
             )
           );
-          if (task.status !== 'Running' && task.status !== 'Pending') {
+          if (snap.status !== 'Running' && snap.status !== 'Pending') {
             this.applyRunFlags(onTaskTerminalStatus());
             this.stopStatusPolling();
             this.loadUsage();
-            this.consoleStream.setEvents(task.consoleEvents);
-            // Full refresh so order/title and any new fields stay correct.
-            this.loadRecentTasks();
+            // One full fetch at terminal for final console + metrics graph.
+            this.api.getTask(taskId).subscribe({
+              next: (task) => {
+                this.activeTask.set(task);
+                this.consoleStream.setEvents(task.consoleEvents);
+                this.loadRecentTasks();
+              },
+              error: () => this.loadRecentTasks()
+            });
           }
         },
         error: () => {
@@ -696,7 +744,7 @@ export class StudioPage implements OnInit, OnDestroy {
           this.stopStatusPolling();
         }
       });
-    }, 2000);
+    }, 3000);
   }
 
   private stopStatusPolling(): void {

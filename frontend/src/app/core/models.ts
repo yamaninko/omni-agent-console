@@ -74,6 +74,19 @@ export interface TaskDetail {
   consoleEvents: ConsoleEvent[];
 }
 
+/** Lightweight poll payload — no agent I/O / console / model logs. */
+export interface TaskStatusSnapshot {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  completedAt?: string | null;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalTokens: number;
+  totalLatencyMs: number;
+  errorMessage?: string | null;
+}
+
 export interface RuntimeAgent {
   name: string;
   type: string;

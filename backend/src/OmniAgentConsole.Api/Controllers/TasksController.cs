@@ -152,6 +152,88 @@ public sealed class TasksController : ControllerBase
         return taskRun is null || IsForeignTask(taskRun) ? NotFound() : Ok(ToDetail(taskRun));
     }
 
+    /// <summary>
+    /// Cheap status probe for the Studio poll loop. Does not load agent I/O,
+    /// console events, or model call logs (those grow large mid-run and were
+    /// re-serialized every 2s via GetById — heavy on Windows browsers + Docker).
+    /// Live token totals come from a SQL aggregate over model_call_logs only.
+    /// </summary>
+    [HttpGet("{taskRunId:guid}/status")]
+    public async Task<ActionResult<TaskStatusDto>> GetStatus(Guid taskRunId, CancellationToken cancellationToken)
+    {
+        var taskRun = await dbContext.TaskRuns
+            .AsNoTracking()
+            .Where(x => x.Id == taskRunId)
+            .Select(x => new
+            {
+                x.Id,
+                x.Title,
+                x.Status,
+                x.CompletedAt,
+                x.TotalInputTokens,
+                x.TotalOutputTokens,
+                x.TotalTokens,
+                x.TotalLatencyMs,
+                x.ErrorMessage,
+                x.OwnerSessionId
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (taskRun is null)
+        {
+            return NotFound();
+        }
+
+        // Mirror IsForeignTask without loading the full entity graph.
+        if (SessionScoped
+            && !string.Equals(taskRun.OwnerSessionId, CallerSessionId, StringComparison.Ordinal))
+        {
+            return NotFound();
+        }
+
+        var inputTokens = taskRun.TotalInputTokens;
+        var outputTokens = taskRun.TotalOutputTokens;
+        var totalTokens = taskRun.TotalTokens;
+        var latencyMs = taskRun.TotalLatencyMs;
+
+        // While Running, task-level totals are only finalized at the end of the
+        // orchestrator; sum model call rows so the metrics panel stays live.
+        if (taskRun.Status is TaskRunStatus.Running or TaskRunStatus.Pending)
+        {
+            var live = await dbContext.ModelCallLogs
+                .AsNoTracking()
+                .Where(x => x.TaskRunId == taskRunId)
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    Input = g.Sum(x => x.InputTokens),
+                    Output = g.Sum(x => x.OutputTokens),
+                    Total = g.Sum(x => x.TotalTokens),
+                    Latency = g.Sum(x => x.LatencyMs)
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (live is not null)
+            {
+                inputTokens = live.Input;
+                outputTokens = live.Output;
+                totalTokens = live.Total;
+                latencyMs = live.Latency;
+            }
+        }
+
+        return Ok(new TaskStatusDto(
+            taskRun.Id,
+            taskRun.Title,
+            taskRun.Status,
+            taskRun.CompletedAt,
+            inputTokens,
+            outputTokens,
+            totalTokens,
+            latencyMs,
+            taskRun.ErrorMessage));
+    }
+
     [HttpPost("{taskRunId:guid}/run")]
     public async Task<IActionResult> Run(Guid taskRunId, CancellationToken cancellationToken)
     {

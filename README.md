@@ -160,6 +160,19 @@ docker compose ps
 curl http://localhost:5080/health
 ```
 
+### Windows / Docker Desktop performans
+
+Mac’te sorun yokken Windows’ta PC’nin kilitlenmesi genelde **uygulama kodundan ziyade Docker Desktop + WSL2 + bind mount** kombinasyonundan kaynaklanır. Bu repoda ayrıca Studio’nun her 2 sn’de full task detail çekmesi ve workspace ağacının `node_modules` gibi klasörlere inmesi de CPU’yu şişiriyordu; bunlar hafifletildi (status endpoint, tree skip, kaynak limitleri).
+
+Windows kullanıcıları için pratik öneriler:
+
+1. **Docker Desktop kaynakları**: Settings → Resources — RAM’i makinenin yarısından fazla vermeyin; CPU limitini makul tutun (ör. 4 CPU, 4–6 GB).
+2. **WSL2 + dosya sistemi**: repoyu mümkünse WSL dosya sistemine koyun (`~/projects/...`), Windows `C:\Users\...` altına değil. `./workspace` bind mount’u Windows NTFS üzerinden çok yavaş ve CPU’lu olur.
+3. **Kaynak limitleri**: `docker-compose.yml` servis başına soft limit tanımlar (`API_MEM_LIMIT`, `WORKER_MEM_LIMIT`, …). Task OOM olursa `.env` ile yükseltin.
+4. **Workspace runner**: tek tık `docker compose up` iç içe konteyner başlatır. Sınıf/laptop’ta gerekmiyorsa `.env` içinde `WORKSPACE_RUNNER_ENABLED=false` yapın.
+5. **Kullanılmayan stack’i kapatın**: `docker compose down` — RabbitMQ + Vault + Postgres + worker arka planda sürekli bellek yer.
+6. **Antivirus**: `workspace/`, Docker WSL distro ve `node_modules` klasörlerini gerçek zamanlı taramadan hariç tutun.
+
 Opsiyonel OpenSearch:
 
 ```bash

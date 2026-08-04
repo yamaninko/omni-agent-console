@@ -185,29 +185,98 @@ public class WorkspaceController : ControllerBase
         return NotFound("File or directory not found.");
     }
 
+    // Heavy dependency trees must never be walked recursively over a Docker
+    // bind mount — on Windows (WSL2 virtiofs/9p) this alone can pin a core.
+    private static readonly HashSet<string> SkippedDirectoryNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "node_modules",
+        ".git",
+        ".svn",
+        ".hg",
+        "bin",
+        "obj",
+        "dist",
+        "build",
+        "out",
+        "target",
+        "vendor",
+        "__pycache__",
+        ".venv",
+        "venv",
+        ".tox",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".next",
+        ".nuxt",
+        ".angular",
+        "coverage",
+        ".idea",
+        ".vs",
+        ".vscode"
+    };
+
+    private const int MaxTreeDepth = 12;
+    private const int MaxTreeNodes = 4000;
+
     private List<WorkspaceNode> BuildTree(string dir, string relativePrefix)
     {
+        var remaining = MaxTreeNodes;
+        return BuildTree(dir, relativePrefix, depth: 0, ref remaining);
+    }
+
+    private List<WorkspaceNode> BuildTree(string dir, string relativePrefix, int depth, ref int remaining)
+    {
         var list = new List<WorkspaceNode>();
+        if (remaining <= 0 || depth > MaxTreeDepth)
+        {
+            return list;
+        }
+
         try
         {
             var directories = Directory.GetDirectories(dir);
             foreach (var d in directories)
             {
+                if (remaining <= 0)
+                {
+                    break;
+                }
+
                 var name = Path.GetFileName(d);
+                if (SkippedDirectoryNames.Contains(name))
+                {
+                    // Surface the folder so users know it exists, but do not
+                    // recurse into multi-thousand-file dependency trees.
+                    var skippedPath = string.IsNullOrEmpty(relativePrefix) ? name : $"{relativePrefix}/{name}";
+                    list.Add(new WorkspaceNode(name, skippedPath, true, []));
+                    remaining--;
+                    continue;
+                }
+
                 var relPath = string.IsNullOrEmpty(relativePrefix) ? name : $"{relativePrefix}/{name}";
-                var children = BuildTree(d, relPath);
+                remaining--;
+                var children = BuildTree(d, relPath, depth + 1, ref remaining);
                 list.Add(new WorkspaceNode(name, relPath, true, children));
             }
 
             var files = Directory.GetFiles(dir);
             foreach (var f in files)
             {
+                if (remaining <= 0)
+                {
+                    break;
+                }
+
                 var name = Path.GetFileName(f);
                 var relPath = string.IsNullOrEmpty(relativePrefix) ? name : $"{relativePrefix}/{name}";
                 list.Add(new WorkspaceNode(name, relPath, false));
+                remaining--;
             }
         }
-        catch { }
+        catch
+        {
+            // Ignore unreadable directories (permissions / race with agent writes).
+        }
 
         return list.OrderByDescending(x => x.IsDirectory).ThenBy(x => x.Name).ToList();
     }

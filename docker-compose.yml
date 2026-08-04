@@ -1,5 +1,7 @@
 name: omni-agent-console
 
+# Resource limits keep Docker Desktop (especially Windows/WSL2) from pinning
+# the host when the stack is idle. Raise limits in .env if a task OOM-kills.
 services:
   frontend:
     build:
@@ -9,11 +11,21 @@ services:
       - "${FRONTEND_HOST_PORT:-4210}:80"
     depends_on:
       - backend-api
+    deploy:
+      resources:
+        limits:
+          cpus: "${FRONTEND_CPU_LIMIT:-0.5}"
+          memory: ${FRONTEND_MEM_LIMIT:-128M}
 
   backend-api:
     build:
       context: .
       dockerfile: backend/src/OmniAgentConsole.Api/Dockerfile
+    deploy:
+      resources:
+        limits:
+          cpus: "${API_CPU_LIMIT:-1.5}"
+          memory: ${API_MEM_LIMIT:-768M}
     environment:
       ASPNETCORE_URLS: http://+:8080
       Database__ApplyMigrationsOnStartup: "true"
@@ -22,7 +34,7 @@ services:
       ConnectionStrings__RabbitMq: ${RABBITMQ_CONNECTION_STRING:-amqp://guest:guest@rabbitmq:5672}
       TaskQueue__Mode: ${TASK_QUEUE_MODE:-RabbitMq}
       TaskQueue__QueueName: ${TASK_QUEUE_NAME:-omniagent-console.task-runs}
-      TaskQueue__PollIntervalMilliseconds: ${TASK_QUEUE_POLL_INTERVAL_MS:-500}
+      TaskQueue__PollIntervalMilliseconds: ${TASK_QUEUE_POLL_INTERVAL_MS:-1500}
       Providers__OmniAgent__BaseUrl: ${OMNIAGENT_BASE_URL:-https://integrate.api.nvidia.com/v1}
       Providers__OmniAgent__DefaultModel: ${OMNIAGENT_DEFAULT_MODEL:-meta/llama-3.1-8b-instruct}
       Providers__OmniAgent__ApiKeySecretName: ${OMNIAGENT_API_KEY_SECRET_NAME:-secret/providers/omniagent#apiKey}
@@ -63,13 +75,18 @@ services:
     build:
       context: .
       dockerfile: backend/src/OmniAgentConsole.Worker/Dockerfile
+    deploy:
+      resources:
+        limits:
+          cpus: "${WORKER_CPU_LIMIT:-2.0}"
+          memory: ${WORKER_MEM_LIMIT:-1G}
     environment:
       ConnectionStrings__Postgres: ${POSTGRES_CONNECTION_STRING:-Host=postgres;Port=5432;Database=omniagent_console;Username=postgres;Password=postgres}
       ConnectionStrings__Redis: ${REDIS_CONNECTION_STRING:-redis:6379}
       ConnectionStrings__RabbitMq: ${RABBITMQ_CONNECTION_STRING:-amqp://guest:guest@rabbitmq:5672}
       TaskQueue__Mode: ${TASK_QUEUE_MODE:-RabbitMq}
       TaskQueue__QueueName: ${TASK_QUEUE_NAME:-omniagent-console.task-runs}
-      TaskQueue__PollIntervalMilliseconds: ${TASK_QUEUE_POLL_INTERVAL_MS:-500}
+      TaskQueue__PollIntervalMilliseconds: ${TASK_QUEUE_POLL_INTERVAL_MS:-1500}
       Providers__OmniAgent__ApiKeySecretName: ${OMNIAGENT_API_KEY_SECRET_NAME:-secret/providers/omniagent#apiKey}
       OMNIAGENT_API_KEY: ${OMNIAGENT_API_KEY:-}
       Vault__Enabled: "true"
@@ -107,6 +124,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
 
   postgres:
     image: postgres:17-alpine
@@ -123,11 +145,21 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
 
   redis:
     image: redis:7-alpine
     ports:
       - "${INFRA_BIND_ADDRESS:-127.0.0.1}:${REDIS_HOST_PORT:-56379}:6379"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
 
   rabbitmq:
     image: rabbitmq:4-management
@@ -139,6 +171,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 512M
 
   opensearch:
     image: opensearchproject/opensearch:2
