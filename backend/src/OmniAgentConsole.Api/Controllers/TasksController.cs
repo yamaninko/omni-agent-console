@@ -212,6 +212,70 @@ public sealed class TasksController : ControllerBase
         return Accepted(new { taskRun.Id, taskRun.Status, queued = true });
     }
 
+    /// <summary>
+    /// Continues a finished task with a new follow-up prompt. Unlike /run (rerun),
+    /// this keeps console events, agent runs, and token totals so the Studio
+    /// session can iterate on the same workspace without losing history.
+    /// </summary>
+    [HttpPost("{taskRunId:guid}/continue")]
+    public async Task<IActionResult> Continue(Guid taskRunId, [FromBody] ContinueTaskRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Prompt))
+        {
+            return BadRequest("Prompt is required.");
+        }
+
+        var taskRun = await dbContext.TaskRuns.FirstOrDefaultAsync(x => x.Id == taskRunId, cancellationToken);
+        if (taskRun is null || IsForeignTask(taskRun))
+        {
+            return NotFound();
+        }
+
+        if (taskRun.Status == TaskRunStatus.Running || taskRun.Status == TaskRunStatus.Pending)
+        {
+            return Conflict(new
+            {
+                taskRun.Id,
+                taskRun.Status,
+                message = "Task is still active. Wait for it to finish or cancel it before continuing."
+            });
+        }
+
+        if (taskRun.Status is not (TaskRunStatus.Completed or TaskRunStatus.Failed or TaskRunStatus.Cancelled))
+        {
+            return Conflict(new
+            {
+                taskRun.Id,
+                taskRun.Status,
+                message = "Only completed, failed, or cancelled tasks can be continued."
+            });
+        }
+
+        var followUpPrompt = InputSanitizer.Redact(request.Prompt);
+        taskRun.InputContextJson = TaskContinuationContext.Merge(
+            taskRun.InputContextJson,
+            taskRun.InputPrompt,
+            followUpPrompt);
+        taskRun.InputPrompt = followUpPrompt;
+        taskRun.Status = TaskRunStatus.Running;
+        taskRun.StartedAt = DateTimeOffset.UtcNow;
+        taskRun.CompletedAt = null;
+        taskRun.ErrorMessage = null;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await consoleEvents.WriteAsync(
+            taskRun.Id,
+            null,
+            ConsoleEventType.TaskStarted,
+            "Follow-up queued for background execution",
+            null,
+            cancellationToken);
+
+        await taskRunQueue.EnqueueAsync(taskRun.Id, cancellationToken);
+
+        return Accepted(new { taskRun.Id, taskRun.Status, queued = true, continued = true });
+    }
+
     [HttpPost("{taskRunId:guid}/cancel")]
     public async Task<IActionResult> Cancel(Guid taskRunId, CancellationToken cancellationToken)
     {

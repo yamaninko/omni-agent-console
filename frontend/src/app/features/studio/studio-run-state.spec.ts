@@ -1,7 +1,9 @@
 import {
+  beginContinue,
   beginCreateOrRerun,
   onCancelAccepted,
   onCancelError,
+  onContinueTaskError,
   onCreateTaskError,
   onRunTaskAccepted,
   onRunTaskError,
@@ -14,8 +16,16 @@ describe('studio run state transitions', () => {
     expect(beginCreateOrRerun()).toEqual({ pending: true, running: false });
   });
 
+  it('beginContinue matches create/rerun lock', () => {
+    expect(beginContinue()).toEqual({ pending: true, running: false });
+  });
+
   it('create failure clears pending (no stuck spinner)', () => {
     expect(onCreateTaskError()).toEqual({ pending: false, running: false });
+  });
+
+  it('continue failure clears pending (no stuck spinner)', () => {
+    expect(onContinueTaskError()).toEqual({ pending: false, running: false });
   });
 
   it('run accepted hands off to running state', () => {

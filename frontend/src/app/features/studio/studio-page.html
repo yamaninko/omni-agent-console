@@ -306,7 +306,7 @@
                 Cancel Task
               </button>
             } @else {
-              <button type="button" (click)="rerunActiveTask()" title="Rerun this prompt" style="min-height: 32px; height: 32px; font-size: 12px; font-weight: 700; background: rgba(118, 185, 0, 0.1); border: 1px solid rgba(118, 185, 0, 0.3); color: #76b900; border-radius: 6px; padding: 0 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease; margin: 0;">
+              <button type="button" (click)="rerunActiveTask()" title="Rerun from the start (clears this session history)" style="min-height: 32px; height: 32px; font-size: 12px; font-weight: 700; background: rgba(118, 185, 0, 0.1); border: 1px solid rgba(118, 185, 0, 0.3); color: #76b900; border-radius: 6px; padding: 0 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease; margin: 0;">
                 <lucide-icon [img]="icons.refresh" size="13"></lucide-icon>
                 Rerun
               </button>
@@ -317,6 +317,34 @@
             }
           </div>
         </div>
+
+        @if (!running() && !pending()) {
+          <div class="follow-up-box" style="display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 14px; border-top: 1px solid #1b2a38; background: #0a1017;">
+            <label style="color: #8fa3b7; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+              Continue this session
+            </label>
+            <div style="display: flex; gap: 10px; align-items: flex-end;">
+              <textarea
+                [value]="followUpPrompt()"
+                [placeholder]="followUpPlaceholder"
+                (input)="updateFollowUpPrompt($event)"
+                (keydown)="onFollowUpKeydown($event)"
+                rows="3"
+                style="flex: 1; resize: vertical; min-height: 72px; background: #0d121a; border: 1px solid #1a2636; border-radius: 8px; color: #e6edf3; padding: 10px 12px; font-size: 13px; line-height: 1.45; font-family: inherit; outline: none;"
+              ></textarea>
+              <button
+                type="button"
+                (click)="continueActiveTask()"
+                [disabled]="pending() || running() || !followUpPrompt().trim()"
+                title="Ctrl/Cmd+Enter"
+                style="min-height: 40px; height: 40px; padding: 0 14px; font-size: 12px; font-weight: 700; background: #76b900; border: none; color: #0b1118; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; margin: 0; flex-shrink: 0;"
+              >
+                <lucide-icon [img]="icons.send" size="16"></lucide-icon>
+                Continue
+              </button>
+            </div>
+          </div>
+        }
       }
     </main>
 
