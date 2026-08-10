@@ -37,4 +37,6 @@ public sealed class InMemoryTaskCancellationRegistry : ITaskCancellationRegistry
             tokenSource.Dispose();
         }
     }
+
+    public bool IsExecutingLocally(Guid taskRunId) => taskTokens.ContainsKey(taskRunId);
 }

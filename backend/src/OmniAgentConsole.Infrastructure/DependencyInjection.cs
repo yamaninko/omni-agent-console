@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.Configure<OmniAgentProviderOptions>(configuration.GetSection(OmniAgentProviderOptions.SectionName));
         services.Configure<VaultOptions>(configuration.GetSection(VaultOptions.SectionName));
         services.Configure<TaskQueueOptions>(configuration.GetSection(TaskQueueOptions.SectionName));
+        services.Configure<TaskWatchdogOptions>(configuration.GetSection(TaskWatchdogOptions.SectionName));
         services.Configure<WorkspaceRunnerOptions>(configuration.GetSection(WorkspaceRunnerOptions.SectionName));
         services.AddSingleton<IWorkspaceProjectRunner, WorkspaceProjectRunner>();
 
@@ -87,6 +88,10 @@ public static class DependencyInjection
         if (isWorker || !string.Equals(taskQueueMode, "RabbitMq", StringComparison.OrdinalIgnoreCase))
         {
             services.AddHostedService<TaskRunBackgroundService>();
+
+            // Runs beside the dequeue loop so a wedged queue connection cannot also
+            // silence stall reporting.
+            services.AddHostedService<StalledTaskWatchdogService>();
 
             // Only the process that executes tasks holds cancellation tokens,
             // so only it needs to listen for cross-process cancel messages.

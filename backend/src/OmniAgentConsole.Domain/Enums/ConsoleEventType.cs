@@ -17,5 +17,8 @@ public enum ConsoleEventType
     TaskFailed = 12,
     Warning = 13,
     Error = 14,
-    TaskCancelled = 15
+    TaskCancelled = 15,
+
+    /// <summary>A prompt typed by the user. Rendered as a right-aligned chat bubble.</summary>
+    UserMessage = 16
 }

@@ -133,20 +133,13 @@
 
       <div class="terminal" #terminalEl (scroll)="onTerminalScroll($event)">
         @for (event of (consoleEvents().length ? consoleEvents() : sampleEvents()); track event.id) {
-          @if (event.eventType === 'TaskStarted' && event.message.includes('Task execution started with prompt:')) {
-            <div class="prompt-log-bubble" style="background: #0c1824; border: 1px solid #1e3146; border-radius: 8px 8px 0 8px; padding: 12px; margin-bottom: 16px; margin-left: auto; margin-right: 0; max-width: 80%; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);">
-              <div style="flex: 1; min-width: 0; text-align: right;">
-                <div style="color: #76b900; font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px;">User Prompt</div>
-                <div style="color: #ffffff; font-size: 13.5px; line-height: 1.5; font-family: inherit; font-style: italic; font-weight: 500; word-break: break-word;">
-                  "{{ getCleanPrompt(event.message) }}"
-                </div>
+          @if (isUserMessage(event)) {
+            <div class="chat-row chat-row--user">
+              <div class="chat-bubble chat-bubble--user">
+                <div class="chat-bubble__label">You</div>
+                <div class="chat-bubble__text">{{ getCleanPrompt(event.message) }}</div>
+                <div class="chat-bubble__time">{{ event.createdAt | date:'HH:mm:ss' }}</div>
               </div>
-              @if (activeTaskId() && !running() && !pending()) {
-                <button type="button" (click)="rerunActiveTask()" title="Rerun this prompt" style="background: rgba(118, 185, 0, 0.1); border: 1px solid rgba(118, 185, 0, 0.3); color: #76b900; border-radius: 6px; padding: 6px 12px; font-size: 11px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease; margin: 0; min-height: unset; height: auto; flex-shrink: 0;">
-                  <lucide-icon [img]="icons.refresh" size="13"></lucide-icon>
-                  Rerun
-                </button>
-              }
             </div>
           } @else {
             <div class="terminal-line">
@@ -155,12 +148,15 @@
               <span class="message">{{ event.message }}</span>
             </div>
             @if ((event.eventType === 'PlanCreated' || event.eventType === 'AgentCompleted') && getAgentOutput(event.payloadJson)) {
-              <div class="agent-output-bubble" style="background: #111e29; border: 1px solid #1a2c3a; border-radius: 8px 8px 8px 0; padding: 16px; margin: 8px 0 20px 0; margin-left: 0; margin-right: auto; max-width: 85%; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);">
-                <div style="color: #76b900; font-size: 11px; font-weight: 700; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
-                  <lucide-icon [img]="icons.bot" size="14"></lucide-icon>
-                  {{ getAgentName(event.payloadJson) }} Response
+              <div class="chat-row chat-row--agent">
+                <div class="chat-bubble chat-bubble--agent">
+                  <div class="chat-bubble__label">
+                    <lucide-icon [img]="icons.bot" size="14"></lucide-icon>
+                    {{ getAgentName(event.payloadJson) }}
+                  </div>
+                  <div class="agent-response-content" [innerHTML]="parseMarkdown(getAgentOutput(event.payloadJson))"></div>
+                  <div class="chat-bubble__time">{{ event.createdAt | date:'HH:mm:ss' }}</div>
                 </div>
-                <div class="agent-response-content" [innerHTML]="parseMarkdown(getAgentOutput(event.payloadJson))" style="color: #e6edf3; font-size: 13px; line-height: 1.55; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; word-break: break-word;"></div>
               </div>
             }
           }
