@@ -86,29 +86,19 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
         taskRun.ErrorMessage = null;
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        // Keep the console row under varchar(4000); full prompt lives on task_runs.InputPrompt.
+        // The prompt itself is echoed as a UserMessage event when the run is queued,
+        // so the chat shows the user's turn immediately instead of only once a worker
+        // picks the task up. This line is just the execution marker.
         var isContinuation = TaskContinuationContext.IsContinuation(taskRun.InputContextJson);
-        var promptPreview = taskRun.InputPrompt.Length > 800
-            ? taskRun.InputPrompt[..800] + "…"
-            : taskRun.InputPrompt;
         await consoleEvents.WriteAsync(
             taskRun.Id,
             null,
             ConsoleEventType.TaskStarted,
-            $"Task execution started with prompt: \"{promptPreview}\"",
+            isContinuation
+                ? "Follow-up execution started; continuing in the existing workspace."
+                : "Task execution started.",
             null,
             cancellationToken);
-
-        if (isContinuation)
-        {
-            await consoleEvents.WriteAsync(
-                taskRun.Id,
-                null,
-                ConsoleEventType.AgentStep,
-                "Follow-up turn: preserving prior console history and continuing in the existing workspace.",
-                null,
-                cancellationToken);
-        }
 
         var taskStopwatch = Stopwatch.StartNew();
         var previousOutputs = new List<AgentOutput>();

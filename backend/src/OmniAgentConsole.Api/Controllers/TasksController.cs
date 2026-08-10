@@ -281,6 +281,16 @@ public sealed class TasksController : ControllerBase
         taskRun.ErrorMessage = null;
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        // Echoed on every run (including rerun, which wipes the console) so the chat
+        // always opens with the user's turn instead of a bare status line.
+        await consoleEvents.WriteAsync(
+            taskRun.Id,
+            null,
+            ConsoleEventType.UserMessage,
+            taskRun.InputPrompt,
+            null,
+            cancellationToken);
+
         await consoleEvents.WriteAsync(
             taskRun.Id,
             null,
@@ -344,6 +354,16 @@ public sealed class TasksController : ControllerBase
         taskRun.CompletedAt = null;
         taskRun.ErrorMessage = null;
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        // Echo the prompt immediately so the chat shows the user's turn without
+        // waiting for a worker to pick the task up.
+        await consoleEvents.WriteAsync(
+            taskRun.Id,
+            null,
+            ConsoleEventType.UserMessage,
+            followUpPrompt,
+            null,
+            cancellationToken);
 
         await consoleEvents.WriteAsync(
             taskRun.Id,

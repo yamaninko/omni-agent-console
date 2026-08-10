@@ -87,6 +87,9 @@ services:
       TaskQueue__Mode: ${TASK_QUEUE_MODE:-RabbitMq}
       TaskQueue__QueueName: ${TASK_QUEUE_NAME:-omniagent-console.task-runs}
       TaskQueue__PollIntervalMilliseconds: ${TASK_QUEUE_POLL_INTERVAL_MS:-1500}
+      TaskWatchdog__Enabled: ${TASK_WATCHDOG_ENABLED:-true}
+      TaskWatchdog__StallWarningMinutes: ${TASK_WATCHDOG_WARN_MINUTES:-10}
+      TaskWatchdog__StallFailureMinutes: ${TASK_WATCHDOG_FAIL_MINUTES:-20}
       Providers__OmniAgent__ApiKeySecretName: ${OMNIAGENT_API_KEY_SECRET_NAME:-secret/providers/omniagent#apiKey}
       OMNIAGENT_API_KEY: ${OMNIAGENT_API_KEY:-}
       Vault__Enabled: "true"

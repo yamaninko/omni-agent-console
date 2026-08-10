@@ -457,12 +457,26 @@ export class StudioPage implements OnInit, OnDestroy {
     this.markdownCacheOrder.length = 0;
   }
 
+  /**
+   * User turns arrive as UserMessage events. Tasks created before that event type
+   * existed only have the orchestrator's prompt echo, so both are still accepted.
+   */
+  protected isUserMessage(event: ConsoleEvent): boolean {
+    return (
+      event.eventType === 'UserMessage' ||
+      (event.eventType === 'TaskStarted' &&
+        event.message.includes('Task execution started with prompt:'))
+    );
+  }
+
   protected getCleanPrompt(message: string): string {
-    const prefix = 'Task execution started with prompt: "';
-    if (message.startsWith(prefix) && message.endsWith('"')) {
-      return message.substring(prefix.length, message.length - 1);
+    const prefix = 'Task execution started with prompt: ';
+    if (!message.startsWith(prefix)) {
+      return message;
     }
-    return message.replace('Task execution started with prompt: ', '').replace(/^"|"$/g, '');
+
+    const body = message.substring(prefix.length);
+    return body.startsWith('"') && body.endsWith('"') ? body.slice(1, -1) : body;
   }
 
   protected getAgentOutput(payloadJson: string | null | undefined): string {
