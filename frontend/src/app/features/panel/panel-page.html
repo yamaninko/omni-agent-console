@@ -9,6 +9,14 @@
     </div>
   </header>
 
+  @if (apiKeyConfigured() === false) {
+    <div class="alert error-alert">
+      OmniAgent / NVIDIA API key is not configured. Open
+      <a href="/settings">Settings</a>, paste the key, Save — or set
+      <code>OMNIAGENT_API_KEY</code> in <code>.env</code> and recreate the API container
+      (startup seeds Vault after a dev-mode wipe).
+    </div>
+  }
   @if (error()) {
     <div class="alert error-alert">{{ error() }}</div>
   }

@@ -15,6 +15,10 @@ Versions are date-based until a formal semver release.
 - Shared-lab student-only shell
 - Studio pipeline picker (partial agent chain)
 
+### Done on this branch (post-MVP, local commits)
+
+- **T1** Vault/key bootstrap from `OMNIAGENT_API_KEY` on API startup; Panel banner when key missing.
+
 ---
 
 ## [2026-08-12] — Moderated Panel & Agent Groups

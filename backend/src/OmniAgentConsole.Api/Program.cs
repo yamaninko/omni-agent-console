@@ -75,6 +75,11 @@ await using (var scope = app.Services.CreateAsyncScope())
     var credentialKeys = scope.ServiceProvider.GetRequiredService<OmniAgentConsole.Application.Secrets.IApiCredentialKeyResolver>();
     await credentialKeys.MigratePlaintextKeysAsync(CancellationToken.None);
 
+    // Vault -dev loses secrets on container recreate. If OMNIAGENT_API_KEY is in the
+    // process environment, seed Vault (+ default credential) so Panel/Studio work
+    // without a manual Settings visit after every compose up.
+    await BootstrapOmniAgentKeyFromEnvironmentAsync(scope.ServiceProvider, CancellationToken.None);
+
     var omniAgentOptions = scope.ServiceProvider.GetRequiredService<IOptions<OmniAgentProviderOptions>>().Value;
     await ReconcileSeededModelDefaultsAsync(dbContext, omniAgentOptions);
 
@@ -106,6 +111,48 @@ app.MapHub<ConsoleHub>("/ws/consoleHub");
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "omniagent-console-api" }));
 
 app.Run();
+
+static async Task BootstrapOmniAgentKeyFromEnvironmentAsync(
+    IServiceProvider services,
+    CancellationToken cancellationToken)
+{
+    var options = services.GetRequiredService<IOptions<OmniAgentProviderOptions>>().Value;
+    var envName = string.IsNullOrWhiteSpace(options.ApiKeyEnvironmentVariable)
+        ? "OMNIAGENT_API_KEY"
+        : options.ApiKeyEnvironmentVariable;
+    var envKey = Environment.GetEnvironmentVariable(envName);
+    if (string.IsNullOrWhiteSpace(envKey))
+    {
+        return;
+    }
+
+    var providerSecrets = services.GetRequiredService<OmniAgentConsole.Application.Secrets.IProviderSecretResolver>();
+    if (await providerSecrets.HasOmniAgentApiKeyAsync(cancellationToken))
+    {
+        // Vault or env already visible to Has* — still re-seed Vault if store is empty but
+        // Has* returned true only via env (dev). Always write env key into Vault when writable
+        // so credential paths used by Panel stay warm after a Vault wipe.
+    }
+
+    var trimmed = envKey.Trim();
+    await providerSecrets.SetOmniAgentApiKeyAsync(trimmed, cancellationToken);
+
+    var db = services.GetRequiredService<AgentConsoleDbContext>();
+    var credentialKeys = services.GetRequiredService<OmniAgentConsole.Application.Secrets.IApiCredentialKeyResolver>();
+    var defaultCredential = await db.ApiCredentials
+        .Where(c => c.IsDefault
+            || c.Provider == "OmniAgent"
+            || c.Provider == "NVIDIA"
+            || c.Provider == "Nvidia")
+        .OrderByDescending(c => c.IsDefault)
+        .FirstOrDefaultAsync(cancellationToken);
+    if (defaultCredential is not null)
+    {
+        await credentialKeys.PersistKeyAsync(defaultCredential, trimmed, cancellationToken);
+        defaultCredential.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+    }
+}
 
 static async Task ReconcileSeededModelDefaultsAsync(AgentConsoleDbContext dbContext, OmniAgentProviderOptions omniAgentOptions)
 {

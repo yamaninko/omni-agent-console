@@ -47,10 +47,15 @@ export class PanelPage implements OnInit, OnDestroy {
   protected readonly session = signal<PanelSessionDetail | null>(null);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
+  protected readonly apiKeyConfigured = signal<boolean | null>(null);
 
   protected readonly events = this.stream.events;
 
   ngOnInit(): void {
+    this.api.getSettings().subscribe({
+      next: (s) => this.apiKeyConfigured.set(!!s.apiKeyConfigured),
+      error: () => this.apiKeyConfigured.set(null)
+    });
     this.api.listAgentGroups().subscribe({
       next: (g) => {
         this.groups.set(g);
