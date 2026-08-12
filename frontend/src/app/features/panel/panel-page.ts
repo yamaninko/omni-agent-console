@@ -1,5 +1,14 @@
 import { DatePipe } from '@angular/common';
-import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  OnDestroy,
+  OnInit,
+  effect,
+  inject,
+  signal,
+  viewChild
+} from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   LucideAngularModule,
@@ -31,6 +40,8 @@ export class PanelPage implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private pollSub?: Subscription;
   private routeSub?: Subscription;
+  private readonly messagesBox = viewChild<ElementRef<HTMLDivElement>>('messagesBox');
+  private stickToBottom = true;
 
   protected readonly icons = {
     chat: MessageSquare,
@@ -72,6 +83,15 @@ export class PanelPage implements OnInit, OnDestroy {
       'Is hybrid work a stable compromise or the worst of both worlds?'
     ]
   };
+
+  constructor() {
+    // Auto-scroll when stream grows (unless user scrolled up).
+    effect(() => {
+      this.visibleEvents();
+      this.session();
+      queueMicrotask(() => this.scrollMessagesIfPinned());
+    });
+  }
 
   ngOnInit(): void {
     this.api.getSettings().subscribe({
@@ -316,6 +336,46 @@ export class PanelPage implements OnInit, OnDestroy {
     return (status || 'Pending').toLowerCase();
   }
 
+  /** Name of the speaker currently holding the floor (Running turn). */
+  protected speakingName(): string | null {
+    const s = this.session();
+    if (!s || (s.status !== 'Running' && s.status !== 'Pending')) {
+      return null;
+    }
+    const running = [...(s.turns ?? [])]
+      .reverse()
+      .find((t) => t.status === 'Running');
+    if (running?.memberDisplayName) {
+      return running.memberDisplayName;
+    }
+    if (s.currentMemberId) {
+      return 'Guest';
+    }
+    return s.status === 'Running' || s.status === 'Pending' ? '…' : null;
+  }
+
+  protected floorSecondsLeft(): number | null {
+    const deadline = this.session()?.floorDeadline;
+    if (!deadline) return null;
+    const ms = new Date(deadline).getTime() - Date.now();
+    if (Number.isNaN(ms)) return null;
+    return Math.max(0, Math.ceil(ms / 1000));
+  }
+
+  protected onMessagesScroll(): void {
+    const el = this.messagesBox()?.nativeElement;
+    if (!el) return;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    this.stickToBottom = distance < 80;
+  }
+
+  private scrollMessagesIfPinned(): void {
+    if (!this.stickToBottom) return;
+    const el = this.messagesBox()?.nativeElement;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }
+
   /** First 8 chars of the session GUID for compact lists. */
   protected shortId(id: string): string {
     return (id || '').replace(/-/g, '').slice(0, 8);
@@ -387,10 +447,11 @@ export class PanelPage implements OnInit, OnDestroy {
                 : p
             )
           );
+          // Refresh events while running so speeches appear without waiting for finish.
+          this.api.getPanelEvents(panelId).subscribe({
+            next: (ev) => this.stream.setEvents(ev)
+          });
           if (detail.status !== 'Pending' && detail.status !== 'Running') {
-            this.api.getPanelEvents(panelId).subscribe({
-              next: (ev) => this.stream.setEvents(ev)
-            });
             this.reloadRecent();
           }
         }

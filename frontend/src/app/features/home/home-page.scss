@@ -6,6 +6,52 @@
   margin-bottom: 20px;
 }
 
+.key-badge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: var(--oa-radius);
+  border: 1px solid var(--oa-border);
+  background: var(--oa-bg-elevated);
+  font-size: 13px;
+  color: var(--oa-text-muted);
+
+  strong {
+    color: var(--oa-text);
+  }
+
+  code {
+    font-size: 11px;
+    color: var(--oa-info);
+  }
+
+  .store {
+    font-size: 11px;
+    opacity: 0.85;
+  }
+
+  a {
+    margin-left: auto;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  &.ok {
+    border-color: var(--oa-accent-border);
+    background: var(--oa-accent-soft);
+    color: var(--oa-accent);
+  }
+
+  &.bad {
+    border-color: var(--oa-danger-border);
+    background: var(--oa-danger-soft);
+    color: var(--oa-danger);
+  }
+}
+
 .quick-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

@@ -28,6 +28,10 @@ Versions are date-based until a formal semver release.
 - **P2** Durable secret mirror: `./data/secrets` volume + `FileSecretStore` behind Vault (survives `-dev` wipe).
 - **P3** Panel **sample topic chips** (group-aware: Anunnaki / remote / default).
 - **P4** **Home** page: quick links, recent activity, first-run checklist (default route).
+- **N1** Panel **auto-scroll** + **is speaking…** bar (floor timer); poll refreshes events mid-run.
+- **N2** Home **API key badge** (configured / not + masked preview when available).
+- **N3** `scripts/smoke-panel.sh` live smoke (group → panel → ≥1 completed turn).
+- **N4** In-app Docs: **Moderated Panel (Debate)** how-to section.
 
 ---
 

@@ -266,3 +266,4 @@ Güncelleme kuralı: her task bitince bu tablo + CHANGELOG + kısa README notu; 
 - Shared tokens + kit: `frontend/src/styles/_tokens.scss`, `_kit.scss` (`.oa-btn`, `.oa-card`, `.oa-alert`, `.oa-tag`, …)
 - Dark NIM green identity kept; active nav left-accent
 - Themes: dark / blue / white; Home dashboard; Panel conversation filter; durable file secret mirror
+- Panel speaking bar + auto-scroll; Home key badge; `scripts/smoke-panel.sh`; Docs Panel how-to

@@ -12,7 +12,7 @@ import {
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { TaskApiClient } from '../../core/api/task-api-client';
-import { PanelSessionSummary, TaskSummary } from '../../core/models';
+import { ApiCredential, PanelSessionSummary, TaskSummary } from '../../core/models';
 
 interface ActivityRow {
   kind: 'task' | 'panel';
@@ -42,6 +42,8 @@ export class HomePage implements OnInit {
 
   protected readonly loading = signal(true);
   protected readonly apiKeyConfigured = signal<boolean | null>(null);
+  protected readonly secretStore = signal<string | null>(null);
+  protected readonly keyPreview = signal<string | null>(null);
   protected readonly activity = signal<ActivityRow[]>([]);
   protected readonly taskCount = signal(0);
   protected readonly panelCount = signal(0);
@@ -49,8 +51,16 @@ export class HomePage implements OnInit {
 
   ngOnInit(): void {
     this.api.getSettings().subscribe({
-      next: (s) => this.apiKeyConfigured.set(!!s.apiKeyConfigured),
+      next: (s) => {
+        this.apiKeyConfigured.set(!!s.apiKeyConfigured);
+        this.secretStore.set(s.secretStore ?? null);
+      },
       error: () => this.apiKeyConfigured.set(null)
+    });
+
+    this.api.listCredentials().subscribe({
+      next: (creds) => this.keyPreview.set(this.pickKeyPreview(creds)),
+      error: () => this.keyPreview.set(null)
     });
 
     forkJoin({
@@ -87,5 +97,15 @@ export class HomePage implements OnInit {
       },
       error: () => this.loading.set(false)
     });
+  }
+
+  private pickKeyPreview(creds: ApiCredential[]): string | null {
+    const configured = creds.filter((c) => c.apiKeyConfigured);
+    if (configured.length === 0) return null;
+    const preferred =
+      configured.find((c) => c.isDefault) ||
+      configured.find((c) => /omni|nvidia/i.test(c.provider) || /nvidia/i.test(c.name)) ||
+      configured[0];
+    return preferred.maskedApiKey || (preferred.name ? `${preferred.name} · configured` : 'configured');
   }
 }

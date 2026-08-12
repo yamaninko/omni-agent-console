@@ -71,6 +71,50 @@
         </div>
       </section>
 
+      <!-- Section 1b: Moderated Panel -->
+      <section class="doc-section">
+        <h2>
+          <lucide-icon [img]="icons.layers" size="20"></lucide-icon>
+          Moderated Panel (Debate)
+        </h2>
+        <p>
+          Panel is a second product surface next to Studio: a <strong>moderator + commentators</strong> cast
+          debates a topic with automatic floor order, saved sessions, and Markdown transcripts.
+        </p>
+        <h3>1. Configure the cast (Groups)</h3>
+        <ul>
+          <li>Open <strong>Groups</strong> (<code>/groups</code> or <code>/groups/&#123;guid&#125;</code>).</li>
+          <li>
+            Add speakers with <strong>Role</strong> (Moderator / Commentator),
+            <strong>Stance</strong> (Neutral / For / Against / Custom), persona prompt, and model.
+          </li>
+          <li>
+            Speaking order = moderators first, then sort order. Use <strong>Clone group</strong> or
+            <strong>Open in Panel</strong> when ready.
+          </li>
+        </ul>
+        <h3>2. Run a session (Panel)</h3>
+        <ul>
+          <li>Open <strong>Panel</strong>, pick the group, optional title, topic (or a sample topic chip).</li>
+          <li>Choose <strong>1–3 rounds</strong> (full roster passes), then <strong>Start panel</strong>.</li>
+          <li>
+            URL becomes <code>/panel/&#123;session-guid&#125;</code> — bookmarkable. Stream shows a roster briefing,
+            floor grants, and speeches. Default filter is <strong>Conversation</strong> (hides model noise);
+            switch to <strong>All events</strong> for diagnostics.
+          </li>
+          <li>
+            While running you see <em>is speaking…</em> and remaining floor budget. After finish:
+            <strong>Continue</strong> with a follow-up question, or <strong>Export .md</strong> transcript.
+          </li>
+        </ul>
+        <h3>3. Keys &amp; durability</h3>
+        <p>
+          Settings → OmniAgent / NVIDIA API key is required. Keys are written to Vault and mirrored under
+          <code>./data/secrets</code> so a Vault <code>-dev</code> restart does not wipe lab credentials.
+          Home shows whether the key is configured (and a masked preview when available).
+        </p>
+      </section>
+
       <!-- Section 2: How to Use -->
       <section class="doc-section">
         <h2>

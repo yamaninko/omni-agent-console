@@ -9,16 +9,34 @@
     </div>
   </header>
 
-  @if (apiKeyConfigured() === false) {
-    <div class="oa-alert oa-alert-error">
-      <lucide-icon [img]="icons.key" size="16"></lucide-icon>
+  <div
+    class="key-badge"
+    [class.ok]="apiKeyConfigured() === true"
+    [class.bad]="apiKeyConfigured() === false"
+    [class.unknown]="apiKeyConfigured() === null"
+  >
+    <lucide-icon [img]="icons.key" size="16"></lucide-icon>
+    @if (apiKeyConfigured() === true) {
       <span>
-        API key not configured.
-        <a routerLink="/settings">Open Settings</a>
-        or set <code>OMNIAGENT_API_KEY</code> (mirrored under <code>data/secrets</code> for durable lab use).
+        API key
+        <strong>configured</strong>
+        @if (keyPreview()) {
+          <code>{{ keyPreview() }}</code>
+        }
+        @if (secretStore()) {
+          <span class="store">via {{ secretStore() }}</span>
+        }
       </span>
-    </div>
-  }
+      <a routerLink="/settings">Settings</a>
+    } @else if (apiKeyConfigured() === false) {
+      <span>
+        API key <strong>not configured</strong> — Panel/Studio will fail until you save a key.
+      </span>
+      <a routerLink="/settings">Fix in Settings</a>
+    } @else {
+      <span>API key status unknown (backend unreachable?).</span>
+    }
+  </div>
 
   <div class="quick-grid">
     <a class="quick-card" routerLink="/studio">
