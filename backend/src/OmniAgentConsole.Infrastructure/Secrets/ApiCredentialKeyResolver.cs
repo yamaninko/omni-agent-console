@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using OmniAgentConsole.Application.Configuration;
 using OmniAgentConsole.Application.Secrets;
 using OmniAgentConsole.Domain.Entities;
 using OmniAgentConsole.Infrastructure.Persistence;
@@ -10,15 +12,21 @@ public sealed class ApiCredentialKeyResolver : IApiCredentialKeyResolver
 {
     private readonly AgentConsoleDbContext dbContext;
     private readonly ISecretStore secretStore;
+    private readonly OmniAgentProviderOptions omniAgentOptions;
+    private readonly VaultOptions vaultOptions;
     private readonly ILogger<ApiCredentialKeyResolver> logger;
 
     public ApiCredentialKeyResolver(
         AgentConsoleDbContext dbContext,
         ISecretStore secretStore,
+        IOptions<OmniAgentProviderOptions> omniAgentOptions,
+        IOptions<VaultOptions> vaultOptions,
         ILogger<ApiCredentialKeyResolver> logger)
     {
         this.dbContext = dbContext;
         this.secretStore = secretStore;
+        this.omniAgentOptions = omniAgentOptions.Value;
+        this.vaultOptions = vaultOptions.Value;
         this.logger = logger;
     }
 
@@ -44,7 +52,7 @@ public sealed class ApiCredentialKeyResolver : IApiCredentialKeyResolver
                 }
 
                 logger.LogWarning(
-                    "Credential {CredentialId} references secret path {Path} but the store returned empty.",
+                    "Credential {CredentialId} references secret path {Path} but the store returned empty (Vault dev mode loses secrets on restart).",
                     credential.Id,
                     credential.ApiKeySecretPath);
             }
@@ -56,6 +64,14 @@ public sealed class ApiCredentialKeyResolver : IApiCredentialKeyResolver
                     credential.Id);
                 return credential.ApiKey;
             }
+
+            // After Vault wipe: fall back to the shared OmniAgent secret / env that
+            // Settings → API key writes (providers/omniagent#apiKey).
+            var shared = await TryResolveSharedOmniAgentKeyAsync(cancellationToken);
+            if (!string.IsNullOrWhiteSpace(shared))
+            {
+                return shared;
+            }
         }
 
         if (ApiCredentialSecretPolicy.IsRealKey(agentLegacyCustomKey))
@@ -63,7 +79,25 @@ public sealed class ApiCredentialKeyResolver : IApiCredentialKeyResolver
             return agentLegacyCustomKey;
         }
 
-        return null;
+        return await TryResolveSharedOmniAgentKeyAsync(cancellationToken);
+    }
+
+    private async Task<string?> TryResolveSharedOmniAgentKeyAsync(CancellationToken cancellationToken)
+    {
+        if (vaultOptions.Enabled)
+        {
+            var fromVault = await secretStore.GetSecretAsync(
+                vaultOptions.OmniAgentApiKeyPath,
+                "apiKey",
+                cancellationToken);
+            if (!string.IsNullOrWhiteSpace(fromVault))
+            {
+                return fromVault;
+            }
+        }
+
+        var fromEnv = Environment.GetEnvironmentVariable(omniAgentOptions.ApiKeyEnvironmentVariable);
+        return string.IsNullOrWhiteSpace(fromEnv) ? null : fromEnv.Trim();
     }
 
     public async Task<string?> ResolveByIdAsync(Guid credentialId, CancellationToken cancellationToken)

@@ -52,6 +52,18 @@
           <span>Agents</span>
         }
       </a>
+      <a routerLink="/groups" routerLinkActive="active" [title]="collapsed() ? 'Groups' : ''">
+        <lucide-icon [img]="icons.groups" size="18"></lucide-icon>
+        @if (!collapsed()) {
+          <span>Groups</span>
+        }
+      </a>
+      <a routerLink="/panel" routerLinkActive="active" [title]="collapsed() ? 'Panel' : ''">
+        <lucide-icon [img]="icons.panel" size="18"></lucide-icon>
+        @if (!collapsed()) {
+          <span>Panel</span>
+        }
+      </a>
       <a routerLink="/settings" routerLinkActive="active" [title]="collapsed() ? 'Settings' : ''">
         <lucide-icon [img]="icons.settings" size="18"></lucide-icon>
         @if (!collapsed()) {

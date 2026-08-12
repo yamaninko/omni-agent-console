@@ -1,6 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { Bot, Gauge, History, LucideAngularModule, Settings, SquareTerminal, BookOpen, ChevronLeft, ChevronRight, FolderClosed } from 'lucide-angular';
+import { Bot, Gauge, History, LucideAngularModule, Settings, SquareTerminal, BookOpen, ChevronLeft, ChevronRight, FolderClosed, Users, MessagesSquare } from 'lucide-angular';
 import { DialogHostComponent } from './core/ui/dialog-host.component';
 
 @Component({
@@ -21,6 +21,8 @@ export class App {
     docs: BookOpen,
     chevronLeft: ChevronLeft,
     chevronRight: ChevronRight,
-    workspace: FolderClosed
+    workspace: FolderClosed,
+    groups: Users,
+    panel: MessagesSquare
   };
 }

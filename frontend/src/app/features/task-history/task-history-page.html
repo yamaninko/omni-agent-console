@@ -10,14 +10,16 @@
   <div class="table">
     <div class="table-head">
       <span>Task</span>
+      <span>ID</span>
       <span>Status</span>
       <span>Created</span>
       <span>Latency</span>
       <span>Tokens</span>
     </div>
     @for (task of tasks(); track task.id) {
-      <a class="row" [routerLink]="['/tasks', task.id]">
+      <a class="row" [routerLink]="['/tasks', task.id]" [title]="'/tasks/' + task.id">
         <span class="title">{{ task.title }}</span>
+        <code class="task-id">{{ task.id }}</code>
         <code [class]="task.status.toLowerCase()">{{ task.status }}</code>
         <span>{{ task.createdAt | date:'HH:mm:ss · MMM d' }}</span>
         <span>{{ formatDuration(task.totalLatencyMs) }}</span>

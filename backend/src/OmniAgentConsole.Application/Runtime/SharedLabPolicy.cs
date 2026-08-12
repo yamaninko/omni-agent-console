@@ -86,6 +86,7 @@ public static class SharedLabPolicy
 
         return normalized.StartsWith("/api/credentials", StringComparison.Ordinal)
             || normalized.StartsWith("/api/agents", StringComparison.Ordinal)
+            || normalized.StartsWith("/api/agent-groups", StringComparison.Ordinal)
             || normalized.StartsWith("/api/settings", StringComparison.Ordinal)
             || normalized.StartsWith("/api/providers", StringComparison.Ordinal)
             || normalized.StartsWith("/api/skills", StringComparison.Ordinal);

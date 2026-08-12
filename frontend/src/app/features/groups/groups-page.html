@@ -1,0 +1,333 @@
+<section class="groups-page">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Panel Configuration</p>
+      <h1>Agent Groups</h1>
+      <p class="sub">
+        Define who sits on the panel: role, stance, persona mission. Order = speaking order.
+        URL is <code>/groups/&#123;guid&#125;</code>.
+      </p>
+    </div>
+    <button class="primary-btn" (click)="startCreateGroup()" [disabled]="saving()">
+      <lucide-icon [img]="icons.plus" size="16"></lucide-icon>
+      New Group
+    </button>
+  </header>
+
+  @if (success()) {
+    <div class="alert success-alert">
+      <lucide-icon [img]="icons.check" size="18"></lucide-icon>
+      <span>{{ success() }}</span>
+    </div>
+  }
+  @if (error()) {
+    <div class="alert error-alert">
+      <lucide-icon [img]="icons.x" size="18"></lucide-icon>
+      <span>{{ error() }}</span>
+    </div>
+  }
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Groups</h2>
+        <span class="count-badge">{{ groups().length }}</span>
+      </div>
+      <div class="list">
+        @for (g of groups(); track g.id) {
+          <button
+            type="button"
+            class="card"
+            [class.active]="selected()?.id === g.id && !isCreatingGroup()"
+            (click)="selectGroup(g)"
+          >
+            <lucide-icon [img]="icons.users" size="16"></lucide-icon>
+            <div>
+              <strong>{{ g.name }}</strong>
+              <span class="id-line" title="{{ g.id }}">{{ shortId(g.id) }} · {{ g.memberCount }} speaker(s)</span>
+            </div>
+          </button>
+        } @empty {
+          <p class="empty">No groups yet.</p>
+        }
+      </div>
+    </aside>
+
+    <div class="main">
+      @if (isCreatingGroup() || selected()) {
+        <div class="panel">
+          <div class="panel-head">
+            <h2>{{ isCreatingGroup() ? 'Create group' : 'Edit group' }}</h2>
+            @if (selected() && !isCreatingGroup()) {
+              <a class="group-path" [href]="'/groups/' + selected()!.id" title="Deep link">
+                /groups/{{ selected()!.id }}
+              </a>
+            }
+          </div>
+
+          @if (selected() && !isCreatingGroup()) {
+            <div class="id-bar">
+              <code class="full-id">{{ selected()!.id }}</code>
+              <button type="button" class="secondary-btn sm" (click)="copyGroupId()">Copy id</button>
+              <button type="button" class="secondary-btn sm" (click)="copyGroupLink()">Copy link</button>
+            </div>
+          }
+
+          <label>
+            Name
+            <input [value]="groupName()" (input)="groupName.set($any($event.target).value)" />
+          </label>
+          <label>
+            Description
+            <textarea
+              rows="2"
+              [value]="groupDescription()"
+              (input)="groupDescription.set($any($event.target).value)"
+              placeholder="What kind of panel is this? e.g. myth debate, product strategy, ethics…"
+            ></textarea>
+          </label>
+          <div class="actions">
+            <button class="primary-btn" (click)="saveGroup()" [disabled]="saving()">
+              <lucide-icon [img]="icons.save" size="16"></lucide-icon>
+              Save group
+            </button>
+            @if (selected() && !isCreatingGroup()) {
+              <button class="danger-btn" (click)="deleteGroup()" [disabled]="saving()">
+                <lucide-icon [img]="icons.trash" size="16"></lucide-icon>
+                Delete
+              </button>
+            }
+          </div>
+        </div>
+
+        @if (selected() && !isCreatingGroup()) {
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Speakers on stage</h2>
+                <p class="panel-hint">
+                  Who they are, what they must do, and which side they take. Panel runtime uses this roster only —
+                  no invented guests.
+                </p>
+              </div>
+              <button class="secondary-btn" (click)="startAddMember()">
+                <lucide-icon [img]="icons.plus" size="14"></lucide-icon>
+                Add speaker
+              </button>
+            </div>
+
+            <div class="members">
+              @for (m of orderedMembers(selected()); track m.id; let i = $index) {
+                <div
+                  class="member-card"
+                  [class.disabled]="!m.enabled"
+                  [class.moderator]="m.role === 'Moderator'"
+                  [class.editing]="editingMemberId() === m.id"
+                >
+                  <div class="member-top" (click)="editMember(m)">
+                    <span class="seat">#{{ i + 1 }}</span>
+                    <lucide-icon [img]="icons.bot" size="18"></lucide-icon>
+                    <div class="member-identity">
+                      <strong>{{ m.displayName }}</strong>
+                      <span class="tags">
+                        <span class="tag role">{{ roleLabel(m.role) }}</span>
+                        <span class="tag stance">{{ stanceLine(m) }}</span>
+                        @if (!m.enabled) {
+                          <span class="tag off">Disabled</span>
+                        }
+                      </span>
+                    </div>
+                    <div class="member-actions" (click)="$event.stopPropagation()">
+                      <button type="button" class="icon-btn" title="Move up" (click)="moveMember(m, -1)">
+                        <lucide-icon [img]="icons.up" size="14"></lucide-icon>
+                      </button>
+                      <button type="button" class="icon-btn" title="Move down" (click)="moveMember(m, 1)">
+                        <lucide-icon [img]="icons.down" size="14"></lucide-icon>
+                      </button>
+                      <button type="button" class="icon-btn danger" title="Remove" (click)="deleteMember(m)">
+                        <lucide-icon [img]="icons.trash" size="14"></lucide-icon>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="member-body" (click)="editMember(m)">
+                    <div class="mission-block">
+                      <span class="label">Job on this panel</span>
+                      <p>{{ roleMission(m.role) }}</p>
+                    </div>
+                    <div class="mission-block">
+                      <span class="label">Persona (who they are)</span>
+                      <p>{{ personaBlurb(m.systemPrompt) }}</p>
+                    </div>
+                    <div class="mission-block">
+                      <span class="label">Stance to defend</span>
+                      <p>{{ stanceLine(m) }}</p>
+                    </div>
+                    <div class="tech-line">
+                      Model <code>{{ m.defaultModel }}</code>
+                      · {{ m.timeoutSeconds }}s · {{ m.maxTokens }} tok
+                      · temp {{ m.temperature }}
+                    </div>
+                  </div>
+                </div>
+              } @empty {
+                <p class="empty">Add at least one speaker (moderator and/or commentators) to run a panel.</p>
+              }
+            </div>
+
+            @if (isCreatingMember() || editingMemberId()) {
+              <div class="member-form">
+                <h3>{{ editingMemberId() ? 'Edit speaker' : 'New speaker' }}</h3>
+                <p class="form-hint">
+                  Fill role + stance + persona carefully — the panel briefing and model prompts use these fields.
+                </p>
+                <label>
+                  Display name (stage name)
+                  <input [value]="memberName()" (input)="memberName.set($any($event.target).value)" />
+                </label>
+                <div class="grid-2">
+                  <label>
+                    Role — what they do
+                    <select
+                      [value]="memberRole()"
+                      (change)="memberRole.set($any($event.target).value)"
+                    >
+                      @for (r of roles; track r.value) {
+                        <option [value]="r.value">{{ r.label }}</option>
+                      }
+                    </select>
+                  </label>
+                  <label>
+                    Stance — which side
+                    <select
+                      [value]="memberStance()"
+                      (change)="memberStance.set($any($event.target).value)"
+                    >
+                      @for (s of stances; track s.value) {
+                        <option [value]="s.value">{{ s.label }}</option>
+                      }
+                    </select>
+                  </label>
+                </div>
+                <label>
+                  Stance label (thesis they defend on typical topics)
+                  <input
+                    [value]="memberStanceLabel()"
+                    (input)="memberStanceLabel.set($any($event.target).value)"
+                    placeholder="e.g. Anunnaki are historical deities · Remote-first is better · …"
+                  />
+                </label>
+                <label>
+                  System prompt — who they are (persona / expertise)
+                  <textarea
+                    rows="4"
+                    [value]="memberPrompt()"
+                    (input)="memberPrompt.set($any($event.target).value)"
+                    placeholder="You are … (background, voice, expertise). This is their character."
+                  ></textarea>
+                </label>
+                <div class="grid-2">
+                  <label>
+                    Model
+                    <input
+                      list="panel-models"
+                      [value]="memberModel()"
+                      (input)="memberModel.set($any($event.target).value)"
+                    />
+                    <datalist id="panel-models">
+                      @for (m of models(); track m.id) {
+                        <option [value]="m.model">{{ m.displayName }}</option>
+                      }
+                    </datalist>
+                  </label>
+                  <label>
+                    Fallback models (comma-separated)
+                    <input
+                      [value]="memberFallback()"
+                      (input)="memberFallback.set($any($event.target).value)"
+                    />
+                  </label>
+                  <label>
+                    Provider
+                    <select
+                      [value]="memberProvider()"
+                      (change)="memberProvider.set($any($event.target).value)"
+                    >
+                      @for (p of providers; track p.value) {
+                        <option [value]="p.value">{{ p.label }}</option>
+                      }
+                    </select>
+                  </label>
+                  <label>
+                    API credential
+                    <select
+                      [value]="memberCredentialId() ?? ''"
+                      (change)="memberCredentialId.set($any($event.target).value || null)"
+                    >
+                      <option value="">Default / Vault OmniAgent</option>
+                      @for (c of credentials(); track c.id) {
+                        <option [value]="c.id">{{ c.name }} ({{ c.provider }})</option>
+                      }
+                    </select>
+                  </label>
+                  <label>
+                    Max tokens (~1 min speech)
+                    <input
+                      type="number"
+                      [value]="memberMaxTokens()"
+                      (input)="memberMaxTokens.set(+$any($event.target).value)"
+                    />
+                  </label>
+                  <label>
+                    Timeout seconds
+                    <input
+                      type="number"
+                      [value]="memberTimeout()"
+                      (input)="memberTimeout.set(+$any($event.target).value)"
+                    />
+                  </label>
+                  <label>
+                    Temperature
+                    <input
+                      type="number"
+                      step="0.1"
+                      [value]="memberTemperature()"
+                      (input)="memberTemperature.set(+$any($event.target).value)"
+                    />
+                  </label>
+                  <label>
+                    Retry count
+                    <input
+                      type="number"
+                      [value]="memberRetry()"
+                      (input)="memberRetry.set(+$any($event.target).value)"
+                    />
+                  </label>
+                </div>
+                <label class="check">
+                  <input
+                    type="checkbox"
+                    [checked]="memberEnabled()"
+                    (change)="memberEnabled.set($any($event.target).checked)"
+                  />
+                  Enabled (sits on the panel)
+                </label>
+                <div class="actions">
+                  <button class="primary-btn" (click)="saveMember()" [disabled]="saving()">
+                    <lucide-icon [img]="icons.save" size="16"></lucide-icon>
+                    Save speaker
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      } @else {
+        <div class="empty-state">
+          <lucide-icon [img]="icons.users" size="40"></lucide-icon>
+          <p>Select a group or create a new one for panel discussions.</p>
+        </div>
+      }
+    </div>
+  </div>
+</section>

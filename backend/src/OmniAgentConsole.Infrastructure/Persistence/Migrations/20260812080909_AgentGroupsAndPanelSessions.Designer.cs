@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using OmniAgentConsole.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using OmniAgentConsole.Infrastructure.Persistence;
 namespace OmniAgentConsole.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AgentConsoleDbContext))]
-    partial class AgentConsoleDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260812080909_AgentGroupsAndPanelSessions")]
+    partial class AgentGroupsAndPanelSessions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -307,28 +310,10 @@ namespace OmniAgentConsole.Infrastructure.Persistence.Migrations
                     b.Property<int>("RetryCount")
                         .HasColumnType("integer");
 
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasDefaultValue("Commentator");
-
                     b.Property<int>("SortOrder")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
                         .HasDefaultValue(0);
-
-                    b.Property<string>("Stance")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasDefaultValue("Neutral");
-
-                    b.Property<string>("StanceLabel")
-                        .HasMaxLength(240)
-                        .HasColumnType("character varying(240)");
 
                     b.Property<string>("SystemPrompt")
                         .IsRequired()

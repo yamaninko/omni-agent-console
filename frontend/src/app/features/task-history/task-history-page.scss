@@ -31,7 +31,7 @@ h1 {
 
 .table-head {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 120px 160px 110px 100px;
+  grid-template-columns: minmax(180px, 1.1fr) minmax(220px, 1.2fr) 120px 160px 110px 100px;
   gap: 12px;
   padding: 10px 16px;
   color: #7f93a8;
@@ -45,7 +45,7 @@ h1 {
 .row,
 .empty {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 120px 160px 110px 100px;
+  grid-template-columns: minmax(180px, 1.1fr) minmax(220px, 1.2fr) 120px 160px 110px 100px;
   gap: 12px;
   align-items: center;
   padding: 14px 16px;
@@ -77,6 +77,18 @@ code {
   color: #dce6ef;
   background: #172230;
   font-size: 12px;
+}
+
+code.task-id {
+  border-radius: 6px;
+  font-size: 11px;
+  color: #6db3ff;
+  background: #0f1620;
+  border: 1px solid #243447;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 code.completed {

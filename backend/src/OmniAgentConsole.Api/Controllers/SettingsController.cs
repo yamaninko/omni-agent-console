@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using OmniAgentConsole.Application.Configuration;
 using OmniAgentConsole.Application.Providers;
 using OmniAgentConsole.Application.Secrets;
 using OmniAgentConsole.Application.Settings;
+using OmniAgentConsole.Infrastructure.Persistence;
 
 namespace OmniAgentConsole.Api.Controllers;
 
@@ -15,17 +17,23 @@ public sealed class SettingsController : ControllerBase
     private readonly IProviderSecretResolver providerSecretResolver;
     private readonly IProviderHealthCheck providerHealthCheck;
     private readonly ISecretStore secretStore;
+    private readonly IApiCredentialKeyResolver credentialKeys;
+    private readonly AgentConsoleDbContext dbContext;
 
     public SettingsController(
         IOptions<OmniAgentProviderOptions> omniAgentOptions,
         IProviderSecretResolver providerSecretResolver,
         IProviderHealthCheck providerHealthCheck,
-        ISecretStore secretStore)
+        ISecretStore secretStore,
+        IApiCredentialKeyResolver credentialKeys,
+        AgentConsoleDbContext dbContext)
     {
         this.omniAgentOptions = omniAgentOptions;
         this.providerSecretResolver = providerSecretResolver;
         this.providerHealthCheck = providerHealthCheck;
         this.secretStore = secretStore;
+        this.credentialKeys = credentialKeys;
+        this.dbContext = dbContext;
     }
 
     [HttpGet]
@@ -55,7 +63,26 @@ public sealed class SettingsController : ControllerBase
             return BadRequest("OMNIAGENT API key is required.");
         }
 
-        await providerSecretResolver.SetOmniAgentApiKeyAsync(request.ApiKey.Trim(), cancellationToken);
+        var trimmed = request.ApiKey.Trim();
+        await providerSecretResolver.SetOmniAgentApiKeyAsync(trimmed, cancellationToken);
+
+        // Also re-seed the default NVIDIA / OmniAgent credential Vault path so
+        // Studio + Panel (which resolve via apiCredentialId) work after a Vault
+        // dev-mode restart wiped secret/providers/credentials/*.
+        var defaultCredential = await dbContext.ApiCredentials
+            .Where(c => c.IsDefault
+                || c.Provider == "OmniAgent"
+                || c.Provider == "NVIDIA"
+                || c.Provider == "Nvidia")
+            .OrderByDescending(c => c.IsDefault)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (defaultCredential is not null)
+        {
+            await credentialKeys.PersistKeyAsync(defaultCredential, trimmed, cancellationToken);
+            defaultCredential.UpdatedAt = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
         var configured = await providerSecretResolver.HasOmniAgentApiKeyAsync(cancellationToken);
 
         return Ok(new UpdateOmniAgentApiKeyResponse(

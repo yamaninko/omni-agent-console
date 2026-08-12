@@ -22,6 +22,11 @@ public sealed class AgentConsoleDbContext : DbContext
     public DbSet<AgentExecutionStep> AgentExecutionSteps => Set<AgentExecutionStep>();
     public DbSet<ApiCredential> ApiCredentials => Set<ApiCredential>();
     public DbSet<SkillDefinition> SkillDefinitions => Set<SkillDefinition>();
+    public DbSet<AgentGroup> AgentGroups => Set<AgentGroup>();
+    public DbSet<AgentGroupMember> AgentGroupMembers => Set<AgentGroupMember>();
+    public DbSet<PanelSession> PanelSessions => Set<PanelSession>();
+    public DbSet<PanelTurn> PanelTurns => Set<PanelTurn>();
+    public DbSet<PanelConsoleEvent> PanelConsoleEvents => Set<PanelConsoleEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -177,6 +182,98 @@ public sealed class AgentConsoleDbContext : DbContext
             entity.Property(x => x.Model).HasMaxLength(160);
             entity.Property(x => x.EstimatedCost).HasPrecision(18, 8);
             entity.HasIndex(x => new { x.PeriodStart, x.PeriodEnd });
+        });
+
+        modelBuilder.Entity<AgentGroup>(entity =>
+        {
+            entity.ToTable("agent_groups");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(1000);
+            entity.HasIndex(x => x.CreatedAt);
+        });
+
+        modelBuilder.Entity<AgentGroupMember>(entity =>
+        {
+            entity.ToTable("agent_group_members");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.DisplayName).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.SystemPrompt).IsRequired();
+            entity.Property(x => x.DefaultModel).HasMaxLength(160).IsRequired();
+            entity.Property(x => x.FallbackModels).HasMaxLength(500);
+            entity.Property(x => x.Provider).HasConversion<string>().HasMaxLength(64);
+            entity.Property(x => x.Temperature).HasPrecision(4, 2);
+            entity.Property(x => x.Enabled).HasDefaultValue(true);
+            entity.Property(x => x.SortOrder).HasDefaultValue(0);
+            entity.Property(x => x.Role).HasConversion<string>().HasMaxLength(32)
+                .HasDefaultValue(PanelMemberRole.Commentator);
+            entity.Property(x => x.Stance).HasConversion<string>().HasMaxLength(32)
+                .HasDefaultValue(PanelStance.Neutral);
+            entity.Property(x => x.StanceLabel).HasMaxLength(240);
+            entity.HasOne(x => x.Group)
+                .WithMany(x => x.Members)
+                .HasForeignKey(x => x.GroupId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.ApiCredential)
+                .WithMany()
+                .HasForeignKey(x => x.ApiCredentialId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(x => new { x.GroupId, x.SortOrder });
+        });
+
+        modelBuilder.Entity<PanelSession>(entity =>
+        {
+            entity.ToTable("panel_sessions");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Title).HasMaxLength(240);
+            entity.Property(x => x.Topic).IsRequired();
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.OwnerSessionId).HasMaxLength(64);
+            entity.Property(x => x.ErrorMessage).HasMaxLength(4000);
+            entity.HasOne(x => x.Group)
+                .WithMany(x => x.PanelSessions)
+                .HasForeignKey(x => x.GroupId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(x => x.CreatedAt);
+            entity.HasIndex(x => x.Status);
+            entity.HasIndex(x => x.OwnerSessionId);
+        });
+
+        modelBuilder.Entity<PanelTurn>(entity =>
+        {
+            entity.ToTable("panel_turns");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.MemberDisplayName).HasMaxLength(120).IsRequired();
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.ModelUsed).HasMaxLength(160);
+            entity.Property(x => x.ErrorMessage).HasMaxLength(4000);
+            entity.HasOne(x => x.Session)
+                .WithMany(x => x.Turns)
+                .HasForeignKey(x => x.SessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Member)
+                .WithMany()
+                .HasForeignKey(x => x.MemberId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(x => new { x.SessionId, x.TurnOrder });
+        });
+
+        modelBuilder.Entity<PanelConsoleEvent>(entity =>
+        {
+            entity.ToTable("panel_console_events");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.EventType).HasConversion<string>().HasMaxLength(64);
+            entity.Property(x => x.Message).HasMaxLength(4000).IsRequired();
+            entity.Property(x => x.PayloadJson).HasColumnType("jsonb");
+            entity.HasOne(x => x.PanelSession)
+                .WithMany(x => x.ConsoleEvents)
+                .HasForeignKey(x => x.PanelSessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.PanelTurn)
+                .WithMany()
+                .HasForeignKey(x => x.PanelTurnId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(x => new { x.PanelSessionId, x.CreatedAt });
         });
     }
 

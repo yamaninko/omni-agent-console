@@ -1,0 +1,157 @@
+<section class="panel-page">
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Moderated Discussion</p>
+      <h1>Panel</h1>
+      <p class="sub">
+        One round · automatic floor · ~60s per guest (generation budget; free-tier queue wait is separate).
+      </p>
+    </div>
+  </header>
+
+  @if (error()) {
+    <div class="alert error-alert">{{ error() }}</div>
+  }
+
+  <div class="layout">
+    <aside class="left">
+      <div class="card">
+        <div class="card-head-row">
+          <h2>New session</h2>
+          @if (session()) {
+            <button type="button" class="link-btn" (click)="newSessionForm()">+ Blank form</button>
+          }
+        </div>
+        <label>
+          Group
+          <select
+            [value]="selectedGroupId()"
+            (change)="selectedGroupId.set($any($event.target).value)"
+          >
+            @for (g of groups(); track g.id) {
+              <option [value]="g.id">{{ g.name }} ({{ g.memberCount }})</option>
+            }
+          </select>
+        </label>
+        <label>
+          Title (optional)
+          <input [value]="title()" (input)="title.set($any($event.target).value)" />
+        </label>
+        <label>
+          Topic
+          <textarea
+            rows="5"
+            placeholder="What should the guests debate?"
+            [value]="topic()"
+            (input)="topic.set($any($event.target).value)"
+          ></textarea>
+        </label>
+        <div class="actions">
+          <button class="primary-btn" (click)="startPanel()" [disabled]="busy()">
+            <lucide-icon [img]="icons.play" size="16"></lucide-icon>
+            Start panel
+          </button>
+          @if (session() && (session()!.status === 'Running' || session()!.status === 'Pending')) {
+            <button class="danger-btn" (click)="cancelPanel()">
+              <lucide-icon [img]="icons.stop" size="16"></lucide-icon>
+              Cancel
+            </button>
+          }
+        </div>
+        @if (session()) {
+          <div class="session-meta">
+            <span class="status" [class]="statusClass(session()!.status)">{{ session()!.status }}</span>
+            <span>{{ session()!.groupName }}</span>
+            <button type="button" class="session-id" (click)="copySessionId()" title="Copy full GUID">
+              ID {{ shortId(session()!.id) }}
+            </button>
+            <button type="button" class="session-id" (click)="copySessionLink()" title="Copy deep link">
+              Copy link
+            </button>
+            <code class="full-id" title="Permanent session GUID">{{ session()!.id }}</code>
+            @if (session()!.floorDeadline) {
+              <span>Floor until {{ session()!.floorDeadline | date: 'HH:mm:ss' }}</span>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="card">
+        <h2>Saved panels</h2>
+        <p class="hint">Each Start saves a session. URL becomes <code>/panel/&#123;guid&#125;</code> — bookmark or share.</p>
+        <div class="recent">
+          @for (p of recent(); track p.id) {
+            <button
+              type="button"
+              class="recent-item"
+              [class.active]="session()?.id === p.id"
+              (click)="openRecent(p)"
+            >
+              <strong>{{ p.title || p.topic }}</strong>
+              <span class="id-line" title="{{ p.id }}">{{ p.id }}</span>
+              <span>{{ p.groupName }} · {{ p.status }}</span>
+            </button>
+          } @empty {
+            <p class="empty">No panels yet.</p>
+          }
+        </div>
+      </div>
+    </aside>
+
+    <div class="chat card">
+      <div class="chat-head">
+        <lucide-icon [img]="icons.chat" size="18"></lucide-icon>
+        <h2>Discussion stream</h2>
+        @if (session()) {
+          <a class="session-badge" [href]="'/panel/' + session()!.id" title="Open this session URL">
+            /panel/{{ session()!.id }}
+          </a>
+        }
+      </div>
+
+      <div class="messages">
+        @for (ev of events(); track ev.id) {
+          @if (isUserMessage(ev)) {
+            <div class="bubble user">
+              <div class="role">Topic</div>
+              <div class="text">{{ ev.message }}</div>
+            </div>
+          } @else if (isRosterBriefing(ev)) {
+            <div class="bubble briefing">
+              <div class="role">Who is on stage · missions</div>
+              <div class="text">{{ ev.message }}</div>
+            </div>
+          } @else if (isFloor(ev)) {
+            <div class="system floor">
+              <lucide-icon [img]="icons.users" size="14"></lucide-icon>
+              {{ ev.message }}
+            </div>
+          } @else if (isSpeech(ev)) {
+            <div class="bubble agent">
+              <div class="role">{{ speakerFromPayload(ev) || 'Guest' }}</div>
+              <div class="text">{{ ev.message }}</div>
+            </div>
+          } @else if (isSystem(ev)) {
+            <div class="system">{{ ev.eventType }}: {{ ev.message }}</div>
+          }
+        } @empty {
+          <p class="empty">Start a panel to see turns here.</p>
+        }
+      </div>
+
+      @if (session()?.turns?.length) {
+        <div class="turns-summary">
+          <h3>Turns</h3>
+          @for (t of session()!.turns; track t.id) {
+            <div class="turn-chip" [class]="t.status.toLowerCase()">
+              #{{ t.turnOrder }} {{ t.memberDisplayName }} · {{ t.status }}
+              @if (t.modelUsed) {
+                <span>({{ t.modelUsed }})</span>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+</section>

@@ -51,13 +51,20 @@ public sealed class TaskRunBackgroundService : BackgroundService
                 continue;
             }
 
-            await RunQueuedTaskAsync(message, stoppingToken);
+            if (message.Kind == QueuedWorkKind.PanelSession)
+            {
+                await RunQueuedPanelAsync(message, stoppingToken);
+            }
+            else
+            {
+                await RunQueuedTaskAsync(message, stoppingToken);
+            }
         }
     }
 
     private async Task RunQueuedTaskAsync(QueueMessage message, CancellationToken stoppingToken)
     {
-        var taskRunId = message.TaskRunId;
+        var taskRunId = message.WorkId;
         var taskToken = cancellationRegistry.CreateToken(taskRunId, stoppingToken);
         var success = false;
 
@@ -76,14 +83,14 @@ public sealed class TaskRunBackgroundService : BackgroundService
             if (taskStatus is null)
             {
                 logger.LogWarning("Queued task {TaskRunId} was not found.", taskRunId);
-                success = true; // Ack since the task doesn't exist and won't exist
+                success = true;
                 return;
             }
 
             if (taskStatus == TaskRunStatus.Cancelled)
             {
                 logger.LogInformation("Queued task {TaskRunId} was cancelled before execution.", taskRunId);
-                success = true; // Ack since it's already cancelled
+                success = true;
                 return;
             }
 
@@ -92,8 +99,6 @@ public sealed class TaskRunBackgroundService : BackgroundService
         }
         catch (OperationCanceledException)
         {
-            // The orchestrator only lets an OCE escape for host-shutdown interruptions;
-            // user cancellations are finalized inside RunTaskAsync and return normally.
             if (stoppingToken.IsCancellationRequested)
             {
                 logger.LogInformation(
@@ -109,9 +114,6 @@ public sealed class TaskRunBackgroundService : BackgroundService
         }
         catch (Exception exception) when (message.Redelivered)
         {
-            // Poison-message guard: this message already failed once and was
-            // redelivered. A second unexpected failure means requeueing again
-            // would loop forever — finalize the task as Failed and ACK.
             logger.LogError(
                 exception,
                 "Task {TaskRunId} failed again on redelivery; dropping the message.",
@@ -124,7 +126,6 @@ public sealed class TaskRunBackgroundService : BackgroundService
         catch (Exception exception)
         {
             logger.LogError(exception, "Task {TaskRunId} background execution failed; the message will be redelivered.", taskRunId);
-            // Nack and requeue on the first failure
             success = false;
         }
         finally
@@ -137,6 +138,92 @@ public sealed class TaskRunBackgroundService : BackgroundService
             catch (Exception ackEx)
             {
                 logger.LogError(ackEx, "Failed to acknowledge queue message for task {TaskRunId}.", taskRunId);
+            }
+        }
+    }
+
+    private async Task RunQueuedPanelAsync(QueueMessage message, CancellationToken stoppingToken)
+    {
+        var panelSessionId = message.WorkId;
+        var panelToken = cancellationRegistry.CreateToken(panelSessionId, stoppingToken);
+        var success = false;
+
+        try
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AgentConsoleDbContext>();
+            var panelService = scope.ServiceProvider.GetRequiredService<IPanelDiscussionService>();
+
+            var status = await dbContext.PanelSessions
+                .AsNoTracking()
+                .Where(x => x.Id == panelSessionId)
+                .Select(x => (PanelSessionStatus?)x.Status)
+                .FirstOrDefaultAsync(CancellationToken.None);
+
+            if (status is null)
+            {
+                logger.LogWarning("Queued panel session {PanelSessionId} was not found.", panelSessionId);
+                success = true;
+                return;
+            }
+
+            if (status is PanelSessionStatus.Cancelled or PanelSessionStatus.Completed)
+            {
+                logger.LogInformation(
+                    "Queued panel {PanelSessionId} already {Status}; skipping.",
+                    panelSessionId,
+                    status);
+                success = true;
+                return;
+            }
+
+            await panelService.RunSessionAsync(panelSessionId, panelToken);
+            success = true;
+        }
+        catch (OperationCanceledException)
+        {
+            if (stoppingToken.IsCancellationRequested)
+            {
+                logger.LogInformation(
+                    "Panel {PanelSessionId} interrupted by worker shutdown; message will be NACK'ed for redelivery.",
+                    panelSessionId);
+                success = false;
+            }
+            else
+            {
+                logger.LogInformation("Panel {PanelSessionId} execution was cancelled.", panelSessionId);
+                success = true;
+            }
+        }
+        catch (Exception exception) when (message.Redelivered)
+        {
+            logger.LogError(
+                exception,
+                "Panel {PanelSessionId} failed again on redelivery; dropping the message.",
+                panelSessionId);
+            await TryMarkPanelFailedAsync(
+                panelSessionId,
+                "Panel failed twice with an unexpected error; the queue message was dropped.");
+            success = true;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Panel {PanelSessionId} background execution failed; the message will be redelivered.",
+                panelSessionId);
+            success = false;
+        }
+        finally
+        {
+            cancellationRegistry.Complete(panelSessionId);
+            try
+            {
+                await message.AcknowledgeAsync(success);
+            }
+            catch (Exception ackEx)
+            {
+                logger.LogError(ackEx, "Failed to acknowledge queue message for panel {PanelSessionId}.", panelSessionId);
             }
         }
     }
@@ -159,6 +246,28 @@ public sealed class TaskRunBackgroundService : BackgroundService
         catch (Exception exception)
         {
             logger.LogError(exception, "Could not mark poison task {TaskRunId} as failed.", taskRunId);
+        }
+    }
+
+    private async Task TryMarkPanelFailedAsync(Guid panelSessionId, string reason)
+    {
+        try
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AgentConsoleDbContext>();
+            var session = await dbContext.PanelSessions.FirstOrDefaultAsync(x => x.Id == panelSessionId);
+            if (session is not null
+                && session.Status is not (PanelSessionStatus.Completed or PanelSessionStatus.Cancelled))
+            {
+                session.Status = PanelSessionStatus.Failed;
+                session.CompletedAt = DateTimeOffset.UtcNow;
+                session.ErrorMessage = reason;
+                await dbContext.SaveChangesAsync();
+            }
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Could not mark poison panel {PanelSessionId} as failed.", panelSessionId);
         }
     }
 }

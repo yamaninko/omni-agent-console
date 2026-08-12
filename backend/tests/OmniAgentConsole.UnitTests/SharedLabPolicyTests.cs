@@ -65,6 +65,10 @@ public sealed class SharedLabPolicyTests
     [InlineData("POST", "/api/skills/suggest", false)] // Studio auto-suggest stays open
     [InlineData("POST", "/api/settings", true)]
     [InlineData("POST", "/api/providers", true)]
+    [InlineData("POST", "/api/agent-groups", true)]
+    [InlineData("PUT", "/api/agent-groups/abc/members", true)]
+    [InlineData("POST", "/api/panels", false)]
+    [InlineData("POST", "/api/panels/abc/start", false)]
     [InlineData("POST", "/api/tasks", false)]
     [InlineData("DELETE", "/api/workspace", false)]
     [InlineData("GET", "/api/skills", false)]

@@ -31,6 +31,22 @@ export const routes: Routes = [
     loadComponent: () => import('./features/agents/agents-page').then((m) => m.AgentsPage)
   },
   {
+    path: 'groups',
+    loadComponent: () => import('./features/groups/groups-page').then((m) => m.GroupsPage)
+  },
+  {
+    path: 'groups/:groupId',
+    loadComponent: () => import('./features/groups/groups-page').then((m) => m.GroupsPage)
+  },
+  {
+    path: 'panel',
+    loadComponent: () => import('./features/panel/panel-page').then((m) => m.PanelPage)
+  },
+  {
+    path: 'panel/:sessionId',
+    loadComponent: () => import('./features/panel/panel-page').then((m) => m.PanelPage)
+  },
+  {
     path: 'docs',
     loadComponent: () => import('./features/docs/docs-page').then((m) => m.DocsPage)
   },

@@ -70,9 +70,11 @@ public static class DependencyInjection
         services.AddHttpClient<IModelProvider, OmniAgentModelProvider>();
         services.AddHttpClient<IProviderHealthCheck, OmniAgentProviderHealthCheck>();
         services.AddScoped<IConsoleEventService, ConsoleEventService>();
+        services.AddScoped<IPanelEventService, PanelEventService>();
         services.AddScoped<ModelChainExecutor>();
         services.AddScoped<CoderToolLoopRunner>();
         services.AddScoped<IAgentOrchestratorService, AgentOrchestratorService>();
+        services.AddScoped<IPanelDiscussionService, PanelDiscussionService>();
         var taskQueueMode = configuration.GetValue<string>($"{TaskQueueOptions.SectionName}:Mode");
         if (string.Equals(taskQueueMode, "RabbitMq", StringComparison.OrdinalIgnoreCase))
         {

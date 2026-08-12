@@ -39,15 +39,22 @@ public sealed class RabbitMqTaskRunQueue : ITaskRunQueue, IAsyncDisposable
         this.logger = logger;
     }
 
-    public async ValueTask EnqueueAsync(Guid taskRunId, CancellationToken cancellationToken)
+    public ValueTask EnqueueAsync(Guid taskRunId, CancellationToken cancellationToken)
+        => EnqueueCoreAsync(taskRunId, QueuedWorkKind.TaskRun, cancellationToken);
+
+    public ValueTask EnqueuePanelAsync(Guid panelSessionId, CancellationToken cancellationToken)
+        => EnqueueCoreAsync(panelSessionId, QueuedWorkKind.PanelSession, cancellationToken);
+
+    private async ValueTask EnqueueCoreAsync(Guid workId, QueuedWorkKind kind, CancellationToken cancellationToken)
     {
-        var body = Encoding.UTF8.GetBytes(taskRunId.ToString("D"));
+        var body = Encoding.UTF8.GetBytes(workId.ToString("D"));
+        var type = kind == QueuedWorkKind.PanelSession ? "panel-session" : "task-run";
         var properties = new BasicProperties
         {
             ContentType = "text/plain",
-            MessageId = taskRunId.ToString("D"),
+            MessageId = workId.ToString("D"),
             Persistent = true,
-            Type = "task-run"
+            Type = type
         };
 
         // A cached channel can look open while the broker has already gone away,
@@ -65,7 +72,7 @@ public sealed class RabbitMqTaskRunQueue : ITaskRunQueue, IAsyncDisposable
                         basicProperties: properties,
                         body: body,
                         cancellationToken: token).AsTask(),
-                    $"publish for task {taskRunId}",
+                    $"publish for {type} {workId}",
                     cancellationToken);
                 return;
             }
@@ -73,8 +80,9 @@ public sealed class RabbitMqTaskRunQueue : ITaskRunQueue, IAsyncDisposable
             {
                 logger.LogWarning(
                     exception,
-                    "Enqueue of task {TaskRunId} failed; reconnecting and retrying once.",
-                    taskRunId);
+                    "Enqueue of {WorkKind} {WorkId} failed; reconnecting and retrying once.",
+                    type,
+                    workId);
                 await InvalidateChannelAsync();
             }
         }
@@ -115,21 +123,24 @@ public sealed class RabbitMqTaskRunQueue : ITaskRunQueue, IAsyncDisposable
             }
 
             var payload = Encoding.UTF8.GetString(result.Body.Span);
-            if (Guid.TryParse(payload, out var taskRunId))
+            if (Guid.TryParse(payload, out var workId))
             {
                 // Delivery tags are scoped to the channel that delivered the message.
                 // Ack/nack must go through that exact channel; a reconnected channel
                 // would treat the old tag as unknown. If the delivery channel died,
                 // the broker has already requeued the message, so doing nothing is
                 // the correct (at-least-once) outcome.
+                var kind = string.Equals(result.BasicProperties?.Type, "panel-session", StringComparison.OrdinalIgnoreCase)
+                    ? QueuedWorkKind.PanelSession
+                    : QueuedWorkKind.TaskRun;
                 var deliveryChannel = activeChannel;
-                return new QueueMessage(taskRunId, Redelivered: result.Redelivered, AcknowledgeAsync: async success =>
+                return new QueueMessage(workId, Redelivered: result.Redelivered, Kind: kind, AcknowledgeAsync: async success =>
                 {
                     if (!deliveryChannel.IsOpen)
                     {
                         logger.LogWarning(
-                            "Queue channel for task {TaskRunId} closed before {Outcome}; the broker will redeliver the message.",
-                            taskRunId,
+                            "Queue channel for work {WorkId} closed before {Outcome}; the broker will redeliver the message.",
+                            workId,
                             success ? "ACK" : "NACK");
                         return;
                     }

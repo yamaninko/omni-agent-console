@@ -23,7 +23,13 @@ import {
   ProjectDetectResponse,
   ProjectRunStatusResponse,
   ProjectRunActionResponse,
-  ProjectProxyResponse
+  ProjectProxyResponse,
+  AgentGroupSummary,
+  AgentGroupDetail,
+  AgentGroupMember,
+  UpsertAgentGroupMemberRequest,
+  PanelSessionSummary,
+  PanelSessionDetail
 } from '../models';
 
 const API_BASE_URL = '/api';
@@ -227,5 +233,78 @@ export class TaskApiClient {
 
   deleteCredential(id: string): Observable<void> {
     return this.http.delete<void>(`${API_BASE_URL}/credentials/${id}`);
+  }
+
+  // ── Agent Groups (panel personas) ─────────────────────────────────────
+
+  listAgentGroups(): Observable<AgentGroupSummary[]> {
+    return this.http.get<AgentGroupSummary[]>(`${API_BASE_URL}/agent-groups`);
+  }
+
+  getAgentGroup(groupId: string): Observable<AgentGroupDetail> {
+    return this.http.get<AgentGroupDetail>(`${API_BASE_URL}/agent-groups/${groupId}`);
+  }
+
+  createAgentGroup(name: string, description?: string | null): Observable<AgentGroupDetail> {
+    return this.http.post<AgentGroupDetail>(`${API_BASE_URL}/agent-groups`, { name, description });
+  }
+
+  updateAgentGroup(groupId: string, name: string, description?: string | null): Observable<AgentGroupDetail> {
+    return this.http.put<AgentGroupDetail>(`${API_BASE_URL}/agent-groups/${groupId}`, { name, description });
+  }
+
+  deleteAgentGroup(groupId: string): Observable<void> {
+    return this.http.delete<void>(`${API_BASE_URL}/agent-groups/${groupId}`);
+  }
+
+  addGroupMember(groupId: string, request: UpsertAgentGroupMemberRequest): Observable<AgentGroupMember> {
+    return this.http.post<AgentGroupMember>(`${API_BASE_URL}/agent-groups/${groupId}/members`, request);
+  }
+
+  updateGroupMember(
+    groupId: string,
+    memberId: string,
+    request: UpsertAgentGroupMemberRequest
+  ): Observable<AgentGroupMember> {
+    return this.http.put<AgentGroupMember>(
+      `${API_BASE_URL}/agent-groups/${groupId}/members/${memberId}`,
+      request
+    );
+  }
+
+  deleteGroupMember(groupId: string, memberId: string): Observable<void> {
+    return this.http.delete<void>(`${API_BASE_URL}/agent-groups/${groupId}/members/${memberId}`);
+  }
+
+  reorderGroupMembers(groupId: string, memberIdsInOrder: string[]): Observable<AgentGroupDetail> {
+    return this.http.put<AgentGroupDetail>(`${API_BASE_URL}/agent-groups/${groupId}/members/reorder`, {
+      memberIdsInOrder
+    });
+  }
+
+  // ── Moderated Panel ───────────────────────────────────────────────────
+
+  listPanels(): Observable<PanelSessionSummary[]> {
+    return this.http.get<PanelSessionSummary[]>(`${API_BASE_URL}/panels`);
+  }
+
+  getPanel(panelId: string): Observable<PanelSessionDetail> {
+    return this.http.get<PanelSessionDetail>(`${API_BASE_URL}/panels/${panelId}`);
+  }
+
+  getPanelEvents(panelId: string): Observable<ConsoleEvent[]> {
+    return this.http.get<ConsoleEvent[]>(`${API_BASE_URL}/panels/${panelId}/events`);
+  }
+
+  createPanel(groupId: string, topic: string, title?: string | null): Observable<PanelSessionDetail> {
+    return this.http.post<PanelSessionDetail>(`${API_BASE_URL}/panels`, { groupId, topic, title });
+  }
+
+  startPanel(panelId: string): Observable<unknown> {
+    return this.http.post(`${API_BASE_URL}/panels/${panelId}/start`, {});
+  }
+
+  cancelPanel(panelId: string): Observable<unknown> {
+    return this.http.post(`${API_BASE_URL}/panels/${panelId}/cancel`, {});
   }
 }

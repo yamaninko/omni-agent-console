@@ -22,9 +22,8 @@ public sealed class ConsoleHub : Hub
 
     public async Task SubscribeTask(Guid taskRunId)
     {
-        // Shared-lab: only the owning session (or the instructor) may listen to
-        // a task's console stream. Mismatches read as "not found" — same
-        // no-information-leak stance as the REST endpoints.
+        // Shared-lab: only the owning session (or the instructor) may listen.
+        // Stream ids may be TaskRun or PanelSession — both use the same group naming.
         if (sharedLab.Enabled)
         {
             var httpContext = Context.GetHttpContext();
@@ -38,7 +37,20 @@ public sealed class ConsoleHub : Hub
                     .Select(x => x.OwnerSessionId)
                     .FirstOrDefaultAsync();
 
-                if (sessionId is null || !string.Equals(owner, sessionId, StringComparison.Ordinal))
+                if (owner is null)
+                {
+                    owner = await dbContext.PanelSessions
+                        .AsNoTracking()
+                        .Where(x => x.Id == taskRunId)
+                        .Select(x => x.OwnerSessionId)
+                        .FirstOrDefaultAsync();
+                }
+
+                // Null owner means the row was not found (or legacy/unscoped).
+                var found = await dbContext.TaskRuns.AsNoTracking().AnyAsync(x => x.Id == taskRunId)
+                    || await dbContext.PanelSessions.AsNoTracking().AnyAsync(x => x.Id == taskRunId);
+
+                if (!found || sessionId is null || !string.Equals(owner, sessionId, StringComparison.Ordinal))
                 {
                     throw new HubException("Task not found.");
                 }

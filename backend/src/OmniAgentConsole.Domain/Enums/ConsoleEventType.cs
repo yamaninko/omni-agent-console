@@ -20,5 +20,17 @@ public enum ConsoleEventType
     TaskCancelled = 15,
 
     /// <summary>A prompt typed by the user. Rendered as a right-aligned chat bubble.</summary>
-    UserMessage = 16
+    UserMessage = 16,
+
+    /// <summary>Panel session started (topic announced).</summary>
+    PanelStarted = 20,
+
+    /// <summary>Moderator (system) granted the floor to a guest persona.</summary>
+    PanelFloorGranted = 21,
+
+    /// <summary>A guest finished their turn; message is the speech (truncated for stream).</summary>
+    PanelTurnCompleted = 22,
+
+    /// <summary>Panel session finished all single-round turns.</summary>
+    PanelCompleted = 23
 }

@@ -130,8 +130,9 @@ services:
     deploy:
       resources:
         limits:
+          # Vault 1.19 + Go runtime OOM-kills under 256M (exit 137) on cold start.
           cpus: "0.5"
-          memory: 256M
+          memory: ${VAULT_MEM_LIMIT:-512M}
 
   postgres:
     image: postgres:17-alpine

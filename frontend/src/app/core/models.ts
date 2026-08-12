@@ -319,3 +319,120 @@ export interface ProjectRunActionResponse {
   message: string;
   logsTail?: string | null;
 }
+
+/** Agent Groups + moderated panel (orthogonal to Studio pipeline agents). */
+export interface AgentGroupSummary {
+  id: string;
+  name: string;
+  description?: string | null;
+  memberCount: number;
+  createdAt: string;
+  updatedAt?: string | null;
+}
+
+/** Panel role: moderator opens; commentators debate with a stance. */
+export type PanelMemberRole = 'Moderator' | 'Commentator';
+
+/** Debate side — multiple members may share For; one may take Against. */
+export type PanelStance = 'Neutral' | 'For' | 'Against' | 'Custom';
+
+export interface AgentGroupMember {
+  id: string;
+  groupId: string;
+  displayName: string;
+  systemPrompt: string;
+  defaultModel: string;
+  fallbackModels?: string | null;
+  provider: string;
+  apiCredentialId?: string | null;
+  maxTokens: number;
+  temperature: number;
+  timeoutSeconds: number;
+  retryCount: number;
+  sortOrder: number;
+  enabled: boolean;
+  role: PanelMemberRole | string;
+  stance: PanelStance | string;
+  stanceLabel?: string | null;
+  createdAt: string;
+}
+
+export interface AgentGroupDetail {
+  id: string;
+  name: string;
+  description?: string | null;
+  createdAt: string;
+  updatedAt?: string | null;
+  members: AgentGroupMember[];
+}
+
+export interface UpsertAgentGroupMemberRequest {
+  displayName: string;
+  systemPrompt: string;
+  defaultModel: string;
+  fallbackModels?: string | null;
+  provider: string;
+  apiCredentialId?: string | null;
+  maxTokens: number;
+  temperature: number;
+  timeoutSeconds: number;
+  retryCount: number;
+  sortOrder: number;
+  enabled: boolean;
+  role: PanelMemberRole | string;
+  stance: PanelStance | string;
+  stanceLabel?: string | null;
+}
+
+export type PanelSessionStatus = 'Pending' | 'Running' | 'Completed' | 'Failed' | 'Cancelled';
+
+export interface PanelSessionSummary {
+  id: string;
+  groupId: string;
+  groupName: string;
+  title: string;
+  topic: string;
+  status: PanelSessionStatus | string;
+  createdAt: string;
+  completedAt?: string | null;
+  totalTokens: number;
+  totalLatencyMs: number;
+}
+
+export interface PanelTurn {
+  id: string;
+  memberId: string;
+  memberDisplayName: string;
+  turnOrder: number;
+  output?: string | null;
+  status: string;
+  modelUsed?: string | null;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  latencyMs: number;
+  errorMessage?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+}
+
+export interface PanelSessionDetail {
+  id: string;
+  groupId: string;
+  groupName: string;
+  title: string;
+  topic: string;
+  status: PanelSessionStatus | string;
+  currentMemberId?: string | null;
+  floorDeadline?: string | null;
+  createdAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalTokens: number;
+  totalLatencyMs: number;
+  errorMessage?: string | null;
+  turns: PanelTurn[];
+  consoleEvents: ConsoleEvent[];
+}
