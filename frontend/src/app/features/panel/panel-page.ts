@@ -15,7 +15,9 @@ import {
   MessageSquare,
   Play,
   Square,
-  Users
+  Users,
+  Volume2,
+  VolumeX
 } from 'lucide-angular';
 import { Subscription, interval, switchMap, takeWhile } from 'rxjs';
 import { TaskApiClient } from '../../core/api/task-api-client';
@@ -50,7 +52,9 @@ export class PanelPage implements OnInit, OnDestroy {
     chat: MessageSquare,
     play: Play,
     stop: Square,
-    users: Users
+    users: Users,
+    volume: Volume2,
+    mute: VolumeX
   };
 
   protected readonly groups = signal<AgentGroupSummary[]>([]);
@@ -66,6 +70,11 @@ export class PanelPage implements OnInit, OnDestroy {
   protected readonly apiKeyConfigured = signal<boolean | null>(null);
   /** conversation = speeches + topic + floor + roster; all = include model noise */
   protected readonly streamFilter = signal<'conversation' | 'all'>('conversation');
+  /** Expanded roster briefing event ids (collapsed by default). */
+  protected readonly expandedBriefings = signal<Set<string>>(new Set());
+  protected readonly ttsSpeaking = signal(false);
+  protected readonly ttsSupported =
+    typeof window !== 'undefined' && typeof window.speechSynthesis !== 'undefined';
 
   protected readonly events = this.stream.events;
 
@@ -129,6 +138,7 @@ export class PanelPage implements OnInit, OnDestroy {
     this.pollSub?.unsubscribe();
     this.routeSub?.unsubscribe();
     this.tickSub?.unsubscribe();
+    this.stopTts();
   }
 
   protected reloadRecent(): void {
@@ -410,6 +420,86 @@ export class PanelPage implements OnInit, OnDestroy {
       },
       error: (err) => this.error.set(this.readError(err, 'Delete failed'))
     });
+  }
+
+  protected bulkDeleteFinished(): void {
+    const n = this.finishedCount();
+    if (n === 0) return;
+    if (!confirm(`Delete ${n} finished panel session(s)? Live sessions are kept.`)) {
+      return;
+    }
+    this.api.bulkDeleteFinishedPanels().subscribe({
+      next: (res) => {
+        this.reloadRecent();
+        const cur = this.session();
+        if (cur && cur.status !== 'Running' && cur.status !== 'Pending') {
+          this.newSessionForm();
+        }
+        this.error.set(null);
+        // reuse success path via temporary message
+        console.info(`Deleted ${res.deleted} panel(s)`);
+      },
+      error: (err) => this.error.set(this.readError(err, 'Bulk delete failed'))
+    });
+  }
+
+  protected finishedCount(): number {
+    return this.recent().filter(
+      (p) => p.status === 'Completed' || p.status === 'Failed' || p.status === 'Cancelled'
+    ).length;
+  }
+
+  /** Shown when session sits in Pending without turns — queue / worker backlog. */
+  protected queueHint(): string | null {
+    const s = this.session();
+    if (!s || s.status !== 'Pending') return null;
+    this.nowMs();
+    const ageSec = (Date.now() - new Date(s.createdAt).getTime()) / 1000;
+    if (ageSec < 6) {
+      return 'Queued — waiting for the worker to pick this session…';
+    }
+    const busy = this.recent().filter(
+      (p) => p.id !== s.id && (p.status === 'Running' || p.status === 'Pending')
+    ).length;
+    if (busy > 0) {
+      return `Still queued (${Math.floor(ageSec)}s). Worker appears busy with ${busy} other live panel(s) — Studio tasks share the same worker queue.`;
+    }
+    return `Still queued (${Math.floor(ageSec)}s). Worker may be busy with a Studio task, restarting, or free-tier latency. Check docker logs for agent-worker.`;
+  }
+
+  protected toggleBriefing(eventId: string): void {
+    this.expandedBriefings.update((set) => {
+      const next = new Set(set);
+      if (next.has(eventId)) next.delete(eventId);
+      else next.add(eventId);
+      return next;
+    });
+  }
+
+  protected isBriefingExpanded(eventId: string): boolean {
+    return this.expandedBriefings().has(eventId);
+  }
+
+  protected briefingPreview(message: string): string {
+    const line = message.split('\n').find((l) => l.trim().length > 0) ?? message;
+    return line.length > 120 ? line.slice(0, 117) + '…' : line;
+  }
+
+  protected speakText(text: string): void {
+    if (!this.ttsSupported || !text?.trim()) return;
+    this.stopTts();
+    const u = new SpeechSynthesisUtterance(text.trim());
+    u.rate = 1;
+    u.onend = () => this.ttsSpeaking.set(false);
+    u.onerror = () => this.ttsSpeaking.set(false);
+    this.ttsSpeaking.set(true);
+    window.speechSynthesis.speak(u);
+  }
+
+  protected stopTts(): void {
+    if (!this.ttsSupported) return;
+    window.speechSynthesis.cancel();
+    this.ttsSpeaking.set(false);
   }
 
   protected onMessagesScroll(): void {

@@ -82,6 +82,9 @@
             </button>
           }
         </div>
+        @if (session() && queueHint()) {
+          <div class="oa-alert oa-alert-info queue-hint">{{ queueHint() }}</div>
+        }
         @if (session()) {
           <div class="session-meta">
             <span class="status" [class]="statusClass(session()!.status)">{{ session()!.status }}</span>
@@ -125,7 +128,14 @@
       </div>
 
       <div class="card">
-        <h2>Saved panels</h2>
+        <div class="card-head-row">
+          <h2>Saved panels</h2>
+          @if (finishedCount() > 0) {
+            <button type="button" class="link-btn" (click)="bulkDeleteFinished()">
+              Clear finished ({{ finishedCount() }})
+            </button>
+          }
+        </div>
         <p class="hint">Each Start saves a session. URL becomes <code>/panel/&#123;guid&#125;</code> — bookmark or share.</p>
         <div class="recent">
           @for (p of recent(); track p.id) {
@@ -174,6 +184,19 @@
           >
             All events
           </button>
+          @if (ttsSupported) {
+            <button
+              type="button"
+              class="filter-btn"
+              [class.active]="ttsSpeaking()"
+              (click)="ttsSpeaking() ? stopTts() : null"
+              [disabled]="!ttsSpeaking()"
+              title="Stop speech"
+            >
+              <lucide-icon [img]="icons.mute" size="14"></lucide-icon>
+              Stop TTS
+            </button>
+          }
         </div>
         @if (session()) {
           <a class="session-badge" [href]="'/panel/' + session()!.id" title="Open this session URL">
@@ -207,8 +230,15 @@
             </div>
           } @else if (isRosterBriefing(ev)) {
             <div class="bubble briefing">
-              <div class="role">Who is on stage · missions</div>
-              <div class="text">{{ ev.message }}</div>
+              <button type="button" class="briefing-toggle" (click)="toggleBriefing(ev.id)">
+                <span class="role">Who is on stage · missions</span>
+                <span class="toggle-label">{{ isBriefingExpanded(ev.id) ? 'Collapse' : 'Expand' }}</span>
+              </button>
+              @if (isBriefingExpanded(ev.id)) {
+                <div class="text">{{ ev.message }}</div>
+              } @else {
+                <div class="text preview">{{ briefingPreview(ev.message) }}</div>
+              }
             </div>
           } @else if (isFloor(ev)) {
             <div class="system floor">
@@ -217,7 +247,20 @@
             </div>
           } @else if (isSpeech(ev)) {
             <div class="bubble agent">
-              <div class="role">{{ speakerFromPayload(ev) || 'Guest' }}</div>
+              <div class="role-row">
+                <div class="role">{{ speakerFromPayload(ev) || 'Guest' }}</div>
+                @if (ttsSupported) {
+                  <button
+                    type="button"
+                    class="tts-btn"
+                    title="Read aloud"
+                    (click)="speakText(ev.message)"
+                  >
+                    <lucide-icon [img]="icons.volume" size="14"></lucide-icon>
+                    Read
+                  </button>
+                }
+              </div>
               <div class="text">{{ ev.message }}</div>
             </div>
           } @else if (streamFilter() === 'all' && isSystem(ev)) {

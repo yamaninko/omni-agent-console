@@ -37,6 +37,10 @@ Versions are date-based until a formal semver release.
 - **D3** `make smoke` / `make smoke-long` helpers.
 - **D4** Angular component style budget raised (12kB/20kB) to clear kit warnings.
 - **D5** `docs/PR_BODY.md` for local PR/push readiness (still no push).
+- **E1** Panel **queue/worker-busy** hint while Pending.
+- **E2** Browser **TTS Read** on speeches (+ Stop TTS).
+- **E3** Roster briefing **collapsed by default** (Expand/Collapse).
+- **E4** **Clear finished** bulk delete (`POST /api/panels/bulk-delete`).
 
 ---
 

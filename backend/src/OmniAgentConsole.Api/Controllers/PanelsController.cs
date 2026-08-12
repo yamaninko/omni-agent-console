@@ -351,6 +351,32 @@ public sealed class PanelsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>Deletes finished sessions (Completed / Failed / Cancelled). Skips live ones.</summary>
+    [HttpPost("bulk-delete")]
+    public async Task<ActionResult<object>> BulkDeleteFinished(CancellationToken cancellationToken)
+    {
+        var query = dbContext.PanelSessions.AsQueryable()
+            .Where(x => x.Status == PanelSessionStatus.Completed
+                || x.Status == PanelSessionStatus.Failed
+                || x.Status == PanelSessionStatus.Cancelled);
+
+        if (SessionScoped)
+        {
+            var sid = CallerSessionId;
+            query = query.Where(x => x.OwnerSessionId == sid);
+        }
+
+        var doomed = await query.ToListAsync(cancellationToken);
+        if (doomed.Count == 0)
+        {
+            return Ok(new { deleted = 0 });
+        }
+
+        dbContext.PanelSessions.RemoveRange(doomed);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return Ok(new { deleted = doomed.Count });
+    }
+
     [HttpPost("{panelId:guid}/cancel")]
     public async Task<IActionResult> Cancel(Guid panelId, CancellationToken cancellationToken)
     {

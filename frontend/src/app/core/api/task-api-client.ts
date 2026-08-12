@@ -330,6 +330,10 @@ export class TaskApiClient {
     return this.http.delete<void>(`${API_BASE_URL}/panels/${panelId}`);
   }
 
+  bulkDeleteFinishedPanels(): Observable<{ deleted: number }> {
+    return this.http.post<{ deleted: number }>(`${API_BASE_URL}/panels/bulk-delete`, {});
+  }
+
   getPanelTranscript(panelId: string): Observable<string> {
     return this.http.get(`${API_BASE_URL}/panels/${panelId}/transcript`, {
       responseType: 'text'

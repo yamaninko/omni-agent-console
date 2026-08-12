@@ -20,6 +20,7 @@ Highlights:
 5. Conversation filter · file secret mirror · topic chips · Home
 6. Speaking bar · key badge · smoke script · Panel docs
 7. Floor progress · panel delete · `make smoke` · SCSS budgets
+8. Queue-busy hint · TTS Read · collapsed roster · bulk-delete finished
 
 ## Test plan
 
