@@ -24,6 +24,10 @@ Versions are date-based until a formal semver release.
 - **T5** Group clone API/UI + “Open in Panel” deep link (`?groupId=`).
 - **UI polish** Nav grouped into Build / Debate / Ops; shared design tokens + `.oa-*` kit (no full rebrand).
 - **Themes** Dark / Blue / White switcher (sidebar, `localStorage`); Panel chat typography (line-height, spacing, bubble contrast).
+- **P1** Panel stream **Conversation / All events** filter (hides model noise by default).
+- **P2** Durable secret mirror: `./data/secrets` volume + `FileSecretStore` behind Vault (survives `-dev` wipe).
+- **P3** Panel **sample topic chips** (group-aware: Anunnaki / remote / default).
+- **P4** **Home** page: quick links, recent activity, first-run checklist (default route).
 
 ---
 

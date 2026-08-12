@@ -50,8 +50,28 @@ export class PanelPage implements OnInit, OnDestroy {
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly apiKeyConfigured = signal<boolean | null>(null);
+  /** conversation = speeches + topic + floor + roster; all = include model noise */
+  protected readonly streamFilter = signal<'conversation' | 'all'>('conversation');
 
   protected readonly events = this.stream.events;
+
+  protected readonly sampleTopics: Record<string, string[]> = {
+    default: [
+      'Should remote-first be the default for product engineering teams?',
+      'Is open-source AI a net positive for society?',
+      'Can multi-agent systems replace junior developers this decade?'
+    ],
+    anunnaki: [
+      'Anunnakiler gerçek tarihsel varlıklar mıydı, yoksa yalnızca mit ve popüler kültür mü?',
+      'Were the Anunnaki deities, rulers later deified, or modern fiction?',
+      'Should ancient astronaut theories be taught as history or as folklore?'
+    ],
+    remote: [
+      'Should companies permanently adopt remote-first policies?',
+      'Does office presence improve mentorship more than remote tooling?',
+      'Is hybrid work a stable compromise or the worst of both worlds?'
+    ]
+  };
 
   ngOnInit(): void {
     this.api.getSettings().subscribe({
@@ -240,6 +260,46 @@ export class PanelPage implements OnInit, OnDestroy {
 
   protected isSystem(ev: ConsoleEvent): boolean {
     return !this.isUserMessage(ev) && !this.isSpeech(ev) && !this.isRosterBriefing(ev);
+  }
+
+  protected visibleEvents(): ConsoleEvent[] {
+    const all = this.events();
+    if (this.streamFilter() === 'all') {
+      return all;
+    }
+    // Conversation mode: topic, roster, floor grants, speeches, user follow-ups.
+    // Hide model/agent plumbing noise (AgentStarted, Warning, ModelCall*, Usage…).
+    return all.filter(
+      (ev) =>
+        this.isUserMessage(ev) ||
+        this.isRosterBriefing(ev) ||
+        this.isFloor(ev) ||
+        this.isSpeech(ev) ||
+        ev.eventType === 'PanelStarted' ||
+        ev.eventType === 'PanelCompleted' ||
+        ev.eventType === 'TaskCancelled' ||
+        ev.eventType === 'TaskFailed'
+    );
+  }
+
+  protected topicsForSelectedGroup(): string[] {
+    const id = this.selectedGroupId();
+    const g = this.groups().find((x) => x.id === id);
+    const name = `${g?.name ?? ''} ${g?.description ?? ''}`.toLowerCase();
+    if (name.includes('anunnak') || name.includes('annunak') || name.includes('sumer')) {
+      return this.sampleTopics['anunnaki'];
+    }
+    if (name.includes('remote') || name.includes('office') || name.includes('work')) {
+      return this.sampleTopics['remote'];
+    }
+    return this.sampleTopics['default'];
+  }
+
+  protected applyTopic(topic: string): void {
+    this.topic.set(topic);
+    if (!this.title().trim()) {
+      this.title.set(topic.length > 60 ? topic.slice(0, 57) + '…' : topic);
+    }
   }
 
   protected speakerFromPayload(ev: ConsoleEvent): string | null {

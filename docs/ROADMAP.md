@@ -265,3 +265,4 @@ Güncelleme kuralı: her task bitince bu tablo + CHANGELOG + kısa README notu; 
 - Sidebar IA: **Build** (Studio, Workspace, Agents) · **Debate** (Groups, Panel) · **Ops** (History, Dashboard, Settings, Docs)
 - Shared tokens + kit: `frontend/src/styles/_tokens.scss`, `_kit.scss` (`.oa-btn`, `.oa-card`, `.oa-alert`, `.oa-tag`, …)
 - Dark NIM green identity kept; active nav left-accent
+- Themes: dark / blue / white; Home dashboard; Panel conversation filter; durable file secret mirror

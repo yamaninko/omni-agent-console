@@ -17,3 +17,6 @@ MEMORY.md
 
 # runtime-generated agent workspace output (repo root only — not frontend feature folders)
 /workspace/
+
+# durable lab secrets mirror (API keys) — never commit
+/data/

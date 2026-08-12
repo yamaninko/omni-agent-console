@@ -22,6 +22,15 @@
 
     <nav class="nav">
       <div class="nav-section">
+        <a routerLink="/home" routerLinkActive="active" [title]="collapsed() ? 'Home' : ''">
+          <lucide-icon [img]="icons.home" size="18"></lucide-icon>
+          @if (!collapsed()) {
+            <span>Home</span>
+          }
+        </a>
+      </div>
+
+      <div class="nav-section">
         @if (!collapsed()) {
           <div class="nav-label">Build</div>
         }

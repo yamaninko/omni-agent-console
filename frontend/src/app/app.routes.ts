@@ -4,7 +4,11 @@ export const routes: Routes = [
   {
     path: '',
     pathMatch: 'full',
-    redirectTo: 'studio'
+    redirectTo: 'home'
+  },
+  {
+    path: 'home',
+    loadComponent: () => import('./features/home/home-page').then((m) => m.HomePage)
   },
   {
     path: 'studio',

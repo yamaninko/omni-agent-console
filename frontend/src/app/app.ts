@@ -13,7 +13,8 @@ import {
   FolderClosed,
   Users,
   MessagesSquare,
-  Palette
+  Palette,
+  House
 } from 'lucide-angular';
 import { DialogHostComponent } from './core/ui/dialog-host.component';
 import { AppTheme, ThemeService } from './core/ui/theme.service';
@@ -43,7 +44,8 @@ export class App {
     workspace: FolderClosed,
     groups: Users,
     panel: MessagesSquare,
-    palette: Palette
+    palette: Palette,
+    home: House
   };
 
   protected setTheme(theme: AppTheme): void {

@@ -61,6 +61,9 @@ A second product surface — **Groups + Panel** — runs moderated multi-persona
 - **Rounds** (1–3) on Start; after finish, **Continue** with a user follow-up for another roster pass.
 - **Export .md** transcript per session; **Clone group** and **Open in Panel** from Groups.
 - **History** lists both Studio tasks and panel sessions (filterable), each with GUID deep links.
+- **Home** (`/`): recent activity, quick links, first-run checklist.
+- **Panel conversation filter**: default stream shows speeches/topic/floor only; “All events” shows model noise.
+- **Durable lab secrets**: API keys mirrored to `./data/secrets` (gitignored) so Vault `-dev` restarts do not wipe keys.
 
 ```bash
 # Example flow after stack is up and Settings → OmniAgent API key is saved:

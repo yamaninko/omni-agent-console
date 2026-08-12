@@ -106,14 +106,36 @@ public static class DependencyInjection
         services.AddScoped<IProviderSecretResolver, ProviderSecretResolver>();
         services.AddScoped<IApiCredentialKeyResolver, ApiCredentialKeyResolver>();
 
+        services.Configure<FileSecretStoreOptions>(configuration.GetSection(FileSecretStoreOptions.SectionName));
         var vaultEnabled = configuration.GetValue<bool>($"{VaultOptions.SectionName}:Enabled");
+        var mirrorEnabled = configuration.GetValue(
+            $"{FileSecretStoreOptions.SectionName}:MirrorEnabled",
+            true);
+
+        // Durable file store always registered for lab — Vault -dev is memory-only.
+        services.AddSingleton<FileSecretStore>();
+
         if (vaultEnabled)
         {
-            services.AddHttpClient<ISecretStore, VaultSecretStore>();
+            services.AddHttpClient<VaultSecretStore>();
+            if (mirrorEnabled)
+            {
+                services.AddScoped<ISecretStore>(sp =>
+                {
+                    var vault = sp.GetRequiredService<VaultSecretStore>();
+                    var file = sp.GetRequiredService<FileSecretStore>();
+                    return new CompositeSecretStore(vault, file);
+                });
+            }
+            else
+            {
+                services.AddScoped<ISecretStore>(sp => sp.GetRequiredService<VaultSecretStore>());
+            }
         }
         else
         {
-            services.AddScoped<ISecretStore, EnvironmentSecretStore>();
+            // Lab without Vault: durable file store (env still used as bootstrap via Program.cs).
+            services.AddScoped<ISecretStore>(sp => sp.GetRequiredService<FileSecretStore>());
         }
 
         return services;

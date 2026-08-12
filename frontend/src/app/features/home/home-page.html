@@ -1,0 +1,80 @@
+<section class="home-page oa-page">
+  <header class="hero">
+    <div>
+      <p class="oa-eyebrow">Home</p>
+      <h1 class="oa-title">OmniAgent Console</h1>
+      <p class="oa-sub">
+        Build multi-agent coding tasks in Studio, or run moderated debates in Panel — same stack, two surfaces.
+      </p>
+    </div>
+  </header>
+
+  @if (apiKeyConfigured() === false) {
+    <div class="oa-alert oa-alert-error">
+      <lucide-icon [img]="icons.key" size="16"></lucide-icon>
+      <span>
+        API key not configured.
+        <a routerLink="/settings">Open Settings</a>
+        or set <code>OMNIAGENT_API_KEY</code> (mirrored under <code>data/secrets</code> for durable lab use).
+      </span>
+    </div>
+  }
+
+  <div class="quick-grid">
+    <a class="quick-card" routerLink="/studio">
+      <lucide-icon [img]="icons.studio" size="22"></lucide-icon>
+      <strong>Studio</strong>
+      <span>Code agents · skills · workspace</span>
+    </a>
+    <a class="quick-card" routerLink="/panel">
+      <lucide-icon [img]="icons.panel" size="22"></lucide-icon>
+      <strong>Panel</strong>
+      <span>Moderated multi-persona debate</span>
+    </a>
+    <a class="quick-card" routerLink="/groups">
+      <lucide-icon [img]="icons.groups" size="22"></lucide-icon>
+      <strong>Groups</strong>
+      <span>{{ groupCount() }} cast(s) · roles &amp; stances</span>
+    </a>
+    <a class="quick-card" routerLink="/history">
+      <lucide-icon [img]="icons.history" size="22"></lucide-icon>
+      <strong>History</strong>
+      <span>{{ taskCount() }} tasks · {{ panelCount() }} panels</span>
+    </a>
+  </div>
+
+  <div class="oa-card activity">
+    <div class="activity-head">
+      <h2>Recent activity</h2>
+      <a routerLink="/history">View all</a>
+    </div>
+    @if (loading()) {
+      <p class="empty">Loading…</p>
+    } @else if (activity().length === 0) {
+      <p class="empty">No runs yet. Start a Studio task or open Panel with a group.</p>
+    } @else {
+      <ul class="activity-list">
+        @for (row of activity(); track row.kind + row.id) {
+          <li>
+            <a [routerLink]="row.link">
+              <span class="kind" [class.panel]="row.kind === 'panel'">{{ row.kind }}</span>
+              <span class="title">{{ row.title }}</span>
+              <code class="status" [class]="row.status.toLowerCase()">{{ row.status }}</code>
+              <span class="when">{{ row.createdAt | date: 'MMM d · HH:mm' }}</span>
+            </a>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+
+  <div class="checklist oa-card">
+    <h2>First-run checklist</h2>
+    <ol>
+      <li>Settings → paste NVIDIA / OmniAgent API key → Save (also mirrored to <code>./data/secrets</code>)</li>
+      <li>Groups → define speakers (or open Anunnaki Debate)</li>
+      <li>Panel → pick sample topic → Start</li>
+      <li>Studio → run a coding task into Workspace</li>
+    </ol>
+  </div>
+</section>

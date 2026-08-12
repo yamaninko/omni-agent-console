@@ -54,6 +54,14 @@
             (input)="topic.set($any($event.target).value)"
           ></textarea>
         </label>
+        <div class="topic-chips">
+          <span class="chips-label">Sample topics</span>
+          <div class="chips">
+            @for (t of topicsForSelectedGroup(); track t) {
+              <button type="button" class="chip" (click)="applyTopic(t)">{{ t }}</button>
+            }
+          </div>
+        </div>
         <label>
           Rounds (full roster passes)
           <select [value]="maxRounds()" (change)="maxRounds.set(+$any($event.target).value)">
@@ -137,6 +145,24 @@
       <div class="chat-head">
         <lucide-icon [img]="icons.chat" size="18"></lucide-icon>
         <h2>Discussion stream</h2>
+        <div class="stream-filters">
+          <button
+            type="button"
+            class="filter-btn"
+            [class.active]="streamFilter() === 'conversation'"
+            (click)="streamFilter.set('conversation')"
+          >
+            Conversation
+          </button>
+          <button
+            type="button"
+            class="filter-btn"
+            [class.active]="streamFilter() === 'all'"
+            (click)="streamFilter.set('all')"
+          >
+            All events
+          </button>
+        </div>
         @if (session()) {
           <a class="session-badge" [href]="'/panel/' + session()!.id" title="Open this session URL">
             /panel/{{ session()!.id }}
@@ -145,10 +171,10 @@
       </div>
 
       <div class="messages">
-        @for (ev of events(); track ev.id) {
+        @for (ev of visibleEvents(); track ev.id) {
           @if (isUserMessage(ev)) {
             <div class="bubble user">
-              <div class="role">Topic</div>
+              <div class="role">{{ ev.payloadJson?.includes('followUp') ? 'Your follow-up' : 'Topic' }}</div>
               <div class="text">{{ ev.message }}</div>
             </div>
           } @else if (isRosterBriefing(ev)) {
@@ -166,8 +192,15 @@
               <div class="role">{{ speakerFromPayload(ev) || 'Guest' }}</div>
               <div class="text">{{ ev.message }}</div>
             </div>
-          } @else if (isSystem(ev)) {
+          } @else if (streamFilter() === 'all' && isSystem(ev)) {
             <div class="system">{{ ev.eventType }}: {{ ev.message }}</div>
+          } @else if (
+            ev.eventType === 'PanelStarted' ||
+            ev.eventType === 'PanelCompleted' ||
+            ev.eventType === 'TaskCancelled' ||
+            ev.eventType === 'TaskFailed'
+          ) {
+            <div class="system milestone">{{ ev.message }}</div>
           }
         } @empty {
           <p class="empty">Start a panel to see turns here.</p>
