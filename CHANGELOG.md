@@ -15,6 +15,7 @@ Versions are date-based until a formal semver release.
 
 ### Done on this branch (post-MVP, local commits)
 
+- **SEO1** README landing (value prop, Features, Quick start, Use cases, TR özet) + MIT `LICENSE` + `docs/GITHUB_SEO.md` (About/Topics paste list). Local only until push.
 - **F1** Panel **audience vote** (“Who convinced you?”) — `POST /api/panels/{id}/vote`, `VotesJson` jsonb + tallies on detail.
 - **F2** Groups **template gallery** — one-click 3-for/1-against and 2v2 cast presets.
 - **F3** Studio **pipeline picker** — `full` | `coder` | `plan-code-review` via `InputContextJson.pipeline` + `TaskPipelinePolicy`.

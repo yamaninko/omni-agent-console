@@ -1,10 +1,77 @@
-# OmniAgent Console / Multi-Agent Studio
+# OmniAgent Console
 
-Web-based, terminal-feel multi-agent studio. Backend is .NET 10, frontend is Angular 21; provider integration uses OpenAI-compatible chat completion (NVIDIA NIM, OpenAI, Gemini OpenAI-compatible endpoints, and other compatible providers).
+**Multi-agent AI studio** for coding pipelines and **moderated panel debates** — .NET 10 backend, Angular 21 UI, Docker Compose, OpenAI-compatible LLMs (NVIDIA NIM by default).
 
-You enter a prompt; the agent chain Planner → Research → Coder → Reviewer → (optional single Coder **fix loop**) → Ops Monitor runs, generated code files are written into the `workspace/` folder with a real project structure, and the full flow is watched on a realtime console.
+[Features](#features) · [Quick start](#quick-start) · [Use cases](#use-cases) · [Architecture](#current-scope) · [Models](#recommended-models-nvidia-nim-free-endpoint) · [Changelog](CHANGELOG.md) · [Roadmap](docs/ROADMAP.md)
 
-A second product surface — **Groups + Panel** — runs moderated multi-persona discussions (moderator + commentators with For/Against stances), independent of the coding pipeline. Studio tasks can pick a **pipeline** (`full` / `coder` / `plan-code-review`). Finished panels support **audience votes**; Groups has **cast templates** (3-1, 2v2). See [CHANGELOG.md](CHANGELOG.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![Angular](https://img.shields.io/badge/Angular-21-DD0031?logo=angular)](https://angular.dev/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)](https://docs.docker.com/compose/)
+
+### What it does
+
+Type a prompt; a specialized agent chain runs end-to-end:
+
+**Planner → Research → Coder → Reviewer → Ops Monitor**
+
+- **Coder** uses a Claude Code–style **tool loop** (`write_file` / `read_file` / `list_files`) and writes a real project under `workspace/`
+- Optional **Reviewer → Coder fix loop** (one pass on findings)
+- Live **SignalR console**, usage/cost tracking, skill library, model fallback chains
+
+A second product surface — **Agent Groups + Panel** — runs **moderated multi-persona discussions** (moderator + For/Against commentators), independent of the coding pipeline. Pipelines: `full` | `coder` | `plan-code-review`. Panels support multi-round debate, audience votes, transcripts, and cast templates (3–1 / 2v2).
+
+### Türkçe özet
+
+**OmniAgent Console**, çoklu ajanlı bir stüdyodur: kod üretim pipeline’ı (Planner → Coder → Reviewer…) ve **moderasyonlu AI panel tartışmaları**. .NET 10 + Angular 21 + Docker. OpenAI-uyumlu API’ler (NVIDIA NIM). Sınıf laboratuvarı için **shared-lab** profili (`SHARED_LAB=true`) vardır.
+
+---
+
+## Features
+
+| Area | Highlights |
+|------|------------|
+| **Coding studio** | Multi-agent pipeline, agentic tool loop, workspace file tree, project run (Docker), skill auto-suggest |
+| **Debate panel** | Agent groups, roles/stances, floor timer, live stream, continue rounds, audience vote, MD export |
+| **Models** | NVIDIA NIM catalog sync, per-agent fallback chains, estimated cost on tasks |
+| **Ops** | RabbitMQ at-least-once queue, Redis cancel + console fan-out, Vault + durable secret mirror |
+| **Security** | Console API key, path guard, secret redaction, loopback infra ports, shared-lab isolation |
+| **Deploy** | `docker compose up` laptop mode **or** shared classroom (`SHARED_LAB`) |
+
+## Quick start
+
+**Requirements:** Docker Desktop (local .NET/Node optional if you only use Compose).
+
+```bash
+git clone https://github.com/yamaninko/omni-agent-console.git
+cd omni-agent-console
+cp .env.example .env
+# Add OMNIAGENT_API_KEY=... (NVIDIA / OpenAI-compatible key) to .env
+docker compose up -d --build
+```
+
+| Service | URL |
+|---------|-----|
+| UI | http://localhost:4210 |
+| API health | http://localhost:5080/health |
+| RabbitMQ UI | http://localhost:15673 |
+| Vault | http://localhost:8201 |
+
+1. Open **Settings** → paste OmniAgent / NVIDIA API key → Save (or rely on `.env` bootstrap).
+2. **Studio** → prompt + workspace path + pipeline → run.
+3. **Groups** → cast (or use a template) → **Panel** → topic → Start.
+
+```bash
+make smoke          # optional live panel smoke (needs key + ≥1 group)
+docker compose logs -f backend-api agent-worker frontend
+```
+
+## Use cases
+
+- **Local multi-agent coding lab** — generate multi-file APIs/apps with skills (FastAPI, .NET, Angular, Docker, tests).
+- **Classroom / shared lab** — one host, session-scoped tasks and workspaces (`SHARED_LAB=true` + `CONSOLE_API_KEY`).
+- **Moderated AI debate** — fixed roster, For/Against stances, timed floor, transcript + audience “who convinced you?” vote.
+- **Provider experimentation** — swap models, sync NIM catalog, fallback chains under free-tier congestion.
 
 ## Current scope
 
