@@ -254,7 +254,11 @@ Açık çekirdek sprint yok.
 | **T4** | Panel transcript export (Markdown) | `GET …/transcript` + UI indir | ✅ |
 | **T5** | Group clone + “Open in Panel” | Clone API/UI; Groups’tan Panel’e deep link | ✅ |
 | T6 | LLM moderatör / manuel floor | Opsiyonel | 🔮 |
-| T7 | Studio pipeline picker | Opsiyonel | 🔮 |
+| T7 | Studio pipeline picker | Opsiyonel | ✅ `full` / `coder` / `plan-code-review` |
+| T7b | Panel audience vote | Opsiyonel | ✅ |
+| T7c | Group template gallery | Opsiyonel | ✅ 3-1 + 2v2 |
+| T7d | Task cost card | Opsiyonel | ✅ detail + history |
+| T7e | Shared-lab student nav | Opsiyonel | ✅ hide Agents/Dashboard/Settings |
 | T8 | Shared-lab öğrenci shell sadeleştirme | Opsiyonel | 🔮 |
 | T9 | TTS / sesli panel | Future | 🔮 |
 
@@ -269,3 +273,4 @@ Güncelleme kuralı: her task bitince bu tablo + CHANGELOG + kısa README notu; 
 - Panel speaking bar + auto-scroll; Home key badge; `scripts/smoke-panel.sh`; Docs Panel how-to
 - Floor progress bar; panel delete; `make smoke`; SCSS budgets; `docs/PR_BODY.md` (no push)
 - Queue-busy hint; TTS Read; collapsed roster; bulk-delete finished panels
+- Audience vote; template gallery; Studio pipeline picker; task cost; student nav shell

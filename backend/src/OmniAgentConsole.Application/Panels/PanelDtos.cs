@@ -69,6 +69,10 @@ public sealed record CreatePanelSessionRequest(
 
 public sealed record ContinuePanelRequest(string Message, int ExtraRounds = 1);
 
+public sealed record CastPanelVoteRequest(Guid MemberId);
+
+public sealed record PanelVoteTallyDto(Guid MemberId, string DisplayName, int Votes);
+
 public sealed record PanelTurnDto(
     Guid Id,
     Guid MemberId,
@@ -126,4 +130,5 @@ public sealed record PanelSessionDetailDto(
     long TotalLatencyMs,
     string? ErrorMessage,
     IReadOnlyList<PanelTurnDto> Turns,
-    IReadOnlyList<PanelConsoleEventDto> ConsoleEvents);
+    IReadOnlyList<PanelConsoleEventDto> ConsoleEvents,
+    IReadOnlyList<PanelVoteTallyDto> Votes);

@@ -51,6 +51,25 @@
           <p class="empty">No groups yet.</p>
         }
       </div>
+
+      <div class="templates">
+        <div class="sidebar-header">
+          <h2>Templates</h2>
+        </div>
+        <p class="template-hint">Clone a cast preset, then edit names/models.</p>
+        @for (t of templates; track t.id) {
+          <button
+            type="button"
+            class="template-card"
+            (click)="applyTemplate(t)"
+            [disabled]="saving()"
+            title="{{ t.description }}"
+          >
+            <strong>{{ t.name }}</strong>
+            <span>{{ t.description }}</span>
+          </button>
+        }
+      </div>
     </aside>
 
     <div class="main">

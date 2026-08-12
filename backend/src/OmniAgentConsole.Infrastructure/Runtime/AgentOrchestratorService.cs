@@ -17,15 +17,6 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
 {
     private const string WorkspaceRoot = WorkspacePathGuard.DefaultRoot;
 
-    private static readonly AgentType[] DefaultSequence =
-    [
-        AgentType.Planner,
-        AgentType.Research,
-        AgentType.Coder,
-        AgentType.Reviewer,
-        AgentType.OpsMonitor
-    ];
-
     private readonly AgentConsoleDbContext dbContext;
     private readonly IConsoleEventService consoleEvents;
     private readonly ModelChainExecutor chainExecutor;
@@ -103,7 +94,8 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
         var taskStopwatch = Stopwatch.StartNew();
         var previousOutputs = new List<AgentOutput>();
 
-        var (workspacePath, requestedSkillIds) = AgentPromptBuilder.ParseTaskContext(taskRun.InputContextJson);
+        var (workspacePath, requestedSkillIds, pipelineKey) = AgentPromptBuilder.ParseTaskContext(taskRun.InputContextJson);
+        var pipeline = TaskPipelinePolicy.Resolve(pipelineKey);
         var appliedSkills = await dbContext.SkillDefinitions
             .AsNoTracking()
             .Where(skill => skill.Enabled && requestedSkillIds.Contains(skill.Id))
@@ -190,7 +182,15 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
                 .Where(x => x.TaskRunId == taskRun.Id)
                 .MaxAsync(x => (int?)x.ExecutionOrder, cancellationToken) ?? 0;
             var executionOrder = maxPriorOrder + 1;
-            foreach (var agentType in DefaultSequence)
+            await consoleEvents.WriteAsync(
+                taskRun.Id,
+                null,
+                ConsoleEventType.AgentStep,
+                $"Pipeline: {pipelineKey} ({string.Join(" → ", pipeline)}).",
+                null,
+                cancellationToken);
+
+            foreach (var agentType in pipeline)
             {
                 await dbContext.Entry(taskRun).ReloadAsync(cancellationToken);
                 if (taskRun.Status == TaskRunStatus.Cancelled)

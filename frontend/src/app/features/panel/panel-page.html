@@ -125,6 +125,40 @@
             </button>
           </div>
         }
+        @if (session() && canVote()) {
+          <div class="vote-box">
+            <h3>Who convinced you?</h3>
+            <p class="hint">Audience vote — tallies persist on this session.</p>
+            <div class="vote-buttons">
+              @for (c of voteCandidates(); track c.memberId) {
+                <button
+                  type="button"
+                  class="oa-btn oa-btn-ghost vote-btn"
+                  (click)="castVote(c.memberId)"
+                  [disabled]="busy()"
+                >
+                  {{ c.displayName }}
+                </button>
+              }
+            </div>
+            @if (voteTallies().length > 0) {
+              <ul class="vote-tallies">
+                @for (v of voteTallies(); track v.memberId) {
+                  <li>
+                    <strong>{{ v.displayName }}</strong>
+                    <span>{{ v.votes }} vote{{ v.votes === 1 ? '' : 's' }}</span>
+                    <div class="vote-bar">
+                      <div
+                        class="vote-fill"
+                        [style.width.%]="totalVotes() ? (v.votes / totalVotes()) * 100 : 0"
+                      ></div>
+                    </div>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        }
       </div>
 
       <div class="card">

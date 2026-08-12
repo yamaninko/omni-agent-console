@@ -65,6 +65,28 @@ export class StudioPage implements OnInit, OnDestroy {
   protected readonly promptPlaceholder = 'Bu API dokumanina gore client SDK tasarla.';
   protected readonly followUpPlaceholder = 'Devam et: örn. login sayfasına şifre sıfırlama ekle…';
   protected readonly workspacePath = signal('/workspace/proje');
+  /**
+   * Studio agent chain: full | coder | plan-code-review
+   * Stored in InputContextJson.pipeline and resolved by TaskPipelinePolicy.
+   */
+  protected readonly pipeline = signal<'full' | 'coder' | 'plan-code-review'>('full');
+  protected readonly pipelineOptions = [
+    {
+      value: 'full' as const,
+      label: 'Full chain',
+      hint: 'Planner → Research → Coder → Reviewer → Ops'
+    },
+    {
+      value: 'coder' as const,
+      label: 'Coder only',
+      hint: 'Skip planning/research — tool-loop write'
+    },
+    {
+      value: 'plan-code-review' as const,
+      label: 'Plan · Code · Review',
+      hint: 'No Research or Ops Monitor'
+    }
+  ];
   protected readonly skills = signal<SkillDefinition[]>([]);
   /** Skills grouped by category for the Studio chip panel (Frontend first). */
   protected readonly skillsByCategory = computed(() => {
@@ -207,8 +229,14 @@ export class StudioPage implements OnInit, OnDestroy {
     this.stopStatusPolling();
 
     const skillIds = this.selectedSkillIds();
-    const contextJson = JSON.stringify(
-      skillIds.length > 0 ? { workspacePath: workspace, skillIds } : { workspacePath: workspace });
+    const context: Record<string, unknown> = {
+      workspacePath: workspace,
+      pipeline: this.pipeline()
+    };
+    if (skillIds.length > 0) {
+      context['skillIds'] = skillIds;
+    }
+    const contextJson = JSON.stringify(context);
 
     this.api.createTask(prompt, contextJson).subscribe({
       next: (task) => {

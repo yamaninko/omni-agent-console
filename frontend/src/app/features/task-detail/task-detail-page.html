@@ -26,6 +26,11 @@
         <span>Latency</span>
         <strong>{{ formatDuration(currentTask.totalLatencyMs) }}</strong>
       </div>
+      <div class="cost-card">
+        <span>Est. cost</span>
+        <strong>{{ formatCost(estimatedCost()) }}</strong>
+        <small>{{ currentTask.modelCallLogs.length }} model call(s)</small>
+      </div>
     </div>
 
     <section class="detail-grid">

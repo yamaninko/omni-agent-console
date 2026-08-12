@@ -4,7 +4,7 @@ Web-based, terminal-feel multi-agent studio. Backend is .NET 10, frontend is Ang
 
 You enter a prompt; the agent chain Planner → Research → Coder → Reviewer → (optional single Coder **fix loop**) → Ops Monitor runs, generated code files are written into the `workspace/` folder with a real project structure, and the full flow is watched on a realtime console.
 
-A second product surface — **Groups + Panel** — runs moderated multi-persona discussions (moderator + commentators with For/Against stances), independent of the coding pipeline. See [CHANGELOG.md](CHANGELOG.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
+A second product surface — **Groups + Panel** — runs moderated multi-persona discussions (moderator + commentators with For/Against stances), independent of the coding pipeline. Studio tasks can pick a **pipeline** (`full` / `coder` / `plan-code-review`). Finished panels support **audience votes**; Groups has **cast templates** (3-1, 2v2). See [CHANGELOG.md](CHANGELOG.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Current scope
 

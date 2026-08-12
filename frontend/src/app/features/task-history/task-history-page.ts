@@ -17,6 +17,7 @@ export interface HistoryRow {
   createdAt: string;
   totalLatencyMs: number;
   totalTokens: number;
+  estimatedCost?: number;
   link: string[];
 }
 
@@ -54,6 +55,7 @@ export class TaskHistoryPage implements OnInit {
           createdAt: t.createdAt,
           totalLatencyMs: t.totalLatencyMs,
           totalTokens: t.totalTokens,
+          estimatedCost: t.estimatedCost ?? 0,
           link: ['/tasks', t.id]
         }));
         const panelRows: HistoryRow[] = panels.map((p) => ({
@@ -65,6 +67,7 @@ export class TaskHistoryPage implements OnInit {
           createdAt: p.createdAt,
           totalLatencyMs: p.totalLatencyMs,
           totalTokens: p.totalTokens,
+          estimatedCost: undefined,
           link: ['/panel', p.id]
         }));
         const merged = [...taskRows, ...panelRows].sort(
@@ -96,5 +99,18 @@ export class TaskHistoryPage implements OnInit {
     }
 
     return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
+  }
+
+  protected formatCost(usd: number | undefined): string {
+    if (usd === undefined || usd === null) {
+      return '—';
+    }
+    if (usd <= 0) {
+      return '$0';
+    }
+    if (usd < 0.01) {
+      return `$${usd.toFixed(5)}`;
+    }
+    return `$${usd.toFixed(4)}`;
   }
 }

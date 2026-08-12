@@ -193,6 +193,21 @@
               </div>
             </div>
 
+            <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
+              <label style="color: #8fa3b7; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+                Pipeline
+              </label>
+              <select
+                [value]="pipeline()"
+                (change)="pipeline.set($any($event.target).value)"
+                style="background: #0d121a; border: 1px solid #1a2636; border-radius: 6px; color: #e6edf3; padding: 8px 12px; font-size: 13px; width: 100%; outline: none;"
+              >
+                @for (opt of pipelineOptions; track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }} — {{ opt.hint }}</option>
+                }
+              </select>
+            </div>
+
             @if (skills().length > 0) {
               <div style="display: flex; flex-direction: column; gap: 6px; margin: 10px 0;">
                 <label style="color: #8fa3b7; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">

@@ -12,10 +12,14 @@ Versions are date-based until a formal semver release.
 ### Planned (see [docs/ROADMAP.md](docs/ROADMAP.md) § Panel backlog)
 
 - LLM-driven moderator floor selection
-- Shared-lab student-only shell
-- Studio pipeline picker (partial agent chain)
 
 ### Done on this branch (post-MVP, local commits)
+
+- **F1** Panel **audience vote** (“Who convinced you?”) — `POST /api/panels/{id}/vote`, `VotesJson` jsonb + tallies on detail.
+- **F2** Groups **template gallery** — one-click 3-for/1-against and 2v2 cast presets.
+- **F3** Studio **pipeline picker** — `full` | `coder` | `plan-code-review` via `InputContextJson.pipeline` + `TaskPipelinePolicy`.
+- **F4** Task **est. cost** card on detail + cost column on History (sum of model call estimates).
+- **F5** Shared-lab **student nav shell** — settings exposes `sharedLabEnabled` / `isAdmin`; students hide Agents / Dashboard / Settings.
 
 - **T1** Vault/key bootstrap from `OMNIAGENT_API_KEY` on API startup; Panel banner when key missing.
 - **T2** Unified History page: Studio tasks + panel sessions with GUID deep links.

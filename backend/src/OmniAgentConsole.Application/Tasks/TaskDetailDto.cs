@@ -18,7 +18,9 @@ public sealed record TaskDetailDto(
     string? ErrorMessage,
     IReadOnlyList<AgentRunDetailDto> AgentRuns,
     IReadOnlyList<ModelCallLogDetailDto> ModelCallLogs,
-    IReadOnlyList<ConsoleEventDto> ConsoleEvents);
+    IReadOnlyList<ConsoleEventDto> ConsoleEvents,
+    /// <summary>Sum of model call estimated costs (USD) for this task.</summary>
+    decimal EstimatedCost = 0m);
 
 public sealed record AgentRunDetailDto(
     Guid Id,

@@ -26,6 +26,9 @@ public sealed class PanelSession
     public int TotalTokens { get; set; }
     public string? ErrorMessage { get; set; }
 
+    /// <summary>JSON map of memberId → vote count for audience voting.</summary>
+    public string? VotesJson { get; set; }
+
     public AgentGroup? Group { get; set; }
     public ICollection<PanelTurn> Turns { get; set; } = new List<PanelTurn>();
     public ICollection<PanelConsoleEvent> ConsoleEvents { get; set; } = new List<PanelConsoleEvent>();

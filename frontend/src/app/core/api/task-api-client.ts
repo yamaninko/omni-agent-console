@@ -29,7 +29,8 @@ import {
   AgentGroupMember,
   UpsertAgentGroupMemberRequest,
   PanelSessionSummary,
-  PanelSessionDetail
+  PanelSessionDetail,
+  PanelVoteTally
 } from '../models';
 
 const API_BASE_URL = '/api';
@@ -338,5 +339,9 @@ export class TaskApiClient {
     return this.http.get(`${API_BASE_URL}/panels/${panelId}/transcript`, {
       responseType: 'text'
     });
+  }
+
+  castPanelVote(panelId: string, memberId: string): Observable<PanelVoteTally[]> {
+    return this.http.post<PanelVoteTally[]>(`${API_BASE_URL}/panels/${panelId}/vote`, { memberId });
   }
 }

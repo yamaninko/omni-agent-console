@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using OmniAgentConsole.Application.Providers;
+using OmniAgentConsole.Application.Runtime;
 using OmniAgentConsole.Application.Tasks;
 using OmniAgentConsole.Domain.Entities;
 using OmniAgentConsole.Domain.Enums;
@@ -123,14 +124,15 @@ internal static class AgentPromptBuilder
     }
 
     // Context JSON is user-controlled; unknown properties and malformed ids are ignored.
-    public static (string? WorkspacePath, List<Guid> SkillIds) ParseTaskContext(string? inputContextJson)
+    public static (string? WorkspacePath, List<Guid> SkillIds, string Pipeline) ParseTaskContext(string? inputContextJson)
     {
         string? workspacePath = null;
         var skillIds = new List<Guid>();
+        var pipeline = TaskPipelinePolicy.Full;
 
         if (string.IsNullOrWhiteSpace(inputContextJson))
         {
-            return (workspacePath, skillIds);
+            return (workspacePath, skillIds, pipeline);
         }
 
         try
@@ -152,10 +154,16 @@ internal static class AgentPromptBuilder
                     }
                 }
             }
+
+            if (doc.RootElement.TryGetProperty("pipeline", out var pipelineProp)
+                && pipelineProp.ValueKind == JsonValueKind.String)
+            {
+                pipeline = TaskPipelinePolicy.Normalize(pipelineProp.GetString());
+            }
         }
         catch { }
 
-        return (workspacePath, skillIds);
+        return (workspacePath, skillIds, pipeline);
     }
 
     public static string? BuildSkillsBlock(IReadOnlyList<SkillDefinition> skills)

@@ -231,6 +231,7 @@ public sealed class AgentConsoleDbContext : DbContext
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
             entity.Property(x => x.OwnerSessionId).HasMaxLength(64);
             entity.Property(x => x.ErrorMessage).HasMaxLength(4000);
+            entity.Property(x => x.VotesJson).HasColumnType("jsonb");
             entity.HasOne(x => x.Group)
                 .WithMany(x => x.PanelSessions)
                 .HasForeignKey(x => x.GroupId)

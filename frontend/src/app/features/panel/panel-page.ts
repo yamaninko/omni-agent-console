@@ -26,7 +26,8 @@ import {
   AgentGroupSummary,
   ConsoleEvent,
   PanelSessionDetail,
-  PanelSessionSummary
+  PanelSessionSummary,
+  PanelVoteTally
 } from '../../core/models';
 
 @Component({
@@ -447,6 +448,49 @@ export class PanelPage implements OnInit, OnDestroy {
     return this.recent().filter(
       (p) => p.status === 'Completed' || p.status === 'Failed' || p.status === 'Cancelled'
     ).length;
+  }
+
+  /** Unique speakers (by memberId) for audience vote buttons. */
+  protected voteCandidates(): { memberId: string; displayName: string }[] {
+    const s = this.session();
+    if (!s?.turns?.length) return [];
+    const map = new Map<string, string>();
+    for (const t of s.turns) {
+      if (!map.has(t.memberId)) {
+        map.set(t.memberId, t.memberDisplayName);
+      }
+    }
+    return [...map.entries()].map(([memberId, displayName]) => ({ memberId, displayName }));
+  }
+
+  protected canVote(): boolean {
+    const s = this.session();
+    return !!s && s.status !== 'Pending' && s.status !== 'Running' && this.voteCandidates().length > 0;
+  }
+
+  protected voteTallies(): PanelVoteTally[] {
+    return this.session()?.votes ?? [];
+  }
+
+  protected totalVotes(): number {
+    return this.voteTallies().reduce((sum, v) => sum + (v.votes || 0), 0);
+  }
+
+  protected castVote(memberId: string): void {
+    const id = this.session()?.id;
+    if (!id || this.busy()) return;
+    this.busy.set(true);
+    this.error.set(null);
+    this.api.castPanelVote(id, memberId).subscribe({
+      next: (votes) => {
+        this.busy.set(false);
+        this.session.update((s) => (s ? { ...s, votes } : s));
+      },
+      error: (err) => {
+        this.busy.set(false);
+        this.error.set(this.readError(err, 'Vote failed'));
+      }
+    });
   }
 
   /** Shown when session sits in Pending without turns — queue / worker backlog. */

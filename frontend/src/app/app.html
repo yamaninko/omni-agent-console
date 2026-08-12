@@ -46,12 +46,14 @@
             <span>Workspace</span>
           }
         </a>
-        <a routerLink="/agents" routerLinkActive="active" [title]="collapsed() ? 'Agents' : ''">
-          <lucide-icon [img]="icons.bot" size="18"></lucide-icon>
-          @if (!collapsed()) {
-            <span>Agents</span>
-          }
-        </a>
+        @if (showAdminNav()) {
+          <a routerLink="/agents" routerLinkActive="active" [title]="collapsed() ? 'Agents' : ''">
+            <lucide-icon [img]="icons.bot" size="18"></lucide-icon>
+            @if (!collapsed()) {
+              <span>Agents</span>
+            }
+          </a>
+        }
       </div>
 
       <div class="nav-section">
@@ -82,18 +84,20 @@
             <span>History</span>
           }
         </a>
-        <a routerLink="/dashboard" routerLinkActive="active" [title]="collapsed() ? 'Dashboard' : ''">
-          <lucide-icon [img]="icons.dashboard" size="18"></lucide-icon>
-          @if (!collapsed()) {
-            <span>Dashboard</span>
-          }
-        </a>
-        <a routerLink="/settings" routerLinkActive="active" [title]="collapsed() ? 'Settings' : ''">
-          <lucide-icon [img]="icons.settings" size="18"></lucide-icon>
-          @if (!collapsed()) {
-            <span>Settings</span>
-          }
-        </a>
+        @if (showAdminNav()) {
+          <a routerLink="/dashboard" routerLinkActive="active" [title]="collapsed() ? 'Dashboard' : ''">
+            <lucide-icon [img]="icons.dashboard" size="18"></lucide-icon>
+            @if (!collapsed()) {
+              <span>Dashboard</span>
+            }
+          </a>
+          <a routerLink="/settings" routerLinkActive="active" [title]="collapsed() ? 'Settings' : ''">
+            <lucide-icon [img]="icons.settings" size="18"></lucide-icon>
+            @if (!collapsed()) {
+              <span>Settings</span>
+            }
+          </a>
+        }
         <a routerLink="/docs" routerLinkActive="active" [title]="collapsed() ? 'Docs' : ''">
           <lucide-icon [img]="icons.docs" size="18"></lucide-icon>
           @if (!collapsed()) {

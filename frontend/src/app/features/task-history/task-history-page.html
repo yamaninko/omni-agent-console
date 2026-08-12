@@ -24,6 +24,7 @@
       <span>Created</span>
       <span>Latency</span>
       <span>Tokens</span>
+      <span>Est. cost</span>
     </div>
     @for (row of visibleRows(); track row.kind + row.id) {
       <a class="row" [routerLink]="row.link" [title]="row.link.join('/')">
@@ -37,6 +38,7 @@
         <span>{{ row.createdAt | date: 'HH:mm:ss · MMM d' }}</span>
         <span>{{ formatDuration(row.totalLatencyMs) }}</span>
         <strong>{{ row.totalTokens }}</strong>
+        <span class="cost">{{ formatCost(row.estimatedCost) }}</span>
       </a>
     } @empty {
       @if (error()) {

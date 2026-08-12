@@ -60,7 +60,7 @@ h1 {
 
 .table-head {
   display: grid;
-  grid-template-columns: 72px minmax(140px, 1.1fr) minmax(200px, 1.2fr) 110px 150px 100px 90px;
+  grid-template-columns: 72px minmax(140px, 1.1fr) minmax(200px, 1.2fr) 110px 150px 90px 80px 90px;
   gap: 12px;
   padding: 10px 16px;
   color: #7f93a8;
@@ -74,7 +74,7 @@ h1 {
 .row,
 .empty {
   display: grid;
-  grid-template-columns: 72px minmax(140px, 1.1fr) minmax(200px, 1.2fr) 110px 150px 100px 90px;
+  grid-template-columns: 72px minmax(140px, 1.1fr) minmax(200px, 1.2fr) 110px 150px 90px 80px 90px;
   gap: 12px;
   align-items: center;
   padding: 14px 16px;

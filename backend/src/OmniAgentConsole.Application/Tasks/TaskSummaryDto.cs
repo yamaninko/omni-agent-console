@@ -9,4 +9,5 @@ public sealed record TaskSummaryDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset? CompletedAt,
     int TotalTokens,
-    long TotalLatencyMs);
+    long TotalLatencyMs,
+    decimal EstimatedCost = 0m);

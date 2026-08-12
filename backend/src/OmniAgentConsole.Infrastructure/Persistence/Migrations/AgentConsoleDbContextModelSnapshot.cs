@@ -791,6 +791,9 @@ namespace OmniAgentConsole.Infrastructure.Persistence.Migrations
                     b.Property<int>("TotalTokens")
                         .HasColumnType("integer");
 
+                    b.Property<string>("VotesJson")
+                        .HasColumnType("jsonb");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedAt");

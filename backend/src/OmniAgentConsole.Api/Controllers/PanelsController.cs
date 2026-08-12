@@ -263,6 +263,7 @@ public sealed class PanelsController : ControllerBase
             session.TotalInputTokens = 0;
             session.TotalOutputTokens = 0;
             session.TotalTokens = 0;
+            session.VotesJson = null;
         }
 
         session.Status = PanelSessionStatus.Pending;
@@ -402,6 +403,60 @@ public sealed class PanelsController : ControllerBase
         return Ok(new { id = panelId, status = "Cancelled" });
     }
 
+    /// <summary>
+    /// Audience vote: who convinced you? Allowed once the panel is finished
+    /// (Completed / Failed / Cancelled). Votes accumulate in VotesJson.
+    /// </summary>
+    [HttpPost("{panelId:guid}/vote")]
+    public async Task<ActionResult<IReadOnlyList<PanelVoteTallyDto>>> Vote(
+        Guid panelId,
+        [FromBody] CastPanelVoteRequest request,
+        CancellationToken cancellationToken)
+    {
+        var session = await LoadOwnedSessionAsync(panelId, tracking: true, cancellationToken);
+        if (session is null)
+        {
+            return NotFound();
+        }
+
+        if (session.Status is PanelSessionStatus.Pending or PanelSessionStatus.Running)
+        {
+            return Conflict("Wait for the panel to finish before voting.");
+        }
+
+        if (request.MemberId == Guid.Empty)
+        {
+            return BadRequest("MemberId is required.");
+        }
+
+        // Must be a speaker who actually took a turn (or is on the roster via turns).
+        var turnNames = (session.Turns ?? Array.Empty<PanelTurn>())
+            .GroupBy(t => t.MemberId)
+            .ToDictionary(g => g.Key, g => g.First().MemberDisplayName);
+
+        if (!turnNames.ContainsKey(request.MemberId))
+        {
+            // Fall back: group member still present.
+            var member = await dbContext.AgentGroupMembers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    m => m.Id == request.MemberId && m.GroupId == session.GroupId,
+                    cancellationToken);
+            if (member is null)
+            {
+                return BadRequest("Speaker is not part of this panel.");
+            }
+
+            turnNames[member.Id] = member.DisplayName;
+        }
+
+        var map = PanelVoteStore.Cast(session.VotesJson, request.MemberId);
+        session.VotesJson = PanelVoteStore.Serialize(map);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return Ok(PanelVoteStore.ToTallies(map, turnNames));
+    }
+
     private async Task<bool> OwnedExistsAsync(Guid panelId, CancellationToken cancellationToken)
     {
         var query = dbContext.PanelSessions.AsNoTracking().Where(x => x.Id == panelId);
@@ -471,6 +526,11 @@ public sealed class PanelsController : ControllerBase
                 e.CreatedAt))
             .ToList();
 
+        var displayNames = turns
+            .GroupBy(t => t.MemberId)
+            .ToDictionary(g => g.Key, g => g.First().MemberDisplayName);
+        var votes = PanelVoteStore.ToTallies(PanelVoteStore.Parse(session.VotesJson), displayNames);
+
         return new PanelSessionDetailDto(
             session.Id,
             session.GroupId,
@@ -490,7 +550,8 @@ public sealed class PanelsController : ControllerBase
             session.TotalLatencyMs,
             session.ErrorMessage,
             turns,
-            events);
+            events,
+            votes);
     }
 
     private static string TruncateTitle(string topic)

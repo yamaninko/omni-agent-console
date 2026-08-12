@@ -10,6 +10,8 @@ export interface TaskSummary {
   completedAt?: string | null;
   totalTokens: number;
   totalLatencyMs: number;
+  /** Sum of model-call estimated costs (USD). */
+  estimatedCost?: number;
 }
 
 export interface ConsoleEvent {
@@ -72,6 +74,8 @@ export interface TaskDetail {
   agentRuns: AgentRunDetail[];
   modelCallLogs: ModelCallLogDetail[];
   consoleEvents: ConsoleEvent[];
+  /** Sum of model-call estimated costs (USD). */
+  estimatedCost?: number;
 }
 
 /** Lightweight poll payload — no agent I/O / console / model logs. */
@@ -233,6 +237,10 @@ export interface OmniAgentSettings {
   secretStore: string;
   timeoutSeconds: number;
   retryCount: number;
+  /** SHARED_LAB / SharedLab:Enabled */
+  sharedLabEnabled?: boolean;
+  /** Instructor (console key); students are false when shared-lab is on. */
+  isAdmin?: boolean;
 }
 
 export interface UpdateOmniAgentApiKeyResponse {
@@ -417,6 +425,12 @@ export interface PanelTurn {
   completedAt?: string | null;
 }
 
+export interface PanelVoteTally {
+  memberId: string;
+  displayName: string;
+  votes: number;
+}
+
 export interface PanelSessionDetail {
   id: string;
   groupId: string;
@@ -437,4 +451,6 @@ export interface PanelSessionDetail {
   errorMessage?: string | null;
   turns: PanelTurn[];
   consoleEvents: ConsoleEvent[];
+  /** Audience "who convinced you" tallies. */
+  votes?: PanelVoteTally[];
 }

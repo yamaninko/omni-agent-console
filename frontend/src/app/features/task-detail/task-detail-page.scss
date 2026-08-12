@@ -37,9 +37,24 @@ h1 {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.summary-grid .cost-card {
+  border-color: rgba(118, 185, 0, 0.35);
+  background: linear-gradient(160deg, rgba(118, 185, 0, 0.08), #0b1118 70%);
+
+  strong {
+    color: #76b900;
+    font-variant-numeric: tabular-nums;
+  }
+
+  small {
+    color: #7f8fa3;
+    font-size: 11px;
+  }
 }
 
 .summary-grid div,

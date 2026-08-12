@@ -132,7 +132,15 @@ public sealed class TasksController : ControllerBase
         var tasks = await query
             .OrderByDescending(x => x.CreatedAt)
             .Take(100)
-            .Select(x => ToSummary(x))
+            .Select(x => new TaskSummaryDto(
+                x.Id,
+                x.Title,
+                x.Status,
+                x.CreatedAt,
+                x.CompletedAt,
+                x.TotalTokens,
+                x.TotalLatencyMs,
+                x.ModelCallLogs.Sum(m => m.EstimatedCost ?? 0m)))
             .ToListAsync(cancellationToken);
 
         return Ok(tasks);
@@ -479,6 +487,10 @@ public sealed class TasksController : ControllerBase
 
     private static TaskSummaryDto ToSummary(TaskRun taskRun)
     {
+        var estimatedCost = taskRun.ModelCallLogs is { Count: > 0 }
+            ? taskRun.ModelCallLogs.Sum(m => m.EstimatedCost ?? 0m)
+            : 0m;
+
         return new TaskSummaryDto(
             taskRun.Id,
             taskRun.Title,
@@ -486,12 +498,16 @@ public sealed class TasksController : ControllerBase
             taskRun.CreatedAt,
             taskRun.CompletedAt,
             taskRun.TotalTokens,
-            taskRun.TotalLatencyMs);
+            taskRun.TotalLatencyMs,
+            estimatedCost);
     }
 
     private static TaskDetailDto ToDetail(TaskRun taskRun)
     {
         var agentNames = taskRun.AgentRuns.ToDictionary(x => x.Id, x => x.AgentName);
+        var estimatedCost = taskRun.ModelCallLogs is { Count: > 0 }
+            ? taskRun.ModelCallLogs.Sum(m => m.EstimatedCost ?? 0m)
+            : 0m;
 
         return new TaskDetailDto(
             taskRun.Id,
@@ -518,7 +534,8 @@ public sealed class TasksController : ControllerBase
             taskRun.ConsoleEvents
                 .OrderBy(x => x.CreatedAt)
                 .Select(ToConsoleEventDto)
-                .ToList());
+                .ToList(),
+            estimatedCost);
     }
 
     private static AgentRunDetailDto ToAgentRunDto(AgentRun agentRun)

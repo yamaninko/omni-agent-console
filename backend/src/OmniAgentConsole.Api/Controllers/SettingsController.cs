@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using OmniAgentConsole.Api.Middleware;
 using OmniAgentConsole.Application.Configuration;
 using OmniAgentConsole.Application.Providers;
 using OmniAgentConsole.Application.Secrets;
@@ -19,6 +20,7 @@ public sealed class SettingsController : ControllerBase
     private readonly ISecretStore secretStore;
     private readonly IApiCredentialKeyResolver credentialKeys;
     private readonly AgentConsoleDbContext dbContext;
+    private readonly SharedLabOptions sharedLab;
 
     public SettingsController(
         IOptions<OmniAgentProviderOptions> omniAgentOptions,
@@ -26,7 +28,8 @@ public sealed class SettingsController : ControllerBase
         IProviderHealthCheck providerHealthCheck,
         ISecretStore secretStore,
         IApiCredentialKeyResolver credentialKeys,
-        AgentConsoleDbContext dbContext)
+        AgentConsoleDbContext dbContext,
+        IOptions<SharedLabOptions> sharedLab)
     {
         this.omniAgentOptions = omniAgentOptions;
         this.providerSecretResolver = providerSecretResolver;
@@ -34,6 +37,7 @@ public sealed class SettingsController : ControllerBase
         this.secretStore = secretStore;
         this.credentialKeys = credentialKeys;
         this.dbContext = dbContext;
+        this.sharedLab = sharedLab.Value;
     }
 
     [HttpGet]
@@ -41,6 +45,9 @@ public sealed class SettingsController : ControllerBase
     {
         var options = omniAgentOptions.Value;
         var apiKeyConfigured = await providerSecretResolver.HasOmniAgentApiKeyAsync(cancellationToken);
+        // When shared-lab is off, everyone is effectively "admin" (full nav).
+        // When on, only console-key holders get IsAdmin = true (students get false).
+        var isAdmin = !sharedLab.Enabled || SharedLabHttp.IsAdmin(HttpContext);
 
         return Ok(new OmniAgentSettingsDto(
             "OmniAgent",
@@ -50,7 +57,9 @@ public sealed class SettingsController : ControllerBase
             apiKeyConfigured,
             secretStore.StoreName,
             options.TimeoutSeconds,
-            options.RetryCount));
+            options.RetryCount,
+            sharedLab.Enabled,
+            isAdmin));
     }
 
     [HttpPut("omniagent/api-key")]

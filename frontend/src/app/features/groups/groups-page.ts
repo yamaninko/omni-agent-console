@@ -24,6 +24,23 @@ import {
 } from '../../core/models';
 import { DialogService } from '../../core/ui/dialog.service';
 
+interface GroupTemplateMember {
+  displayName: string;
+  role: 'Moderator' | 'Commentator';
+  stance: 'Neutral' | 'For' | 'Against' | 'Custom';
+  stanceLabel: string | null;
+  systemPrompt: string;
+  defaultModel: string;
+  sortOrder: number;
+}
+
+interface GroupTemplate {
+  id: string;
+  name: string;
+  description: string;
+  members: GroupTemplateMember[];
+}
+
 @Component({
   selector: 'app-groups-page',
   imports: [LucideAngularModule],
@@ -96,6 +113,120 @@ export class GroupsPage implements OnInit, OnDestroy {
     { value: 'OpenAi', label: 'OpenAI' },
     { value: 'Ollama', label: 'Ollama' },
     { value: 'Custom', label: 'Custom / OpenAI-Compatible' }
+  ];
+
+  /** One-click cast presets (clone into a new editable group). */
+  protected readonly templates: GroupTemplate[] = [
+    {
+      id: '3-1',
+      name: '3-for / 1-against',
+      description: 'Moderator + three affirmative + one opposing voice. Classic debate imbalance.',
+      members: [
+        {
+          displayName: 'Moderator',
+          role: 'Moderator',
+          stance: 'Neutral',
+          stanceLabel: null,
+          systemPrompt:
+            'You moderate a live panel. Introduce the roster and topic, keep speakers on-mission, and close with a crisp synthesis. Do not invent guests.',
+          defaultModel: 'meta/llama-3.1-8b-instruct',
+          sortOrder: 0
+        },
+        {
+          displayName: 'Advocate A',
+          role: 'Commentator',
+          stance: 'For',
+          stanceLabel: 'affirmative case',
+          systemPrompt:
+            'You argue FOR the motion. Bring concrete reasons, examples, and steelman the case. Stay in character; do not invent other guests.',
+          defaultModel: 'meta/llama-3.1-8b-instruct',
+          sortOrder: 1
+        },
+        {
+          displayName: 'Advocate B',
+          role: 'Commentator',
+          stance: 'For',
+          stanceLabel: 'affirmative case',
+          systemPrompt:
+            'You argue FOR the motion from a second angle (policy, economics, or human impact). Avoid repeating Advocate A.',
+          defaultModel: 'openai/gpt-oss-120b',
+          sortOrder: 2
+        },
+        {
+          displayName: 'Advocate C',
+          role: 'Commentator',
+          stance: 'For',
+          stanceLabel: 'affirmative case',
+          systemPrompt:
+            'You argue FOR the motion with a third perspective (ethics, history, or tech). Stay specific to the topic.',
+          defaultModel: 'deepseek-ai/deepseek-v4-flash',
+          sortOrder: 3
+        },
+        {
+          displayName: 'Critic',
+          role: 'Commentator',
+          stance: 'Against',
+          stanceLabel: 'opposing case',
+          systemPrompt:
+            'You argue AGAINST the motion. Challenge assumptions, demand evidence, and name risks. Stay civil and on-topic.',
+          defaultModel: 'stepfun-ai/step-3.7-flash',
+          sortOrder: 4
+        }
+      ]
+    },
+    {
+      id: '2v2',
+      name: '2v2 balanced',
+      description: 'Moderator + two for + two against. Equal floor time for both sides.',
+      members: [
+        {
+          displayName: 'Moderator',
+          role: 'Moderator',
+          stance: 'Neutral',
+          stanceLabel: null,
+          systemPrompt:
+            'You moderate a balanced debate. Open with roster + rules, keep both sides fair, and summarize trade-offs without picking a winner unless asked.',
+          defaultModel: 'meta/llama-3.1-8b-instruct',
+          sortOrder: 0
+        },
+        {
+          displayName: 'Pro 1',
+          role: 'Commentator',
+          stance: 'For',
+          stanceLabel: 'pro',
+          systemPrompt: 'Argue FOR the motion with clear claims and evidence. Engage opponents by name when relevant.',
+          defaultModel: 'meta/llama-3.1-8b-instruct',
+          sortOrder: 1
+        },
+        {
+          displayName: 'Pro 2',
+          role: 'Commentator',
+          stance: 'For',
+          stanceLabel: 'pro',
+          systemPrompt: 'Second FOR voice — different evidence and frame than Pro 1. No guest invention.',
+          defaultModel: 'openai/gpt-oss-120b',
+          sortOrder: 2
+        },
+        {
+          displayName: 'Con 1',
+          role: 'Commentator',
+          stance: 'Against',
+          stanceLabel: 'con',
+          systemPrompt: 'Argue AGAINST the motion. Attack weakest claims; offer alternatives.',
+          defaultModel: 'deepseek-ai/deepseek-v4-flash',
+          sortOrder: 3
+        },
+        {
+          displayName: 'Con 2',
+          role: 'Commentator',
+          stance: 'Against',
+          stanceLabel: 'con',
+          systemPrompt: 'Second AGAINST voice — costs, risks, and unintended consequences.',
+          defaultModel: 'stepfun-ai/step-3.7-flash',
+          sortOrder: 4
+        }
+      ]
+    }
   ];
 
   ngOnInit(): void {
@@ -228,6 +359,68 @@ export class GroupsPage implements OnInit, OnDestroy {
     const id = this.selected()?.id;
     if (!id) return;
     void this.router.navigate(['/panel'], { queryParams: { groupId: id } });
+  }
+
+  protected applyTemplate(template: GroupTemplate): void {
+    if (this.saving()) return;
+    this.saving.set(true);
+    this.error.set(null);
+    this.success.set(null);
+
+    this.api.createAgentGroup(template.name, template.description).subscribe({
+      next: (group) => {
+        const members = [...template.members].sort((a, b) => a.sortOrder - b.sortOrder);
+        const addNext = (index: number) => {
+          if (index >= members.length) {
+            this.saving.set(false);
+            this.success.set(`Template “${template.name}” created — edit speakers, then open Panel.`);
+            this.reloadGroups();
+            void this.router.navigate(['/groups', group.id]);
+            this.api.getAgentGroup(group.id).subscribe({
+              next: (d) => {
+                this.selected.set(d);
+                this.isCreatingGroup.set(false);
+                this.groupName.set(d.name);
+                this.groupDescription.set(d.description ?? '');
+              }
+            });
+            return;
+          }
+          const m = members[index];
+          const request: UpsertAgentGroupMemberRequest = {
+            displayName: m.displayName,
+            systemPrompt: m.systemPrompt,
+            defaultModel: m.defaultModel,
+            fallbackModels: null,
+            provider: 'OmniAgent',
+            apiCredentialId: null,
+            maxTokens: 800,
+            temperature: 0.7,
+            timeoutSeconds: 60,
+            retryCount: 1,
+            sortOrder: m.sortOrder,
+            enabled: true,
+            role: m.role,
+            stance: m.stance,
+            stanceLabel: m.stanceLabel
+          };
+          this.api.addGroupMember(group.id, request).subscribe({
+            next: () => addNext(index + 1),
+            error: (err) => {
+              this.saving.set(false);
+              this.error.set(err?.error || 'Template member failed');
+              this.reloadGroups();
+              void this.router.navigate(['/groups', group.id]);
+            }
+          });
+        };
+        addNext(0);
+      },
+      error: (err) => {
+        this.saving.set(false);
+        this.error.set(err?.error || 'Template create failed');
+      }
+    });
   }
 
   protected startAddMember(): void {

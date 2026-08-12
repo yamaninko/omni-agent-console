@@ -28,6 +28,16 @@ export class TaskDetailPage implements OnInit {
     return task.agentRuns.find((agent) => agent.id === this.selectedAgentId()) ?? task.agentRuns[0];
   });
 
+  /** Prefer API field; fall back to summing model call logs. */
+  protected readonly estimatedCost = computed(() => {
+    const task = this.task();
+    if (!task) return 0;
+    if (typeof task.estimatedCost === 'number' && task.estimatedCost > 0) {
+      return task.estimatedCost;
+    }
+    return (task.modelCallLogs ?? []).reduce((sum, c) => sum + (c.estimatedCost || 0), 0);
+  });
+
   ngOnInit(): void {
     this.loadTask();
   }
@@ -71,5 +81,15 @@ export class TaskDetailPage implements OnInit {
     }
 
     return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
+  }
+
+  protected formatCost(usd: number): string {
+    if (!usd || usd <= 0) {
+      return '$0.00';
+    }
+    if (usd < 0.01) {
+      return `$${usd.toFixed(5)}`;
+    }
+    return `$${usd.toFixed(4)}`;
   }
 }
