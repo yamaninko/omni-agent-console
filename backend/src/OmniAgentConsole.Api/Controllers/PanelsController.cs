@@ -65,6 +65,7 @@ public sealed class PanelsController : ControllerBase
                 x.Title,
                 x.Topic,
                 x.Status.ToString(),
+                x.MaxRounds,
                 x.CreatedAt,
                 x.CompletedAt,
                 x.TotalTokens,
@@ -144,12 +145,14 @@ public sealed class PanelsController : ControllerBase
         var title = string.IsNullOrWhiteSpace(request.Title)
             ? TruncateTitle(topic)
             : request.Title.Trim();
+        var maxRounds = Math.Clamp(request.MaxRounds <= 0 ? 1 : request.MaxRounds, 1, 3);
 
         var session = new PanelSession
         {
             GroupId = group.Id,
             Topic = topic,
             Title = title,
+            MaxRounds = maxRounds,
             Status = PanelSessionStatus.Pending,
             OwnerSessionId = SessionScoped ? CallerSessionId : null
         };
@@ -189,29 +192,84 @@ public sealed class PanelsController : ControllerBase
             return Conflict("Panel is already running.");
         }
 
-        if (session.Status is PanelSessionStatus.Completed or PanelSessionStatus.Cancelled)
+        if (session.Status is PanelSessionStatus.Completed or PanelSessionStatus.Cancelled or PanelSessionStatus.Failed)
         {
-            // Allow re-run: clear prior turns/events and re-queue.
+            // Fresh Start re-run: wipe prior turns/events.
             var oldTurns = await dbContext.PanelTurns.Where(t => t.SessionId == panelId).ToListAsync(cancellationToken);
             var oldEvents = await dbContext.PanelConsoleEvents.Where(e => e.PanelSessionId == panelId).ToListAsync(cancellationToken);
             dbContext.PanelTurns.RemoveRange(oldTurns);
             dbContext.PanelConsoleEvents.RemoveRange(oldEvents);
+            session.StartedAt = null;
+            session.TotalLatencyMs = 0;
+            session.TotalInputTokens = 0;
+            session.TotalOutputTokens = 0;
+            session.TotalTokens = 0;
         }
 
         session.Status = PanelSessionStatus.Pending;
-        session.StartedAt = null;
         session.CompletedAt = null;
         session.ErrorMessage = null;
         session.CurrentMemberId = null;
         session.FloorDeadline = null;
-        session.TotalLatencyMs = 0;
-        session.TotalInputTokens = 0;
-        session.TotalOutputTokens = 0;
-        session.TotalTokens = 0;
         await dbContext.SaveChangesAsync(cancellationToken);
 
         await queue.EnqueuePanelAsync(panelId, cancellationToken);
         return Accepted(new { id = panelId, status = "Queued" });
+    }
+
+    /// <summary>
+    /// After a finished panel, inject a user follow-up and run one more roster pass
+    /// (keeps prior turns as transcript context).
+    /// </summary>
+    [HttpPost("{panelId:guid}/continue")]
+    public async Task<IActionResult> Continue(
+        Guid panelId,
+        [FromBody] ContinuePanelRequest request,
+        CancellationToken cancellationToken)
+    {
+        var session = await LoadOwnedSessionAsync(panelId, tracking: true, cancellationToken);
+        if (session is null)
+        {
+            return NotFound();
+        }
+
+        if (session.Status is PanelSessionStatus.Running or PanelSessionStatus.Pending)
+        {
+            return Conflict("Panel is still running; wait for it to finish or cancel first.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Message))
+        {
+            return BadRequest("Message is required.");
+        }
+
+        if (!await HasAnyProviderKeyAsync(cancellationToken))
+        {
+            return BadRequest(
+                "API key is not configured. Open Settings, paste your NVIDIA / OmniAgent API key, then retry.");
+        }
+
+        var message = InputSanitizer.Redact(request.Message.Trim());
+        session.MaxRounds = Math.Clamp(request.ExtraRounds <= 0 ? 1 : request.ExtraRounds, 1, 3);
+        session.Status = PanelSessionStatus.Pending;
+        session.CompletedAt = null;
+        session.ErrorMessage = null;
+        session.CurrentMemberId = null;
+        session.FloorDeadline = null;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        // Persist user interjection on the stream before the worker runs.
+        dbContext.PanelConsoleEvents.Add(new PanelConsoleEvent
+        {
+            PanelSessionId = panelId,
+            EventType = ConsoleEventType.UserMessage,
+            Message = message,
+            PayloadJson = System.Text.Json.JsonSerializer.Serialize(new { kind = "followUp" })
+        });
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await queue.EnqueuePanelAsync(panelId, cancellationToken);
+        return Accepted(new { id = panelId, status = "Queued", followUp = true });
     }
 
     [HttpPost("{panelId:guid}/cancel")]
@@ -315,6 +373,7 @@ public sealed class PanelsController : ControllerBase
             session.Title,
             session.Topic,
             session.Status.ToString(),
+            session.MaxRounds,
             session.CurrentMemberId,
             session.FloorDeadline,
             session.CreatedAt,

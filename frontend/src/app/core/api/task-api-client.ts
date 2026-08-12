@@ -296,15 +296,35 @@ export class TaskApiClient {
     return this.http.get<ConsoleEvent[]>(`${API_BASE_URL}/panels/${panelId}/events`);
   }
 
-  createPanel(groupId: string, topic: string, title?: string | null): Observable<PanelSessionDetail> {
-    return this.http.post<PanelSessionDetail>(`${API_BASE_URL}/panels`, { groupId, topic, title });
+  createPanel(
+    groupId: string,
+    topic: string,
+    title?: string | null,
+    maxRounds: number = 1
+  ): Observable<PanelSessionDetail> {
+    return this.http.post<PanelSessionDetail>(`${API_BASE_URL}/panels`, {
+      groupId,
+      topic,
+      title,
+      maxRounds
+    });
   }
 
   startPanel(panelId: string): Observable<unknown> {
     return this.http.post(`${API_BASE_URL}/panels/${panelId}/start`, {});
   }
 
+  continuePanel(panelId: string, message: string, extraRounds: number = 1): Observable<unknown> {
+    return this.http.post(`${API_BASE_URL}/panels/${panelId}/continue`, { message, extraRounds });
+  }
+
   cancelPanel(panelId: string): Observable<unknown> {
     return this.http.post(`${API_BASE_URL}/panels/${panelId}/cancel`, {});
+  }
+
+  getPanelTranscript(panelId: string): Observable<string> {
+    return this.http.get(`${API_BASE_URL}/panels/${panelId}/transcript`, {
+      responseType: 'text'
+    });
   }
 }

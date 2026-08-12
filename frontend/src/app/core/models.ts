@@ -393,6 +393,7 @@ export interface PanelSessionSummary {
   title: string;
   topic: string;
   status: PanelSessionStatus | string;
+  maxRounds?: number;
   createdAt: string;
   completedAt?: string | null;
   totalTokens: number;
@@ -423,6 +424,7 @@ export interface PanelSessionDetail {
   title: string;
   topic: string;
   status: PanelSessionStatus | string;
+  maxRounds?: number;
   currentMemberId?: string | null;
   floorDeadline?: string | null;
   createdAt: string;

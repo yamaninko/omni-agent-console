@@ -109,54 +109,119 @@ public sealed class PanelDiscussionService : IPanelDiscussionService
             JsonSerializer.Serialize(new { session.Topic, speakerCount = speakers.Count, roster }),
             cancellationToken);
 
-        await panelEvents.WriteAsync(
-            session.Id,
-            null,
-            ConsoleEventType.UserMessage,
-            session.Topic,
-            null,
-            cancellationToken);
+        var existingTurns = await dbContext.PanelTurns
+            .AsNoTracking()
+            .Where(t => t.SessionId == session.Id && t.Status == PanelTurnStatus.Completed)
+            .OrderBy(t => t.TurnOrder)
+            .ToListAsync(cancellationToken);
+        var isContinuation = existingTurns.Count > 0;
+        var maxRounds = Math.Clamp(session.MaxRounds <= 0 ? 1 : session.MaxRounds, 1, 3);
+        var nextTurnOrder = existingTurns.Count == 0
+            ? 1
+            : existingTurns.Max(t => t.TurnOrder) + 1;
 
-        // Visible mission card so the chat explains who is on stage before anyone speaks.
-        await panelEvents.WriteAsync(
-            session.Id,
-            null,
-            ConsoleEventType.AgentStep,
-            PanelDiscussionPolicy.BuildRosterBriefing(session.Topic, roster),
-            JsonSerializer.Serialize(new { kind = "roster", roster }),
-            cancellationToken);
+        if (!isContinuation)
+        {
+            await panelEvents.WriteAsync(
+                session.Id,
+                null,
+                ConsoleEventType.UserMessage,
+                session.Topic,
+                null,
+                cancellationToken);
 
-        var priorTurns = new List<(string Speaker, string Content)>();
-        var anySuccess = false;
+            // Visible mission card so the chat explains who is on stage before anyone speaks.
+            await panelEvents.WriteAsync(
+                session.Id,
+                null,
+                ConsoleEventType.AgentStep,
+                PanelDiscussionPolicy.BuildRosterBriefing(session.Topic, roster),
+                JsonSerializer.Serialize(new { kind = "roster", roster }),
+                cancellationToken);
+        }
+        else
+        {
+            await panelEvents.WriteAsync(
+                session.Id,
+                null,
+                ConsoleEventType.AgentStep,
+                $"Continuation: running {maxRounds} more roster pass(es) with prior transcript kept.",
+                JsonSerializer.Serialize(new { kind = "continuation", maxRounds }),
+                cancellationToken);
+        }
+
+        var priorTurns = existingTurns
+            .Where(t => !string.IsNullOrWhiteSpace(t.Output))
+            .Select(t => (t.MemberDisplayName, t.Output!))
+            .ToList();
+
+        // Pull the latest user follow-up (if any) into the prompt context.
+        var lastUserFollowUp = await dbContext.PanelConsoleEvents
+            .AsNoTracking()
+            .Where(e => e.PanelSessionId == session.Id && e.EventType == ConsoleEventType.UserMessage)
+            .OrderByDescending(e => e.CreatedAt)
+            .Select(e => e.Message)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (isContinuation
+            && !string.IsNullOrWhiteSpace(lastUserFollowUp)
+            && !string.Equals(lastUserFollowUp, session.Topic, StringComparison.Ordinal))
+        {
+            priorTurns.Add(("User", lastUserFollowUp));
+        }
+
+        var anySuccess = existingTurns.Count > 0;
 
         try
         {
-            for (var i = 0; i < speakers.Count; i++)
+            for (var round = 1; round <= maxRounds; round++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-
-                // Belt-and-braces: user cancel writes DB status before firing the token.
                 await dbContext.Entry(session).ReloadAsync(cancellationToken);
                 if (session.Status == PanelSessionStatus.Cancelled)
                 {
                     break;
                 }
 
-                var member = speakers[i];
-                var turnOrder = i + 1;
-                var ok = await RunTurnAsync(session, member, turnOrder, priorTurns, roster, cancellationToken);
-                if (ok)
+                if (maxRounds > 1 || isContinuation)
                 {
-                    anySuccess = true;
-                    var last = session.Turns.OrderByDescending(t => t.TurnOrder).FirstOrDefault();
-                    if (last is { Status: PanelTurnStatus.Completed, Output: not null })
-                    {
-                        priorTurns.Add((last.MemberDisplayName, last.Output));
-                    }
+                    await panelEvents.WriteAsync(
+                        session.Id,
+                        null,
+                        ConsoleEventType.AgentStep,
+                        $"Round {round} of {maxRounds} — floor order starts.",
+                        JsonSerializer.Serialize(new { kind = "round", round, maxRounds }),
+                        cancellationToken);
                 }
-                else if (!PanelDiscussionPolicy.ContinueAfterTurnFailure)
+
+                for (var i = 0; i < speakers.Count; i++)
                 {
-                    break;
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    await dbContext.Entry(session).ReloadAsync(cancellationToken);
+                    if (session.Status == PanelSessionStatus.Cancelled)
+                    {
+                        break;
+                    }
+
+                    var member = speakers[i];
+                    var turnOrder = nextTurnOrder++;
+                    var ok = await RunTurnAsync(session, member, turnOrder, priorTurns, roster, cancellationToken);
+                    if (ok)
+                    {
+                        anySuccess = true;
+                        var last = await dbContext.PanelTurns
+                            .AsNoTracking()
+                            .Where(t => t.SessionId == session.Id && t.TurnOrder == turnOrder)
+                            .FirstOrDefaultAsync(cancellationToken);
+                        if (last is { Status: PanelTurnStatus.Completed, Output: not null })
+                        {
+                            priorTurns.Add((last.MemberDisplayName, last.Output));
+                        }
+                    }
+                    else if (!PanelDiscussionPolicy.ContinueAfterTurnFailure)
+                    {
+                        break;
+                    }
                 }
             }
 

@@ -54,6 +54,14 @@
             (input)="topic.set($any($event.target).value)"
           ></textarea>
         </label>
+        <label>
+          Rounds (full roster passes)
+          <select [value]="maxRounds()" (change)="maxRounds.set(+$any($event.target).value)">
+            <option [value]="1">1 round</option>
+            <option [value]="2">2 rounds</option>
+            <option [value]="3">3 rounds</option>
+          </select>
+        </label>
         <div class="actions">
           <button class="primary-btn" (click)="startPanel()" [disabled]="busy()">
             <lucide-icon [img]="icons.play" size="16"></lucide-icon>
@@ -80,6 +88,22 @@
             @if (session()!.floorDeadline) {
               <span>Floor until {{ session()!.floorDeadline | date: 'HH:mm:ss' }}</span>
             }
+          </div>
+        }
+        @if (session() && canContinue()) {
+          <div class="follow-up">
+            <label>
+              Your follow-up (extra round)
+              <textarea
+                rows="3"
+                placeholder="Challenge a speaker, reframe the question, ask for evidence…"
+                [value]="followUp()"
+                (input)="followUp.set($any($event.target).value)"
+              ></textarea>
+            </label>
+            <button class="primary-btn" type="button" (click)="continuePanel()" [disabled]="busy()">
+              Continue panel
+            </button>
           </div>
         }
       </div>

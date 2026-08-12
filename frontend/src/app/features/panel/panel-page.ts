@@ -44,6 +44,8 @@ export class PanelPage implements OnInit, OnDestroy {
   protected readonly selectedGroupId = signal('');
   protected readonly topic = signal('');
   protected readonly title = signal('');
+  protected readonly maxRounds = signal(1);
+  protected readonly followUp = signal('');
   protected readonly session = signal<PanelSessionDetail | null>(null);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -99,7 +101,9 @@ export class PanelPage implements OnInit, OnDestroy {
     this.error.set(null);
     this.stream.reset();
 
-    this.api.createPanel(groupId, topic, this.title().trim() || null).subscribe({
+    this.api
+      .createPanel(groupId, topic, this.title().trim() || null, this.maxRounds())
+      .subscribe({
       next: (created) => {
         this.session.set(created);
         // Put the permanent session GUID in the URL immediately.
@@ -149,6 +153,35 @@ export class PanelPage implements OnInit, OnDestroy {
       },
       error: (err) => this.error.set(this.readError(err, 'Cancel failed'))
     });
+  }
+
+  protected continuePanel(): void {
+    const id = this.session()?.id;
+    const message = this.followUp().trim();
+    if (!id || !message) {
+      this.error.set('Write a follow-up message for the panel.');
+      return;
+    }
+    this.busy.set(true);
+    this.error.set(null);
+    this.api.continuePanel(id, message, 1).subscribe({
+      next: async () => {
+        this.busy.set(false);
+        this.followUp.set('');
+        await this.stream.connect(id);
+        this.startPolling(id);
+        this.reloadRecent();
+      },
+      error: (err) => {
+        this.busy.set(false);
+        this.error.set(this.readError(err, 'Continue failed'));
+      }
+    });
+  }
+
+  protected canContinue(): boolean {
+    const s = this.session()?.status;
+    return s === 'Completed' || s === 'Failed' || s === 'Cancelled';
   }
 
   protected openRecent(item: PanelSessionSummary): void {

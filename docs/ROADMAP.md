@@ -250,7 +250,7 @@ Açık çekirdek sprint yok.
 |----|------|--------|--------|
 | **T1** | Vault/key dayanıklılığı: startup’ta `OMNIAGENT_API_KEY` env → Vault seed; Panel key banner | Restart sonrası key dolu env ile panel/studio açılır | ✅ |
 | **T2** | Birleşik History: task + panel session listesi, GUID link | `/history` her iki türü gösterir | ✅ |
-| **T3** | Panel: 2. tur (N rounds) + kullanıcı mesajı (`continue`) | UI’dan rounds; bitince “user follow-up” ile ek tur | ⏳ |
+| **T3** | Panel: 2. tur (N rounds) + kullanıcı mesajı (`continue`) | UI’dan rounds; bitince “user follow-up” ile ek tur | ✅ |
 | **T4** | Panel transcript export (Markdown) | `GET …/transcript` + UI indir | ⏳ |
 | **T5** | Group clone + “Open in Panel” | Clone API/UI; Groups’tan Panel’e deep link | ⏳ |
 | T6 | LLM moderatör / manuel floor | Opsiyonel | 🔮 |

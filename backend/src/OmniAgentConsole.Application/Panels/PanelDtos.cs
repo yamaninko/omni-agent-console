@@ -61,7 +61,13 @@ public sealed record UpsertAgentGroupMemberRequest(
 
 public sealed record ReorderMembersRequest(IReadOnlyList<Guid> MemberIdsInOrder);
 
-public sealed record CreatePanelSessionRequest(Guid GroupId, string Topic, string? Title);
+public sealed record CreatePanelSessionRequest(
+    Guid GroupId,
+    string Topic,
+    string? Title,
+    int MaxRounds = 1);
+
+public sealed record ContinuePanelRequest(string Message, int ExtraRounds = 1);
 
 public sealed record PanelTurnDto(
     Guid Id,
@@ -95,6 +101,7 @@ public sealed record PanelSessionSummaryDto(
     string Title,
     string Topic,
     string Status,
+    int MaxRounds,
     DateTimeOffset CreatedAt,
     DateTimeOffset? CompletedAt,
     int TotalTokens,
@@ -107,6 +114,7 @@ public sealed record PanelSessionDetailDto(
     string Title,
     string Topic,
     string Status,
+    int MaxRounds,
     Guid? CurrentMemberId,
     DateTimeOffset? FloorDeadline,
     DateTimeOffset CreatedAt,

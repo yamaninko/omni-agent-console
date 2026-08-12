@@ -227,6 +227,7 @@ public sealed class AgentConsoleDbContext : DbContext
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Title).HasMaxLength(240);
             entity.Property(x => x.Topic).IsRequired();
+            entity.Property(x => x.MaxRounds).HasDefaultValue(1);
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
             entity.Property(x => x.OwnerSessionId).HasMaxLength(64);
             entity.Property(x => x.ErrorMessage).HasMaxLength(4000);
