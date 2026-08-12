@@ -1,35 +1,50 @@
 <section class="page">
   <header class="page-header">
     <div>
-      <p>Task History</p>
-      <h1>Recent task runs</h1>
+      <p>History</p>
+      <h1>Studio tasks &amp; panel sessions</h1>
+      <p class="sub">Each row has a permanent GUID. Click to open the deep link.</p>
     </div>
-    <button type="button" (click)="loadTasks()" [disabled]="loading()">Refresh</button>
+    <div class="header-actions">
+      <div class="filters">
+        <button type="button" [class.active]="filter() === 'all'" (click)="filter.set('all')">All</button>
+        <button type="button" [class.active]="filter() === 'task'" (click)="filter.set('task')">Studio</button>
+        <button type="button" [class.active]="filter() === 'panel'" (click)="filter.set('panel')">Panels</button>
+      </div>
+      <button type="button" (click)="load()" [disabled]="loading()">Refresh</button>
+    </div>
   </header>
 
   <div class="table">
     <div class="table-head">
-      <span>Task</span>
+      <span>Kind</span>
+      <span>Title</span>
       <span>ID</span>
       <span>Status</span>
       <span>Created</span>
       <span>Latency</span>
       <span>Tokens</span>
     </div>
-    @for (task of tasks(); track task.id) {
-      <a class="row" [routerLink]="['/tasks', task.id]" [title]="'/tasks/' + task.id">
-        <span class="title">{{ task.title }}</span>
-        <code class="task-id">{{ task.id }}</code>
-        <code [class]="task.status.toLowerCase()">{{ task.status }}</code>
-        <span>{{ task.createdAt | date:'HH:mm:ss · MMM d' }}</span>
-        <span>{{ formatDuration(task.totalLatencyMs) }}</span>
-        <strong>{{ task.totalTokens }}</strong>
+    @for (row of visibleRows(); track row.kind + row.id) {
+      <a class="row" [routerLink]="row.link" [title]="row.link.join('/')">
+        <code class="kind" [class.panel]="row.kind === 'panel'">{{ row.kind }}</code>
+        <span class="title-cell">
+          <span class="title">{{ row.title }}</span>
+          <span class="subtitle">{{ row.subtitle }}</span>
+        </span>
+        <code class="task-id">{{ row.id }}</code>
+        <code [class]="row.status.toLowerCase()">{{ row.status }}</code>
+        <span>{{ row.createdAt | date: 'HH:mm:ss · MMM d' }}</span>
+        <span>{{ formatDuration(row.totalLatencyMs) }}</span>
+        <strong>{{ row.totalTokens }}</strong>
       </a>
     } @empty {
       @if (error()) {
-        <div class="empty" style="color: #f43f5e;">{{ error() }}</div>
+        <div class="empty" style="color: #f43f5e">{{ error() }}</div>
       } @else {
-        <div class="empty">{{ loading() ? 'Loading task runs...' : 'No task runs yet.' }}</div>
+        <div class="empty">
+          {{ loading() ? 'Loading…' : 'No studio tasks or panel sessions yet.' }}
+        </div>
       }
     }
   </div>

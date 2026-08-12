@@ -18,6 +18,7 @@ Versions are date-based until a formal semver release.
 ### Done on this branch (post-MVP, local commits)
 
 - **T1** Vault/key bootstrap from `OMNIAGENT_API_KEY` on API startup; Panel banner when key missing.
+- **T2** Unified History page: Studio tasks + panel sessions with GUID deep links.
 
 ---
 
