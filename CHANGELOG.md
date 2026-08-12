@@ -20,6 +20,8 @@ Versions are date-based until a formal semver release.
 - **T1** Vault/key bootstrap from `OMNIAGENT_API_KEY` on API startup; Panel banner when key missing.
 - **T2** Unified History page: Studio tasks + panel sessions with GUID deep links.
 - **T3** Panel multi-round (1–3) + user follow-up `POST /continue` (extra roster pass).
+- **T4** Panel Markdown transcript export (`GET /panels/{id}/transcript` + Export .md).
+- **T5** Group clone API/UI + “Open in Panel” deep link (`?groupId=`).
 
 ---
 

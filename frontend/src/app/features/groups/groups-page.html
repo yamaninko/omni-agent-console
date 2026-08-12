@@ -92,6 +92,12 @@
               Save group
             </button>
             @if (selected() && !isCreatingGroup()) {
+              <button class="secondary-btn" type="button" (click)="cloneGroup()" [disabled]="saving()">
+                Clone group
+              </button>
+              <button class="secondary-btn" type="button" (click)="openInPanel()">
+                Open in Panel
+              </button>
               <button class="danger-btn" (click)="deleteGroup()" [disabled]="saving()">
                 <lucide-icon [img]="icons.trash" size="16"></lucide-icon>
                 Delete

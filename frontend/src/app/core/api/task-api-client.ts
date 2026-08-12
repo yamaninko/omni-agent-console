@@ -257,6 +257,10 @@ export class TaskApiClient {
     return this.http.delete<void>(`${API_BASE_URL}/agent-groups/${groupId}`);
   }
 
+  cloneAgentGroup(groupId: string): Observable<AgentGroupDetail> {
+    return this.http.post<AgentGroupDetail>(`${API_BASE_URL}/agent-groups/${groupId}/clone`, {});
+  }
+
   addGroupMember(groupId: string, request: UpsertAgentGroupMemberRequest): Observable<AgentGroupMember> {
     return this.http.post<AgentGroupMember>(`${API_BASE_URL}/agent-groups/${groupId}/members`, request);
   }

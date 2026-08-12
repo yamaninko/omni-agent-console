@@ -58,12 +58,16 @@ A second product surface — **Groups + Panel** — runs moderated multi-persona
 - Fail-forward: a failed guest does not abort the whole panel; remaining speakers still get the floor.
 - Credentials: panel turns use the member credential or the **default OmniAgent/NVIDIA** credential; Settings key save dual-writes Vault paths used after a Vault **dev-mode** restart.
 - Shared-lab: group config writes are instructor-only; panel create/start stays session-scoped like tasks.
+- **Rounds** (1–3) on Start; after finish, **Continue** with a user follow-up for another roster pass.
+- **Export .md** transcript per session; **Clone group** and **Open in Panel** from Groups.
+- **History** lists both Studio tasks and panel sessions (filterable), each with GUID deep links.
 
 ```bash
 # Example flow after stack is up and Settings → OmniAgent API key is saved:
 # 1) Open http://localhost:4210/groups  → define speakers
-# 2) Open http://localhost:4210/panel   → Start with a topic
+# 2) Open http://localhost:4210/panel   → Start with a topic (optional 2–3 rounds)
 # 3) Reopen via http://localhost:4210/panel/{session-guid}
+# 4) Export transcript or Continue with a follow-up question
 ```
 
 ## Recommended models (NVIDIA NIM free endpoint)

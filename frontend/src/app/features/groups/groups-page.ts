@@ -206,6 +206,30 @@ export class GroupsPage implements OnInit, OnDestroy {
     });
   }
 
+  protected cloneGroup(): void {
+    const id = this.selected()?.id;
+    if (!id) return;
+    this.saving.set(true);
+    this.api.cloneAgentGroup(id).subscribe({
+      next: (detail) => {
+        this.saving.set(false);
+        this.success.set('Group cloned.');
+        this.reloadGroups();
+        void this.router.navigate(['/groups', detail.id]);
+      },
+      error: (err) => {
+        this.saving.set(false);
+        this.error.set(err?.error || 'Clone failed');
+      }
+    });
+  }
+
+  protected openInPanel(): void {
+    const id = this.selected()?.id;
+    if (!id) return;
+    void this.router.navigate(['/panel'], { queryParams: { groupId: id } });
+  }
+
   protected startAddMember(): void {
     this.isCreatingMember.set(true);
     this.editingMemberId.set(null);

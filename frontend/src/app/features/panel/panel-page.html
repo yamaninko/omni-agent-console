@@ -84,6 +84,9 @@
             <button type="button" class="session-id" (click)="copySessionLink()" title="Copy deep link">
               Copy link
             </button>
+            <button type="button" class="session-id" (click)="downloadTranscript()" title="Download Markdown transcript">
+              Export .md
+            </button>
             <code class="full-id" title="Permanent session GUID">{{ session()!.id }}</code>
             @if (session()!.floorDeadline) {
               <span>Floor until {{ session()!.floorDeadline | date: 'HH:mm:ss' }}</span>

@@ -115,6 +115,65 @@ public sealed class PanelsController : ControllerBase
         return Ok(events);
     }
 
+    [HttpGet("{panelId:guid}/transcript")]
+    public async Task<IActionResult> Transcript(Guid panelId, CancellationToken cancellationToken)
+    {
+        var session = await LoadOwnedSessionAsync(panelId, tracking: false, cancellationToken);
+        if (session is null)
+        {
+            return NotFound();
+        }
+
+        var md = BuildTranscriptMarkdown(session);
+        var fileName = $"panel-{panelId:N}.md";
+        return File(System.Text.Encoding.UTF8.GetBytes(md), "text/markdown; charset=utf-8", fileName);
+    }
+
+    private static string BuildTranscriptMarkdown(PanelSession session)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"# Panel: {session.Title}");
+        sb.AppendLine();
+        sb.AppendLine($"- **Id:** `{session.Id}`");
+        sb.AppendLine($"- **Group:** {session.Group?.Name ?? session.GroupId.ToString()}");
+        sb.AppendLine($"- **Status:** {session.Status}");
+        sb.AppendLine($"- **Rounds configured:** {session.MaxRounds}");
+        sb.AppendLine($"- **Created:** {session.CreatedAt:O}");
+        if (session.CompletedAt is not null)
+        {
+            sb.AppendLine($"- **Completed:** {session.CompletedAt:O}");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("## Topic");
+        sb.AppendLine();
+        sb.AppendLine(session.Topic);
+        sb.AppendLine();
+        sb.AppendLine("## Turns");
+        sb.AppendLine();
+        foreach (var turn in (session.Turns ?? Array.Empty<PanelTurn>()).OrderBy(t => t.TurnOrder))
+        {
+            sb.AppendLine($"### #{turn.TurnOrder} {turn.MemberDisplayName} ({turn.Status})");
+            if (!string.IsNullOrWhiteSpace(turn.ModelUsed))
+            {
+                sb.AppendLine();
+                sb.AppendLine($"*Model: `{turn.ModelUsed}` · {turn.LatencyMs} ms · {turn.TotalTokens} tokens*");
+            }
+
+            sb.AppendLine();
+            sb.AppendLine(string.IsNullOrWhiteSpace(turn.Output) ? "_(no output)_" : turn.Output.Trim());
+            if (!string.IsNullOrWhiteSpace(turn.ErrorMessage))
+            {
+                sb.AppendLine();
+                sb.AppendLine($"> Error: {turn.ErrorMessage}");
+            }
+
+            sb.AppendLine();
+        }
+
+        return sb.ToString();
+    }
+
     [HttpPost]
     public async Task<ActionResult<PanelSessionDetailDto>> Create(
         [FromBody] CreatePanelSessionRequest request,

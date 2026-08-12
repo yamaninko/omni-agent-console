@@ -61,7 +61,10 @@ export class PanelPage implements OnInit, OnDestroy {
     this.api.listAgentGroups().subscribe({
       next: (g) => {
         this.groups.set(g);
-        if (g.length && !this.selectedGroupId()) {
+        const fromQuery = this.route.snapshot.queryParamMap.get('groupId');
+        if (fromQuery && g.some((x) => x.id === fromQuery)) {
+          this.selectedGroupId.set(fromQuery);
+        } else if (g.length && !this.selectedGroupId()) {
           this.selectedGroupId.set(g[0].id);
         }
       }
@@ -182,6 +185,23 @@ export class PanelPage implements OnInit, OnDestroy {
   protected canContinue(): boolean {
     const s = this.session()?.status;
     return s === 'Completed' || s === 'Failed' || s === 'Cancelled';
+  }
+
+  protected downloadTranscript(): void {
+    const id = this.session()?.id;
+    if (!id) return;
+    this.api.getPanelTranscript(id).subscribe({
+      next: (md) => {
+        const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `panel-${id}.md`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      error: (err) => this.error.set(this.readError(err, 'Transcript download failed'))
+    });
   }
 
   protected openRecent(item: PanelSessionSummary): void {

@@ -103,6 +103,60 @@ public sealed class AgentGroupsController : ControllerBase
         return Ok(ToDetail(group));
     }
 
+    [HttpPost("{groupId:guid}/clone")]
+    public async Task<ActionResult<AgentGroupDetailDto>> Clone(Guid groupId, CancellationToken cancellationToken)
+    {
+        var source = await dbContext.AgentGroups
+            .AsNoTracking()
+            .Include(x => x.Members)
+            .FirstOrDefaultAsync(x => x.Id == groupId, cancellationToken);
+
+        if (source is null)
+        {
+            return NotFound();
+        }
+
+        var clone = new AgentGroup
+        {
+            Name = $"{source.Name} (copy)",
+            Description = source.Description
+        };
+        dbContext.AgentGroups.Add(clone);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        foreach (var m in source.Members.OrderBy(x => x.SortOrder).ThenBy(x => x.DisplayName))
+        {
+            dbContext.AgentGroupMembers.Add(new AgentGroupMember
+            {
+                GroupId = clone.Id,
+                DisplayName = m.DisplayName,
+                SystemPrompt = m.SystemPrompt,
+                DefaultModel = m.DefaultModel,
+                FallbackModels = m.FallbackModels,
+                Provider = m.Provider,
+                ApiCredentialId = m.ApiCredentialId,
+                MaxTokens = m.MaxTokens,
+                Temperature = m.Temperature,
+                TimeoutSeconds = m.TimeoutSeconds,
+                RetryCount = m.RetryCount,
+                SortOrder = m.SortOrder,
+                Enabled = m.Enabled,
+                Role = m.Role,
+                Stance = m.Stance,
+                StanceLabel = m.StanceLabel
+            });
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var detail = await dbContext.AgentGroups
+            .AsNoTracking()
+            .Include(x => x.Members)
+            .FirstAsync(x => x.Id == clone.Id, cancellationToken);
+
+        return CreatedAtAction(nameof(Get), new { groupId = clone.Id }, ToDetail(detail));
+    }
+
     [HttpDelete("{groupId:guid}")]
     public async Task<IActionResult> Delete(Guid groupId, CancellationToken cancellationToken)
     {
