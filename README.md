@@ -65,7 +65,8 @@ A second product surface — **Groups + Panel** — runs moderated multi-persona
 - **Panel conversation filter**: default stream shows speeches/topic/floor only; “All events” shows model noise.
 - **Durable lab secrets**: API keys mirrored to `./data/secrets` (gitignored) so Vault `-dev` restarts do not wipe keys.
 - **Home** key badge (configured + masked preview); Panel **Conversation** filter, **is speaking…** bar, auto-scroll.
-- **Smoke**: `BASE=http://localhost:5080 ./scripts/smoke-panel.sh` (needs API key + ≥1 group; free-tier may still be Running when it PASSes with completed turns).
+- **Smoke**: `make smoke` (or `BASE=http://localhost:5080 ./scripts/smoke-panel.sh`) — needs API key + ≥1 group; free-tier may still be Running when it PASSes with completed turns.
+- Panel: floor **progress bar**, **Delete** finished sessions; PR draft at [docs/PR_BODY.md](docs/PR_BODY.md) (push only when approved).
 
 ```bash
 # Example flow after stack is up and Settings → OmniAgent API key is saved:

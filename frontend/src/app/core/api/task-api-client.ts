@@ -326,6 +326,10 @@ export class TaskApiClient {
     return this.http.post(`${API_BASE_URL}/panels/${panelId}/cancel`, {});
   }
 
+  deletePanel(panelId: string): Observable<void> {
+    return this.http.delete<void>(`${API_BASE_URL}/panels/${panelId}`);
+  }
+
   getPanelTranscript(panelId: string): Observable<string> {
     return this.http.get(`${API_BASE_URL}/panels/${panelId}/transcript`, {
       responseType: 'text'

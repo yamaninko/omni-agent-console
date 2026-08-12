@@ -32,6 +32,11 @@ Versions are date-based until a formal semver release.
 - **N2** Home **API key badge** (configured / not + masked preview when available).
 - **N3** `scripts/smoke-panel.sh` live smoke (group → panel → ≥1 completed turn).
 - **N4** In-app Docs: **Moderated Panel (Debate)** how-to section.
+- **D1** Floor **progress bar** on speaking bar (ticks every second).
+- **D2** **Delete panel** session (`DELETE /api/panels/{id}` + UI).
+- **D3** `make smoke` / `make smoke-long` helpers.
+- **D4** Angular component style budget raised (12kB/20kB) to clear kit warnings.
+- **D5** `docs/PR_BODY.md` for local PR/push readiness (still no push).
 
 ---
 

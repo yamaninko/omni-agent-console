@@ -95,6 +95,11 @@
             <button type="button" class="oa-btn oa-btn-ghost" (click)="downloadTranscript()" title="Download Markdown transcript">
               Export .md
             </button>
+            @if (canContinue()) {
+              <button type="button" class="oa-btn oa-btn-danger" (click)="deletePanel()" title="Delete session">
+                Delete
+              </button>
+            }
             <code class="full-id" title="Permanent session GUID">{{ session()!.id }}</code>
             @if (session()!.floorDeadline) {
               <span>Floor until {{ session()!.floorDeadline | date: 'HH:mm:ss' }}</span>
@@ -124,16 +129,23 @@
         <p class="hint">Each Start saves a session. URL becomes <code>/panel/&#123;guid&#125;</code> — bookmark or share.</p>
         <div class="recent">
           @for (p of recent(); track p.id) {
-            <button
-              type="button"
-              class="recent-item"
-              [class.active]="session()?.id === p.id"
-              (click)="openRecent(p)"
-            >
-              <strong>{{ p.title || p.topic }}</strong>
-              <span class="id-line" title="{{ p.id }}">{{ p.id }}</span>
-              <span>{{ p.groupName }} · {{ p.status }}</span>
-            </button>
+            <div class="recent-row" [class.active]="session()?.id === p.id">
+              <button type="button" class="recent-item" (click)="openRecent(p)">
+                <strong>{{ p.title || p.topic }}</strong>
+                <span class="id-line" title="{{ p.id }}">{{ p.id }}</span>
+                <span>{{ p.groupName }} · {{ p.status }}</span>
+              </button>
+              @if (p.status !== 'Running' && p.status !== 'Pending') {
+                <button
+                  type="button"
+                  class="recent-del"
+                  title="Delete panel"
+                  (click)="deletePanel(p.id)"
+                >
+                  ×
+                </button>
+              }
+            </div>
           } @empty {
             <p class="empty">No panels yet.</p>
           }
@@ -172,12 +184,17 @@
 
       @if (speakingName()) {
         <div class="speaking-bar" aria-live="polite">
-          <span class="dot"></span>
-          <strong>{{ speakingName() }}</strong>
-          <span>is speaking…</span>
-          @if (floorSecondsLeft() !== null) {
-            <span class="timer">~{{ floorSecondsLeft() }}s left</span>
-          }
+          <div class="speaking-main">
+            <span class="dot"></span>
+            <strong>{{ speakingName() }}</strong>
+            <span>is speaking…</span>
+            @if (floorSecondsLeft() !== null) {
+              <span class="timer">~{{ floorSecondsLeft() }}s left</span>
+            }
+          </div>
+          <div class="floor-track" title="Remaining floor budget">
+            <div class="floor-fill" [style.width.%]="floorProgressPercent()"></div>
+          </div>
         </div>
       }
 

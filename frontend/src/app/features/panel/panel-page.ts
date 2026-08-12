@@ -40,8 +40,11 @@ export class PanelPage implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private pollSub?: Subscription;
   private routeSub?: Subscription;
+  private tickSub?: Subscription;
   private readonly messagesBox = viewChild<ElementRef<HTMLDivElement>>('messagesBox');
   private stickToBottom = true;
+  /** Wall clock for floor progress ticks. */
+  protected readonly nowMs = signal(Date.now());
 
   protected readonly icons = {
     chat: MessageSquare,
@@ -89,11 +92,13 @@ export class PanelPage implements OnInit, OnDestroy {
     effect(() => {
       this.visibleEvents();
       this.session();
+      this.nowMs();
       queueMicrotask(() => this.scrollMessagesIfPinned());
     });
   }
 
   ngOnInit(): void {
+    this.tickSub = interval(1000).subscribe(() => this.nowMs.set(Date.now()));
     this.api.getSettings().subscribe({
       next: (s) => this.apiKeyConfigured.set(!!s.apiKeyConfigured),
       error: () => this.apiKeyConfigured.set(null)
@@ -123,6 +128,7 @@ export class PanelPage implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.pollSub?.unsubscribe();
     this.routeSub?.unsubscribe();
+    this.tickSub?.unsubscribe();
   }
 
   protected reloadRecent(): void {
@@ -357,9 +363,53 @@ export class PanelPage implements OnInit, OnDestroy {
   protected floorSecondsLeft(): number | null {
     const deadline = this.session()?.floorDeadline;
     if (!deadline) return null;
+    this.nowMs(); // re-evaluate every tick
     const ms = new Date(deadline).getTime() - Date.now();
     if (Number.isNaN(ms)) return null;
     return Math.max(0, Math.ceil(ms / 1000));
+  }
+
+  /** 0–100 remaining floor budget (bar width). */
+  protected floorProgressPercent(): number {
+    const left = this.floorSecondsLeft();
+    if (left === null) return 0;
+    const total = this.floorTotalSeconds();
+    if (total <= 0) return 0;
+    return Math.max(0, Math.min(100, Math.round((left / total) * 100)));
+  }
+
+  private floorTotalSeconds(): number {
+    // Prefer timeout from the latest floor-grant payload; fall back to 60.
+    const floors = [...this.events()].reverse().filter((e) => e.eventType === 'PanelFloorGranted');
+    for (const ev of floors) {
+      if (!ev.payloadJson) continue;
+      try {
+        const p = JSON.parse(ev.payloadJson) as { timeoutSeconds?: number };
+        if (p.timeoutSeconds && p.timeoutSeconds > 0) {
+          return p.timeoutSeconds;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    return 60;
+  }
+
+  protected async deletePanel(panelId?: string): Promise<void> {
+    const id = panelId || this.session()?.id;
+    if (!id) return;
+    if (!confirm('Delete this panel session and its transcript? This cannot be undone.')) {
+      return;
+    }
+    this.api.deletePanel(id).subscribe({
+      next: () => {
+        if (this.session()?.id === id) {
+          this.newSessionForm();
+        }
+        this.reloadRecent();
+      },
+      error: (err) => this.error.set(this.readError(err, 'Delete failed'))
+    });
   }
 
   protected onMessagesScroll(): void {

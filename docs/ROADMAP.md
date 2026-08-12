@@ -267,3 +267,4 @@ Güncelleme kuralı: her task bitince bu tablo + CHANGELOG + kısa README notu; 
 - Dark NIM green identity kept; active nav left-accent
 - Themes: dark / blue / white; Home dashboard; Panel conversation filter; durable file secret mirror
 - Panel speaking bar + auto-scroll; Home key badge; `scripts/smoke-panel.sh`; Docs Panel how-to
+- Floor progress bar; panel delete; `make smoke`; SCSS budgets; `docs/PR_BODY.md` (no push)

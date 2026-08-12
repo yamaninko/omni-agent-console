@@ -190,7 +190,19 @@
   gap: 6px;
 }
 
+.recent-row {
+  display: flex;
+  gap: 4px;
+  align-items: stretch;
+
+  &.active .recent-item {
+    border-color: var(--oa-accent);
+    background: var(--oa-accent-soft);
+  }
+}
+
 .recent-item {
+  flex: 1;
   text-align: left;
   background: var(--oa-bg-panel);
   border: 1px solid var(--oa-border);
@@ -198,11 +210,6 @@
   padding: 8px 10px;
   color: var(--oa-text);
   cursor: pointer;
-
-  &.active {
-    border-color: var(--oa-accent);
-    background: var(--oa-accent-soft);
-  }
 
   strong {
     display: block;
@@ -216,6 +223,17 @@
     font-size: 11px;
     color: var(--oa-text-dim);
   }
+}
+
+.recent-del {
+  width: 32px;
+  border: 1px solid var(--oa-danger-border);
+  border-radius: var(--oa-radius-sm);
+  background: var(--oa-danger-soft);
+  color: var(--oa-danger);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
 }
 
 // ── Discussion stream (readability focus) ─────────────────────────────
@@ -308,16 +326,22 @@
 
 .speaking-bar {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
   flex-shrink: 0;
   margin-bottom: 10px;
-  padding: 8px 12px;
-  border-radius: 999px;
+  padding: 10px 12px;
+  border-radius: 12px;
   background: var(--oa-info-soft);
   border: 1px solid var(--oa-info-border);
   color: var(--oa-info);
   font-size: 13px;
+
+  .speaking-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 
   .dot {
     width: 8px;
@@ -333,6 +357,20 @@
     font-size: 11px;
     opacity: 0.9;
   }
+}
+
+.floor-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(127, 143, 163, 0.25);
+  overflow: hidden;
+}
+
+.floor-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--oa-info), var(--oa-accent));
+  transition: width 0.8s linear;
 }
 
 @keyframes pulse {

@@ -331,6 +331,26 @@ public sealed class PanelsController : ControllerBase
         return Accepted(new { id = panelId, status = "Queued", followUp = true });
     }
 
+    [HttpDelete("{panelId:guid}")]
+    public async Task<IActionResult> Delete(Guid panelId, CancellationToken cancellationToken)
+    {
+        var session = await LoadOwnedSessionAsync(panelId, tracking: true, cancellationToken);
+        if (session is null)
+        {
+            return NotFound();
+        }
+
+        if (session.Status is PanelSessionStatus.Running or PanelSessionStatus.Pending)
+        {
+            return Conflict("Cancel the panel before deleting it.");
+        }
+
+        // Cascades remove turns + console events (configured on PanelSession).
+        dbContext.PanelSessions.Remove(session);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return NoContent();
+    }
+
     [HttpPost("{panelId:guid}/cancel")]
     public async Task<IActionResult> Cancel(Guid panelId, CancellationToken cancellationToken)
     {
