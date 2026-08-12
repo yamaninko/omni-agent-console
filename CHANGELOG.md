@@ -22,6 +22,7 @@ Versions are date-based until a formal semver release.
 - **T3** Panel multi-round (1–3) + user follow-up `POST /continue` (extra roster pass).
 - **T4** Panel Markdown transcript export (`GET /panels/{id}/transcript` + Export .md).
 - **T5** Group clone API/UI + “Open in Panel” deep link (`?groupId=`).
+- **UI polish** Nav grouped into Build / Debate / Ops; shared design tokens + `.oa-*` kit (no full rebrand).
 
 ---
 

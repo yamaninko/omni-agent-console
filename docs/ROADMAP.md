@@ -259,3 +259,9 @@ Açık çekirdek sprint yok.
 | T9 | TTS / sesli panel | Future | 🔮 |
 
 Güncelleme kuralı: her task bitince bu tablo + CHANGELOG + kısa README notu; **push yok** (local commits).
+
+### UI polish (2026-08-12) — ✅ (scoped, not a redesign)
+
+- Sidebar IA: **Build** (Studio, Workspace, Agents) · **Debate** (Groups, Panel) · **Ops** (History, Dashboard, Settings, Docs)
+- Shared tokens + kit: `frontend/src/styles/_tokens.scss`, `_kit.scss` (`.oa-btn`, `.oa-card`, `.oa-alert`, `.oa-tag`, …)
+- Dark NIM green identity kept; active nav left-accent

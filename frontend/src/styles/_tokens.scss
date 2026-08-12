@@ -1,0 +1,24 @@
+// Shared design tokens — dark “terminal / NIM” theme (not a full rebrand).
+:root {
+  --oa-bg: #070b10;
+  --oa-bg-elevated: #0b1118;
+  --oa-bg-panel: #0f1620;
+  --oa-bg-sidebar: #0a0f16;
+  --oa-border: #1b2a38;
+  --oa-border-strong: #243447;
+  --oa-text: #e6edf3;
+  --oa-text-muted: #8ba2b7;
+  --oa-text-dim: #7f8fa3;
+  --oa-accent: #76b900;
+  --oa-accent-soft: rgba(118, 185, 0, 0.12);
+  --oa-accent-border: rgba(118, 185, 0, 0.28);
+  --oa-info: #6db3ff;
+  --oa-info-soft: rgba(64, 156, 255, 0.12);
+  --oa-info-border: rgba(64, 156, 255, 0.3);
+  --oa-danger: #ff6b63;
+  --oa-danger-soft: rgba(255, 59, 48, 0.12);
+  --oa-danger-border: rgba(255, 59, 48, 0.3);
+  --oa-radius: 8px;
+  --oa-radius-sm: 6px;
+  --oa-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}

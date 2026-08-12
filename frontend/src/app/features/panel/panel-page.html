@@ -1,16 +1,16 @@
-<section class="panel-page">
+<section class="panel-page oa-page">
   <header class="page-header">
     <div>
-      <p class="eyebrow">Moderated Discussion</p>
-      <h1>Panel</h1>
-      <p class="sub">
-        One round · automatic floor · ~60s per guest (generation budget; free-tier queue wait is separate).
+      <p class="oa-eyebrow">Debate</p>
+      <h1 class="oa-title">Panel</h1>
+      <p class="oa-sub">
+        Moderated roster · 1–3 rounds · ~60s generation budget per speaker (free-tier queue wait is separate).
       </p>
     </div>
   </header>
 
   @if (apiKeyConfigured() === false) {
-    <div class="alert error-alert">
+    <div class="oa-alert oa-alert-error">
       OmniAgent / NVIDIA API key is not configured. Open
       <a href="/settings">Settings</a>, paste the key, Save — or set
       <code>OMNIAGENT_API_KEY</code> in <code>.env</code> and recreate the API container
@@ -18,7 +18,7 @@
     </div>
   }
   @if (error()) {
-    <div class="alert error-alert">{{ error() }}</div>
+    <div class="oa-alert oa-alert-error">{{ error() }}</div>
   }
 
   <div class="layout">
@@ -62,13 +62,13 @@
             <option [value]="3">3 rounds</option>
           </select>
         </label>
-        <div class="actions">
-          <button class="primary-btn" (click)="startPanel()" [disabled]="busy()">
+        <div class="oa-actions">
+          <button class="oa-btn oa-btn-primary" type="button" (click)="startPanel()" [disabled]="busy()">
             <lucide-icon [img]="icons.play" size="16"></lucide-icon>
             Start panel
           </button>
           @if (session() && (session()!.status === 'Running' || session()!.status === 'Pending')) {
-            <button class="danger-btn" (click)="cancelPanel()">
+            <button class="oa-btn oa-btn-danger" type="button" (click)="cancelPanel()">
               <lucide-icon [img]="icons.stop" size="16"></lucide-icon>
               Cancel
             </button>
@@ -78,13 +78,13 @@
           <div class="session-meta">
             <span class="status" [class]="statusClass(session()!.status)">{{ session()!.status }}</span>
             <span>{{ session()!.groupName }}</span>
-            <button type="button" class="session-id" (click)="copySessionId()" title="Copy full GUID">
+            <button type="button" class="oa-btn oa-btn-ghost" (click)="copySessionId()" title="Copy full GUID">
               ID {{ shortId(session()!.id) }}
             </button>
-            <button type="button" class="session-id" (click)="copySessionLink()" title="Copy deep link">
+            <button type="button" class="oa-btn oa-btn-ghost" (click)="copySessionLink()" title="Copy deep link">
               Copy link
             </button>
-            <button type="button" class="session-id" (click)="downloadTranscript()" title="Download Markdown transcript">
+            <button type="button" class="oa-btn oa-btn-ghost" (click)="downloadTranscript()" title="Download Markdown transcript">
               Export .md
             </button>
             <code class="full-id" title="Permanent session GUID">{{ session()!.id }}</code>
@@ -104,7 +104,7 @@
                 (input)="followUp.set($any($event.target).value)"
               ></textarea>
             </label>
-            <button class="primary-btn" type="button" (click)="continuePanel()" [disabled]="busy()">
+            <button class="oa-btn oa-btn-primary" type="button" (click)="continuePanel()" [disabled]="busy()">
               Continue panel
             </button>
           </div>

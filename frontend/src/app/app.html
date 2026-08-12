@@ -1,7 +1,7 @@
 <div class="app-shell" [class.collapsed]="collapsed()">
   <aside class="sidebar">
     <div class="brand">
-      <div style="display: flex; align-items: center; gap: 12px;">
+      <div class="brand-main">
         <lucide-icon [img]="icons.bot" size="22"></lucide-icon>
         @if (!collapsed()) {
           <div>
@@ -10,66 +10,88 @@
           </div>
         }
       </div>
-      <button class="toggle-sidebar" (click)="collapsed.set(!collapsed())" [title]="collapsed() ? 'Expand Menu' : 'Collapse Menu'">
+      <button
+        class="toggle-sidebar"
+        type="button"
+        (click)="collapsed.set(!collapsed())"
+        [title]="collapsed() ? 'Expand Menu' : 'Collapse Menu'"
+      >
         <lucide-icon [img]="collapsed() ? icons.chevronRight : icons.chevronLeft" size="16"></lucide-icon>
       </button>
     </div>
 
     <nav class="nav">
-      <a routerLink="/studio" routerLinkActive="active" [title]="collapsed() ? 'Studio' : ''">
-        <lucide-icon [img]="icons.studio" size="18"></lucide-icon>
+      <div class="nav-section">
         @if (!collapsed()) {
-          <span>Studio</span>
+          <div class="nav-label">Build</div>
         }
-      </a>
-      <a routerLink="/workspace" routerLinkActive="active" [title]="collapsed() ? 'Workspace' : ''">
-        <lucide-icon [img]="icons.workspace" size="18"></lucide-icon>
+        <a routerLink="/studio" routerLinkActive="active" [title]="collapsed() ? 'Studio' : ''">
+          <lucide-icon [img]="icons.studio" size="18"></lucide-icon>
+          @if (!collapsed()) {
+            <span>Studio</span>
+          }
+        </a>
+        <a routerLink="/workspace" routerLinkActive="active" [title]="collapsed() ? 'Workspace' : ''">
+          <lucide-icon [img]="icons.workspace" size="18"></lucide-icon>
+          @if (!collapsed()) {
+            <span>Workspace</span>
+          }
+        </a>
+        <a routerLink="/agents" routerLinkActive="active" [title]="collapsed() ? 'Agents' : ''">
+          <lucide-icon [img]="icons.bot" size="18"></lucide-icon>
+          @if (!collapsed()) {
+            <span>Agents</span>
+          }
+        </a>
+      </div>
+
+      <div class="nav-section">
         @if (!collapsed()) {
-          <span>Workspace</span>
+          <div class="nav-label">Debate</div>
         }
-      </a>
-      <a routerLink="/history" routerLinkActive="active" [title]="collapsed() ? 'History' : ''">
-        <lucide-icon [img]="icons.history" size="18"></lucide-icon>
+        <a routerLink="/groups" routerLinkActive="active" [title]="collapsed() ? 'Groups' : ''">
+          <lucide-icon [img]="icons.groups" size="18"></lucide-icon>
+          @if (!collapsed()) {
+            <span>Groups</span>
+          }
+        </a>
+        <a routerLink="/panel" routerLinkActive="active" [title]="collapsed() ? 'Panel' : ''">
+          <lucide-icon [img]="icons.panel" size="18"></lucide-icon>
+          @if (!collapsed()) {
+            <span>Panel</span>
+          }
+        </a>
+      </div>
+
+      <div class="nav-section">
         @if (!collapsed()) {
-          <span>History</span>
+          <div class="nav-label">Ops</div>
         }
-      </a>
-      <a routerLink="/dashboard" routerLinkActive="active" [title]="collapsed() ? 'Dashboard' : ''">
-        <lucide-icon [img]="icons.dashboard" size="18"></lucide-icon>
-        @if (!collapsed()) {
-          <span>Dashboard</span>
-        }
-      </a>
-      <a routerLink="/docs" routerLinkActive="active" [title]="collapsed() ? 'Docs' : ''">
-        <lucide-icon [img]="icons.docs" size="18"></lucide-icon>
-        @if (!collapsed()) {
-          <span>Docs</span>
-        }
-      </a>
-      <a routerLink="/agents" routerLinkActive="active" [title]="collapsed() ? 'Agents' : ''">
-        <lucide-icon [img]="icons.bot" size="18"></lucide-icon>
-        @if (!collapsed()) {
-          <span>Agents</span>
-        }
-      </a>
-      <a routerLink="/groups" routerLinkActive="active" [title]="collapsed() ? 'Groups' : ''">
-        <lucide-icon [img]="icons.groups" size="18"></lucide-icon>
-        @if (!collapsed()) {
-          <span>Groups</span>
-        }
-      </a>
-      <a routerLink="/panel" routerLinkActive="active" [title]="collapsed() ? 'Panel' : ''">
-        <lucide-icon [img]="icons.panel" size="18"></lucide-icon>
-        @if (!collapsed()) {
-          <span>Panel</span>
-        }
-      </a>
-      <a routerLink="/settings" routerLinkActive="active" [title]="collapsed() ? 'Settings' : ''">
-        <lucide-icon [img]="icons.settings" size="18"></lucide-icon>
-        @if (!collapsed()) {
-          <span>Settings</span>
-        }
-      </a>
+        <a routerLink="/history" routerLinkActive="active" [title]="collapsed() ? 'History' : ''">
+          <lucide-icon [img]="icons.history" size="18"></lucide-icon>
+          @if (!collapsed()) {
+            <span>History</span>
+          }
+        </a>
+        <a routerLink="/dashboard" routerLinkActive="active" [title]="collapsed() ? 'Dashboard' : ''">
+          <lucide-icon [img]="icons.dashboard" size="18"></lucide-icon>
+          @if (!collapsed()) {
+            <span>Dashboard</span>
+          }
+        </a>
+        <a routerLink="/settings" routerLinkActive="active" [title]="collapsed() ? 'Settings' : ''">
+          <lucide-icon [img]="icons.settings" size="18"></lucide-icon>
+          @if (!collapsed()) {
+            <span>Settings</span>
+          }
+        </a>
+        <a routerLink="/docs" routerLinkActive="active" [title]="collapsed() ? 'Docs' : ''">
+          <lucide-icon [img]="icons.docs" size="18"></lucide-icon>
+          @if (!collapsed()) {
+            <span>Docs</span>
+          }
+        </a>
+      </div>
     </nav>
   </aside>
 

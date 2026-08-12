@@ -1,27 +1,27 @@
-<section class="groups-page">
+<section class="groups-page oa-page">
   <header class="page-header">
     <div>
-      <p class="eyebrow">Panel Configuration</p>
-      <h1>Agent Groups</h1>
-      <p class="sub">
+      <p class="oa-eyebrow">Debate</p>
+      <h1 class="oa-title">Agent Groups</h1>
+      <p class="oa-sub">
         Define who sits on the panel: role, stance, persona mission. Order = speaking order.
-        URL is <code>/groups/&#123;guid&#125;</code>.
+        URL is <code class="oa-mono">/groups/&#123;guid&#125;</code>.
       </p>
     </div>
-    <button class="primary-btn" (click)="startCreateGroup()" [disabled]="saving()">
+    <button class="oa-btn oa-btn-primary" type="button" (click)="startCreateGroup()" [disabled]="saving()">
       <lucide-icon [img]="icons.plus" size="16"></lucide-icon>
       New Group
     </button>
   </header>
 
   @if (success()) {
-    <div class="alert success-alert">
+    <div class="oa-alert oa-alert-success">
       <lucide-icon [img]="icons.check" size="18"></lucide-icon>
       <span>{{ success() }}</span>
     </div>
   }
   @if (error()) {
-    <div class="alert error-alert">
+    <div class="oa-alert oa-alert-error">
       <lucide-icon [img]="icons.x" size="18"></lucide-icon>
       <span>{{ error() }}</span>
     </div>
