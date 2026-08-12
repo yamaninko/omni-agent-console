@@ -1,70 +1,70 @@
 # OmniAgent Console / Multi-Agent Studio
 
-Web tabanlı, terminal hissiyatlı multi-agent studio. Backend .NET 10, frontend Angular 21; provider entegrasyonu OpenAI-compatible chat completion mantığıyla çalışır (NVIDIA NIM, OpenAI, Gemini OpenAI-compatible endpoint ve diğer uyumlu sağlayıcılar).
+Web-based, terminal-feel multi-agent studio. Backend is .NET 10, frontend is Angular 21; provider integration uses OpenAI-compatible chat completion (NVIDIA NIM, OpenAI, Gemini OpenAI-compatible endpoints, and other compatible providers).
 
-Bir prompt girersiniz; Planner → Research → Coder → Reviewer → (opsiyonel tek Coder **fix loop**) → Ops Monitor ajan zinciri çalışır, üretilen kod dosyaları `workspace/` klasörüne gerçek proje yapısıyla yazılır, tüm akış realtime console'da izlenir.
+You enter a prompt; the agent chain Planner → Research → Coder → Reviewer → (optional single Coder **fix loop**) → Ops Monitor runs, generated code files are written into the `workspace/` folder with a real project structure, and the full flow is watched on a realtime console.
 
-## Mevcut kapsam
+## Current scope
 
-### Mimari
-- .NET 10 API + ayrı `OmniAgentConsole.Worker` süreci (task execution API process'inden bağımsız; API restart'ı çalışan task'ı öldürmez)
-- PostgreSQL persistence ve EF Core migration
-- RabbitMQ task queue: manual ack/nack ile **at-least-once teslimat** — host shutdown'da mesaj NACK'lenip requeue edilir, worker geri gelince task yeniden koşar; kullanıcı iptali ise ACK'lenir (canlı kesinti senaryosuyla doğrulandı)
-- **Poison message koruması**: redelivered bir mesaj ikinci kez beklenmeyen hatayla düşerse task Failed + ACK yapılır — sonsuz requeue döngüsü olmaz (efektif max 2 teslimat)
-- **Cross-process cancel**: iptal, Redis `task-cancellations` kanalıyla worker'a anında iletilir ve süren model HTTP çağrısı kesilir (canlıda <1 sn doğrulandı, 2026-07-20). DB'ye `Cancelled` token'dan önce yazılır ki worker iptali "user cancel" (ACK) olarak sınıflandırsın; Coder tool loop ek emniyet olarak her iterasyonda DB durumunu da kontrol eder
-- API startup recovery yalnız **tek-süreç modunda** (RabbitMQ yokken) çalışır — ayrı worker varken API restart'ı canlı Running task'lara dokunmaz; ölü run'lar kuyruk redelivery ile kurtarılır
-- SignalR realtime console stream; worker → API event akışı Redis pub/sub üzerinden
-- Docker Compose ile frontend, API, agent-worker, PostgreSQL, Redis, RabbitMQ ve Vault; optional OpenSearch profili
-- **Agentic tool loop (Coder)**: Coder ajanı Claude Code tarzı bir araç döngüsüyle çalışır — model `write_file` / `read_file` / `list_files` araçlarını çağırarak projeyi dosya dosya, kısa iterasyonlarla kurar (OpenAI-uyumlu function calling). Her tool call console'a canlı düşer, her iterasyon ayrı model çağrısı olarak usage'a işlenir; araç kullanmayan modeller için markdown fence export'u fallback olarak devrededir
-- **Reviewer → Coder fix loop**: Reviewer eyleme dönük bulgu ürettiyse Coder **tek** ek turda yalnız o bulguları workspace üzerinde düzeltir (`Fix loop started` / `Fix loop skipped` console event'leri); Ops Monitor en sonda çalışır
-- **Docker üretim kontratı**: Coder her backend projede `Dockerfile` + `docker-compose.yml` (service `app`, `${HOST_PORT:-18080}`, `/health`) üretir; Workspace runner bu kontratla ayağa kaldırır
+### Architecture
+- .NET 10 API + separate `OmniAgentConsole.Worker` process (task execution is independent of the API process; an API restart does not kill a running task)
+- PostgreSQL persistence and EF Core migrations
+- RabbitMQ task queue: **at-least-once delivery** with manual ack/nack — on host shutdown the message is NACK'd and requeued; when the worker comes back the task runs again; user cancel is ACK'd (verified with a live interrupt scenario)
+- **Poison-message protection**: if a redelivered message fails again with an unexpected error, the task is finalized as Failed + ACK — no infinite requeue loop (effective max 2 deliveries)
+- **Cross-process cancel**: cancel is published immediately to the worker over Redis `task-cancellations` and aborts the in-flight model HTTP call (verified live in <1s, 2026-07-20). DB status is written as `Cancelled` before the token fires so the worker classifies it as a user cancel (ACK); the Coder tool loop also re-checks DB status every iteration as belt-and-braces
+- API startup recovery runs only in **single-process mode** (no RabbitMQ) — with a separate worker, an API restart does not touch live Running tasks; dead runs are recovered via queue redelivery
+- SignalR realtime console stream; worker → API event flow over Redis pub/sub
+- Docker Compose for frontend, API, agent-worker, PostgreSQL, Redis, RabbitMQ, and Vault; optional OpenSearch profile
+- **Agentic tool loop (Coder)**: the Coder agent runs a Claude Code–style tool loop — the model calls `write_file` / `read_file` / `list_files` and builds the project file-by-file in short iterations (OpenAI-compatible function calling). Each tool call streams live to the console; each iteration is logged as its own model call for usage; for models that never call tools, markdown fence export remains the fallback
+- **Reviewer → Coder fix loop**: when the Reviewer produces actionable findings, the Coder gets **one** extra pass to fix only those findings on the workspace (`Fix loop started` / `Fix loop skipped` console events); Ops Monitor still runs last
+- **Docker production contract**: for every backend project the Coder emits `Dockerfile` + `docker-compose.yml` (service `app`, `${HOST_PORT:-18080}`, `/health`); the Workspace runner brings the stack up against that contract
 
-### Skill Library (proje konvansiyon paketleri)
-- 20 hazır skill: **Backend** (Node/Express/TS, Go, .NET, Java Spring Boot, Python FastAPI), **Frontend** (Angular, React, Flutter), **Data** (PostgreSQL + Migrations, ORM, MongoDB, Redis Caching, RabbitMQ Messaging), **Security** (JWT Authentication), **Quality** (Input Validation, Unit Tests, REST Conventions, Health Checks, README & Docs), **Packaging** (Dockerized Service)
-- Studio'da seçilen skill'ler o task'ta **tüm ajanların system prompt'una zorunlu konvansiyon olarak enjekte edilir**; chip'e tıklayınca ne işe yaradığı açıklanır
-- **Prompt'tan otomatik öneri**: yazarken (600ms debounce) prompt anahtar kelimelerle eşleştirilir, uyan skill'ler ✨ işaretiyle otomatik seçilir; istenmeyen chip tek tıkla düşürülür. Prompt belirsizse geri dönüş soruları gösterilir ("Hangi dil/framework?", "Hangi veritabanı?")
-- Skill'ler Settings → Skill Library'den yönetilir; her skill'in `keywords` alanı otomatik önerinin neye tetikleneceğini belirler (kendi skill'leriniz de önerilebilir olur)
+### Skill Library (project convention packs)
+- 20 built-in skills: **Backend** (Node/Express/TS, Go, .NET, Java Spring Boot, Python FastAPI), **Frontend** (Angular, React, Flutter), **Data** (PostgreSQL + Migrations, ORM, MongoDB, Redis Caching, RabbitMQ Messaging), **Security** (JWT Authentication), **Quality** (Input Validation, Unit Tests, REST Conventions, Health Checks, README & Docs), **Packaging** (Dockerized Service)
+- Skills selected in Studio are injected into **every agent's system prompt for that task as mandatory conventions**; click a chip to see what it does
+- **Auto-suggestion from the prompt**: while typing (600ms debounce) the prompt is matched against skill keywords; matching skills are auto-selected with a ✨ mark; dismiss an unwanted chip with one click. When the prompt is ambiguous, follow-up questions appear ("Which language/framework?", "Which database?")
+- Skills are managed under Settings → Skill Library; each skill's `keywords` field controls what triggers auto-suggestion (your custom skills become suggestable too)
 
-### Model yönetimi
-- Model Registry: modeller UI'dan eklenip çıkarılabilir; **"Sync from NVIDIA"** butonu provider'ın OpenAI-uyumlu `GET /v1/models` kataloğunu (build.nvidia.com'daki tüm API modelleri, ~119 adet) tek tıkla içeri aktarır
-- Agent başına max token limiti 200.000'e kadar ayarlanabilir (Agents ekranı)
-- **Fallback model zinciri**: her ajan için 2 yedek model tanımlanabilir (Agents ekranı); primary model timeout/rate-limit/404 gibi hatalar verirse zincirdeki sonraki model otomatik denenir (yalnız 401 auth hatasında denenmez — aynı key tüm zinciri etkiler), console'a "falling back" event'i düşer
+### Model management
+- Model Registry: add/remove models from the UI; the **"Sync from NVIDIA"** button imports the provider's OpenAI-compatible `GET /v1/models` catalog (all API models on build.nvidia.com, ~119) in one click
+- Per-agent max token limit is configurable up to 200,000 (Agents screen)
+- **Fallback model chain**: up to 2 fallback models per agent (Agents screen); if the primary hits timeout / rate-limit / 404 and similar errors, the next model in the chain is tried automatically (401 auth is the only exception — the same key would affect the whole chain); a "falling back" event is emitted to the console
 
-### Güvenlik
-- Console API Key middleware: `CONSOLE_API_KEY` set edilirse tüm API + SignalR erişimi key ister (X-Api-Key, Bearer veya SignalR için `access_token` query); karşılaştırma timing-safe. Set edilmezse local dev için anonim erişim
-- API Credentials Manager: sağlayıcı API key'leri UI'dan yönetilir; **API yanıtlarında raw key asla dönmez** (maskelenmiş önizleme + `apiKeyConfigured` bayrağı); update'te boş key mevcut key'i korur
-- Workspace path guard: tüm dosya okuma/yazma/silme işlemleri `/workspace` köküne kilitlidir — `..` traversal, kök dışı mutlak path, backslash hilesi ve symlink kaçışları reddedilir; model çıktısından gelen dosya adları da aynı korumadan geçer
-- Prompt/response redaction: `InputSanitizer` — NVIDIA/OpenAI/Anthropic (`sk-ant-`)/Google (`AIza`)/GitHub (`ghp_`, `github_pat_`)/Slack token'ları, JWT'ler, Bearer header'ları ve `PASSWORD=` / `JWT_SECRET=` / `"api_key": "..."` tarzı key=value atamaları maskelenir (yalnız değer; anahtar okunur kalır). Pattern-dışı serbest metin secret'ları teorik olarak kaçabilir — secret'ları prompt'a yazmayın
-- **Infra portları varsayılan loopback**: Postgres/Redis/RabbitMQ/Vault/OpenSearch host portları `127.0.0.1`'e bind edilir (`INFRA_BIND_ADDRESS` ile değiştirilebilir, bkz. `.env.example`) — düz metin credential taşıyan servisler yerel ağa açılmaz
+### Security
+- Console API Key middleware: when `CONSOLE_API_KEY` is set, all API + SignalR access requires the key (X-Api-Key, Bearer, or `access_token` query for SignalR); comparison is timing-safe. When unset, local dev stays anonymous
+- API Credentials Manager: provider API keys are managed from the UI; **raw keys never leave the API** (masked preview + `apiKeyConfigured` flag); an empty key on update keeps the stored key
+- Workspace path guard: every file read/write/delete is locked to the `/workspace` root — `..` traversal, absolute paths outside the root, backslash tricks, and symlink escapes are rejected; filenames coming from model output go through the same guard
+- Prompt/response redaction: `InputSanitizer` — NVIDIA/OpenAI/Anthropic (`sk-ant-`)/Google (`AIza`)/GitHub (`ghp_`, `github_pat_`)/Slack tokens, JWTs, Bearer headers, and `PASSWORD=` / `JWT_SECRET=` / `"api_key": "..."` style key=value assignments are masked (value only; the key name stays readable). Free-form secrets outside these patterns can theoretically slip through — do not put secrets in prompts
+- **Infra ports default to loopback**: Postgres/Redis/RabbitMQ/Vault/OpenSearch host ports bind to `127.0.0.1` (`INFRA_BIND_ADDRESS` overrides, see `.env.example`) — services that carry plaintext credentials are not exposed on the LAN
 
-### Studio ve çıktılar
-- Coder dosyaları **doğrudan workspace'e yazar** (tool loop, max 24 iterasyon / 50 dosya / dosya başına 1M karakter); tüm path'ler WorkspacePathGuard'dan geçer
-- Tool desteklemeyen modellerde fallback: markdown fence'li bloklar ve `// filepath:` işaretli akış eski yöntemle export edilir; dosya adı tespit edilemeyen bloklar `output/` alt klasörüne düşer
-- Workspace ekranı: üretilen dosyalar gezilir, okunur, silinir; klasör seçince **Project run** paneli — kopyalanabilir `docker compose up` komutu, **Start/Stop** (API → Docker socket), port ataması (`18000–18999`), `/health` linki
-- **Workspace test**: proje tipi `api` / `web` / `hybrid` otomatik; API için mini Postman (method/path/headers/body + SSRF-safe proxy), web için **Open in browser**; route chip'leri (`/health` + kaynak taraması veya `openapi.json`)
-- **Swagger / OpenAPI skill**: Studio skill kütüphanesinde; seçilince Coder Swagger UI (`/docs`) + `/openapi.json` + örnek request body üretir — Workspace tester chip'leri ve **Open Swagger** ile denenebilir
-- Task history, task detail, dashboard; usage tracking (model, token, latency, hata)
-- Agents ekranı: agent tanımları (model, system prompt, provider, credential bağlama, max token) UI'dan yönetilir
+### Studio and outputs
+- Coder writes files **directly into the workspace** (tool loop, max 24 iterations / 50 files / 1M chars per file); every path goes through WorkspacePathGuard
+- Fallback for models without tool support: fenced markdown blocks and `// filepath:`-annotated streams export the old way; blocks with no detectable filename land under `output/`
+- Workspace screen: browse, read, delete generated files; selecting a folder shows the **Project run** panel — copyable `docker compose up` command, **Start/Stop** (API → Docker socket), port assignment (`18000–18999`), `/health` link
+- **Workspace test**: project type is auto-detected as `api` / `web` / `hybrid`; mini Postman for APIs (method/path/headers/body + SSRF-safe proxy), **Open in browser** for web; route chips (`/health` + source scan or `openapi.json`)
+- **Swagger / OpenAPI skill**: in the Studio skill library; when selected, Coder emits Swagger UI (`/docs`) + `/openapi.json` + sample request bodies — try them via Workspace tester chips and **Open Swagger**
+- Task history, task detail, dashboard; usage tracking (model, tokens, latency, errors)
+- Agents screen: agent definitions (model, system prompt, provider, credential binding, max tokens) managed from the UI
 
-## Önerilen modeller (NVIDIA NIM free endpoint)
+## Recommended models (NVIDIA NIM free endpoint)
 
-Katalogdaki adaylar gerçek çağrılarla test edildi (gecikme + çıktı formatı, 2026-07-17). Ajan başına öneri:
+Catalog candidates were tested with real calls (latency + output format, 2026-07-17). Per-agent recommendations:
 
-| Agent | Önerilen model | Neden |
+| Agent | Recommended model | Why |
 |---|---|---|
-| **Coder** | `deepseek-ai/deepseek-v4-flash` | Function calling'i güvenilir; agentic tool loop'ta çok-dosyalı projeyi write_file çağrılarıyla kurduğu canlı testte doğrulandı (2026-07-20). |
-| **Planner** | `openai/gpt-oss-120b` | Planlama/akıl yürütmede güçlü, ~2.4s. Reasoning'i ayrı alanda döner, `content` temiz kalır. |
-| **Reviewer** | `openai/gpt-oss-120b` | Coder'dan **farklı model ailesi olması bilinçli tercih** — aynı modelin kör noktalarını paylaşmaz, çapraz kontrol değeri katar. |
-| **Research** | `nvidia/nemotron-3-super-120b-a12b` | NVIDIA'nın güncel agentic amiral modeli, ~2.6s; bağlam/kısıt çıkarma işine uygun. |
-| **Ops Monitor** | `meta/llama-3.1-8b-instruct` | Kısa operasyonel özet için 8B yeterli ve hızlı; büyük model burada token/gecikme israfı. Alternatif: `stepfun-ai/step-3.7-flash` (~2.1s). |
+| **Coder** | `deepseek-ai/deepseek-v4-flash` | Reliable function calling; verified live that it builds multi-file projects via `write_file` in the agentic tool loop (2026-07-20). |
+| **Planner** | `openai/gpt-oss-120b` | Strong at planning/reasoning, ~2.4s. Puts reasoning in a separate field so `content` stays clean. |
+| **Reviewer** | `openai/gpt-oss-120b` | Deliberately a **different model family than Coder** — does not share the same blind spots; adds cross-check value. |
+| **Research** | `nvidia/nemotron-3-super-120b-a12b` | NVIDIA's current agentic flagship, ~2.6s; good at extracting context/constraints. |
+| **Ops Monitor** | `meta/llama-3.1-8b-instruct` | 8B is enough and fast for short operational summaries; a large model here wastes tokens/latency. Alternative: `stepfun-ai/step-3.7-flash` (~2.1s). |
 
-**Kaçının** (test bulgusu):
-- `qwen/qwen3.5-122b-a10b` — katalogdan kaldırıldı, endpoint **410 Gone** dönüyor (2026-07-20'de tespit edildi; önceki sürümlerde Coder primary'siydi)
-- `moonshotai/kimi-k2.6`, `nvidia/nemotron-nano-3-30b-a3b` — katalogda listeleniyor ama endpoint **404** dönüyor (deploy edilmemiş)
-- `nvidia/llama-3.3-nemotron-super-49b-v1.5`, `nvidia/nvidia-nemotron-nano-9b-v2` — cevabı `reasoning` alanına yazıp `content`'i **boş bırakıyor**. Provider artık content boşsa `reasoning_content`/`reasoning` alanına düşüyor (2026-07-20), yani bu modeller kullanılabilir hale geldi — yine de canlı doğrulama yapılana kadar primary olarak önermiyoruz
-- `deepseek-ai/deepseek-v4-pro`, `z-ai/glm-5.2`, `mistralai/mistral-medium-3.5-128b` — free tier kuyruğunda 60–90s+ bekletiyor; 120s agent timeout'una sürekli dayanır
+**Avoid** (from testing):
+- `qwen/qwen3.5-122b-a10b` — removed from the catalog; endpoint returns **410 Gone** (found 2026-07-20; previously Coder primary)
+- `moonshotai/kimi-k2.6`, `nvidia/nemotron-nano-3-30b-a3b` — listed in the catalog but the endpoint returns **404** (not deployed)
+- `nvidia/llama-3.3-nemotron-super-49b-v1.5`, `nvidia/nvidia-nemotron-nano-9b-v2` — write the answer into the `reasoning` field and leave `content` **empty**. The provider now falls back to `reasoning_content`/`reasoning` when content is empty (2026-07-20), so these models became usable — still not recommended as primary until live-verified
+- `deepseek-ai/deepseek-v4-pro`, `z-ai/glm-5.2`, `mistralai/mistral-medium-3.5-128b` — free-tier queue waits of 60–90s+; regularly hit the 120s agent timeout
 
-Uygulanan zincirler (primary → fallback 1 → fallback 2):
+Applied chains (primary → fallback 1 → fallback 2):
 
 - Planner: `gpt-oss-120b` → `nemotron-3-super-120b-a12b` → `llama-3.1-8b-instruct`
 - Research: `nemotron-3-super-120b-a12b` → `step-3.7-flash` → `llama-3.1-8b-instruct`
@@ -72,87 +72,87 @@ Uygulanan zincirler (primary → fallback 1 → fallback 2):
 - Reviewer: `gpt-oss-120b` → `nemotron-3-super-120b-a12b` → `deepseek-v4-flash` (timeout 180s)
 - Ops Monitor: `llama-3.1-8b-instruct` → `step-3.7-flash` → `minimax-m3`
 
-Not: Gecikmeler free tier yoğunluğuna göre değişir; katalog güncellenir. "Sync from NVIDIA" sonrası yeni modelleri Agents ekranından deneyebilirsiniz.
+Note: Latencies vary with free-tier load; the catalog is updated over time. After "Sync from NVIDIA" you can try new models from the Agents screen.
 
-## Proje yapısı
+## Project structure
 
 ```text
 backend/src/OmniAgentConsole.Api             # REST API, SignalR hub, middleware, startup seed/sync
-backend/src/OmniAgentConsole.Application     # DTO'lar, guard'lar (WorkspacePathGuard), SkillSuggestionEngine, InputSanitizer
-backend/src/OmniAgentConsole.Domain          # Entity'ler ve enum'lar
+backend/src/OmniAgentConsole.Application     # DTOs, guards (WorkspacePathGuard), SkillSuggestionEngine, InputSanitizer
+backend/src/OmniAgentConsole.Domain          # Entities and enums
 backend/src/OmniAgentConsole.Infrastructure  # EF Core, RabbitMQ, Redis, Vault, provider, orchestrator
-backend/src/OmniAgentConsole.Worker          # Task execution süreci (queue consumer + orchestrator)
-backend/tests/OmniAgentConsole.UnitTests     # xUnit (guard, export, requeue, suggestion, sanitizer testleri)
+backend/src/OmniAgentConsole.Worker          # Task execution process (queue consumer + orchestrator)
+backend/tests/OmniAgentConsole.UnitTests     # xUnit (guard, export, requeue, suggestion, sanitizer tests)
 frontend                                     # Angular 21 studio
-workspace                                    # agent çıktı dosyaları (git'e girmez)
+workspace                                    # agent output files (not committed to git)
 ```
 
-## Gereksinimler
+## Requirements
 
 - Docker Desktop
 - .NET 10 SDK
-- Node.js 24 önerilir
+- Node.js 24 recommended
 
-Sadece Docker ile çalıştıracaksanız local .NET ve Node kurulumu zorunlu değildir.
+If you run everything with Docker only, local .NET and Node installs are not required.
 
-## Konfigürasyon
+## Configuration
 
 ```bash
 cp .env.example .env
 ```
 
-### OmniAgent (varsayılan provider) API key
+### OmniAgent (default provider) API key
 
-1. Uygulama açıldıktan sonra `Settings` ekranından key girin. Key HashiCorp Vault içine yazılır.
-2. Alternatif olarak `.env` dosyasına `OMNIAGENT_API_KEY=...` ekleyin. Vault dev mode resetlenirse backend bu env değerini fallback olarak kullanır.
+1. After the app is up, enter the key from the `Settings` screen. The key is written into HashiCorp Vault.
+2. Alternatively add `OMNIAGENT_API_KEY=...` to `.env`. If Vault dev mode is reset, the backend uses this env value as a fallback.
 
-### Diğer sağlayıcı key'leri
+### Other provider keys
 
-`Settings → API Credentials Manager` üzerinden eklenir (OpenAI, Anthropic, Gemini, Ollama, Custom/OpenAI-compatible). Key'ler PostgreSQL'de saklanır; API yanıtlarında yalnızca maskelenmiş önizleme döner. Bir credential "Default" işaretlenirse credential bağlanmamış agent'lar bu key'e düşer. Çağrılar OpenAI-compatible `/chat/completions` formatıyla yapılır; Anthropic native API şu an desteklenmez (Notlar'a bakın).
+Added via `Settings → API Credentials Manager` (OpenAI, Anthropic, Gemini, Ollama, Custom/OpenAI-compatible). Keys are stored in PostgreSQL; API responses only return a masked preview. If a credential is marked "Default", agents without a bound credential fall through to that key. Calls use the OpenAI-compatible `/chat/completions` format; Anthropic native API is not supported yet (see Notes).
 
 ### Console API Key
 
-`.env` içinde `CONSOLE_API_KEY=...` set edilirse backend tüm REST ve SignalR isteklerinde bu key'i ister; frontend `Settings` ekranındaki "Console API Key" alanına girilen değeri localStorage'da tutar ve isteklere ekler. Boş bırakılırsa (local dev varsayılanı) erişim anonimdir. Paylaşılan/production benzeri her ortamda set edilmelidir.
+If `CONSOLE_API_KEY=...` is set in `.env`, the backend requires this key on all REST and SignalR requests; the frontend keeps the value entered in the Settings "Console API Key" field in localStorage and attaches it to requests. Left empty (local-dev default), access is anonymous. Set it in every shared/production-like environment.
 
-Local Vault bilgileri:
+Local Vault details:
 
 - Address: `http://localhost:8201`
 - Token: `dev-root-token`
 - Secret path: `secret/data/providers/omniagent`
 - Secret reference: `secret/providers/omniagent#apiKey`
 
-Dev mode Vault production için uygun değildir.
+Dev-mode Vault is not suitable for production.
 
-## Deployment modelleri
+## Deployment models
 
-Aynı kod tabanı iki profili destekler; davranış ortam değişkeniyle seçilir:
+The same codebase supports two profiles; behavior is selected by environment variable:
 
-| Profil | Ne zaman | İzolasyon | Gereken |
+| Profile | When | Isolation | Required |
 |--------|----------|-----------|---------|
-| **Laptop-only** (varsayılan) | Her öğrenci/kullanıcı kendi makinesinde `docker compose up` | Gerekmez — tek kullanıcı | Hiçbir şey; bugünkü davranış |
-| **Shared-lab** (opt-in) | Tek sunucu, sınıf aynı URL'e bağlanır | Session + task ownership + `/workspace/sessions/{id}/` prefix | `SHARED_LAB=true` + `CONSOLE_API_KEY` |
+| **Laptop-only** (default) | Each student/user runs `docker compose up` on their own machine | Not needed — single user | Nothing; today's behavior |
+| **Shared-lab** (opt-in) | One server, class connects to the same URL | Session + task ownership + `/workspace/sessions/{id}/` prefix | `SHARED_LAB=true` + `CONSOLE_API_KEY` |
 
-- **Laptop-only**: flag kapalı, ekstra kimlik/oturum sürtünmesi yok. Infra portları zaten `127.0.0.1`'e bind'lidir.
-- **Shared-lab**: `SHARED_LAB=true` ile session header'ı zorunlu olur, task'lar oturum sahibine filtrelenir, workspace oturum köküne kilitlenir ve Settings/Credentials yazma uçları kilitlenir (eğitmen `CONSOLE_API_KEY` ile yönetir). Flag açıkken `CONSOLE_API_KEY` boşsa uygulama **fail-fast** ile açılmaz — anonim paylaşımlı kurulum kazara mümkün değildir.
+- **Laptop-only**: flag off, no extra identity/session friction. Infra ports already bind to `127.0.0.1`.
+- **Shared-lab**: with `SHARED_LAB=true` the session header is required, tasks are filtered by session owner, workspace is locked to the session root, and Settings/Credentials write endpoints are locked (instructor manages via `CONSOLE_API_KEY`). If the flag is on and `CONSOLE_API_KEY` is empty the app **fails fast** — anonymous shared deployment is not possible by mistake.
 
-> ✅ **Durum**: Shared-lab profili uygulandı ve canlı doğrulandı (2026-07-20): iki farklı oturum birbirinin task'ını göremez/iptal edemez (404), workspace `/workspace/sessions/{id}/` altına kilitlenir, öğrenci credential/agent/skill/settings yazamaz (403, skill auto-suggest açık), `SHARED_LAB=true` + boş `CONSOLE_API_KEY` kombinasyonunda uygulama açılmaz. Kullanım: `.env`'de `SHARED_LAB=true` ve `CONSOLE_API_KEY=<eğitmen-anahtarı>` set edip stack'i yeniden başlatın; eğitmen UI'da Settings → Console API Key alanına anahtarı girerek admin yetkisi kazanır.
+> ✅ **Status**: Shared-lab profile is implemented and live-verified (2026-07-20): two different sessions cannot see/cancel each other's tasks (404), workspace is locked under `/workspace/sessions/{id}/`, students cannot write credentials/agents/skills/settings (403, skill auto-suggest stays open), and `SHARED_LAB=true` + empty `CONSOLE_API_KEY` refuses to start. Usage: set `SHARED_LAB=true` and `CONSOLE_API_KEY=<instructor-key>` in `.env`, restart the stack; the instructor enters the key in Settings → Console API Key to gain admin rights.
 
-## Docker ile çalıştırma
+## Running with Docker
 
 ```bash
 docker compose up -d --build
 ```
 
-Compose proje adı `docker-compose.yml` içinde sabittir (`name: omni-agent-console`); container'lar `omni-agent-console-*` olarak adlandırılır. `agent-worker` servisi otomatik başlar; task'lar RabbitMQ üzerinden worker'a dağıtılır, console event'leri Redis pub/sub ile API'ye ve oradan SignalR ile arayüze akar.
+The Compose project name is pinned in `docker-compose.yml` (`name: omni-agent-console`); containers are named `omni-agent-console-*`. The `agent-worker` service starts automatically; tasks are dispatched to the worker over RabbitMQ, console events flow API-bound via Redis pub/sub and from there to the UI over SignalR.
 
-Servisler:
+Services:
 
 - Frontend: `http://localhost:4210`
 - Backend health: `http://localhost:5080/health`
 - RabbitMQ UI: `http://localhost:15673`
 - Vault API/UI: `http://localhost:8201`
 
-Log izleme / durum:
+Logs / status:
 
 ```bash
 docker compose logs -f backend-api agent-worker frontend
@@ -160,49 +160,49 @@ docker compose ps
 curl http://localhost:5080/health
 ```
 
-### Windows / Docker Desktop performans
+### Windows / Docker Desktop performance
 
-Mac’te sorun yokken Windows’ta PC’nin kilitlenmesi genelde **uygulama kodundan ziyade Docker Desktop + WSL2 + bind mount** kombinasyonundan kaynaklanır. Bu repoda ayrıca Studio’nun her 2 sn’de full task detail çekmesi ve workspace ağacının `node_modules` gibi klasörlere inmesi de CPU’yu şişiriyordu; bunlar hafifletildi (status endpoint, tree skip, kaynak limitleri).
+When Mac is fine but Windows locks up the PC, the usual cause is **Docker Desktop + WSL2 + bind mount**, not application code. This repo also used to over-poll: Studio pulled full task detail every 2s and the workspace tree walked into folders like `node_modules`, inflating CPU — those were mitigated (status endpoint, tree skip, resource limits).
 
-Windows kullanıcıları için pratik öneriler:
+Practical tips for Windows users:
 
-1. **Docker Desktop kaynakları**: Settings → Resources — RAM’i makinenin yarısından fazla vermeyin; CPU limitini makul tutun (ör. 4 CPU, 4–6 GB).
-2. **WSL2 + dosya sistemi**: repoyu mümkünse WSL dosya sistemine koyun (`~/projects/...`), Windows `C:\Users\...` altına değil. `./workspace` bind mount’u Windows NTFS üzerinden çok yavaş ve CPU’lu olur.
-3. **Kaynak limitleri**: `docker-compose.yml` servis başına soft limit tanımlar (`API_MEM_LIMIT`, `WORKER_MEM_LIMIT`, …). Task OOM olursa `.env` ile yükseltin.
-4. **Workspace runner**: tek tık `docker compose up` iç içe konteyner başlatır. Sınıf/laptop’ta gerekmiyorsa `.env` içinde `WORKSPACE_RUNNER_ENABLED=false` yapın.
-5. **Kullanılmayan stack’i kapatın**: `docker compose down` — RabbitMQ + Vault + Postgres + worker arka planda sürekli bellek yer.
-6. **Antivirus**: `workspace/`, Docker WSL distro ve `node_modules` klasörlerini gerçek zamanlı taramadan hariç tutun.
+1. **Docker Desktop resources**: Settings → Resources — do not give more than half of the machine's RAM; keep CPU limits reasonable (e.g. 4 CPU, 4–6 GB).
+2. **WSL2 + filesystem**: put the repo on the WSL filesystem when possible (`~/projects/...`), not under Windows `C:\Users\...`. The `./workspace` bind mount over Windows NTFS is very slow and CPU-heavy.
+3. **Resource limits**: `docker-compose.yml` defines soft limits per service (`API_MEM_LIMIT`, `WORKER_MEM_LIMIT`, …). Raise them via `.env` if a task OOMs.
+4. **Workspace runner**: one-click `docker compose up` starts nested containers. If you do not need it in class/on a laptop, set `WORKSPACE_RUNNER_ENABLED=false` in `.env`.
+5. **Stop unused stacks**: `docker compose down` — RabbitMQ + Vault + Postgres + worker otherwise keep eating memory in the background.
+6. **Antivirus**: exclude `workspace/`, the Docker WSL distro, and `node_modules` from real-time scanning.
 
-Opsiyonel OpenSearch:
+Optional OpenSearch:
 
 ```bash
 docker compose --profile observability up -d --build
 ```
 
-Docker profilinde task dispatch varsayılan olarak RabbitMQ kullanır; local backend'i RabbitMQ olmadan çalıştırmak için appsettings varsayılanı `InMemory` kalır.
+In the Docker profile, task dispatch defaults to RabbitMQ; to run a local backend without RabbitMQ, appsettings defaults remain `InMemory`.
 
-## Kullanım akışı
+## Usage flow
 
-1. `http://localhost:4210` adresini açın.
-2. `Settings` ekranında OmniAgent API key girin (ve/veya API Credentials Manager'dan sağlayıcı key'leri ekleyin); `Check Health` ile doğrulayın.
-3. İsteğe bağlı: `Settings → Model Registry → Sync from NVIDIA` ile tüm katalog modellerini içeri alın ve `Agents` ekranından ajan-model atamalarını yapın (yukarıdaki öneri tablosuna bakın).
-4. `Studio` ekranında çalışma dizinini seçin ve prompt'u yazın — uygun skill'ler otomatik önerilir; gerekirse chip'lerden elle ekleyip çıkarın.
+1. Open `http://localhost:4210`.
+2. On the `Settings` screen, enter the OmniAgent API key (and/or add provider keys via API Credentials Manager); verify with `Check Health`.
+3. Optional: `Settings → Model Registry → Sync from NVIDIA` to import the full catalog, then assign agent models on the `Agents` screen (see the recommendation table above).
+4. On the `Studio` screen pick a working directory and write the prompt — matching skills are suggested automatically; add/remove chips manually if needed.
 
-Örnek prompt:
+Sample prompt:
 
 ```text
-PostgreSQL veritabanından kullanıcı bilgilerini çeken ve sık sorgulanan verileri
-Redis üzerinde cache'leyen, yüksek performanslı bir Go REST API yaz. Redis
-bağlantısı için retry mekanizması ekle. Tüm yapıyı ayağa kaldıracak
-docker-compose dosyasını ve health check endpoint'ini de hazırla.
+Write a high-performance Go REST API that fetches user data from a PostgreSQL
+database and caches frequently queried data in Redis. Add a retry mechanism for
+the Redis connection. Also prepare a docker-compose file that brings the whole
+stack up and a health check endpoint.
 ```
 
-(Bu prompt Go REST API, Redis Caching, PostgreSQL + Migrations, Dockerized Service ve Health Checks skill'lerini otomatik seçtirir.)
+(This prompt auto-selects the Go REST API, Redis Caching, PostgreSQL + Migrations, Dockerized Service, and Health Checks skills.)
 
-5. `Run Task` ile başlatın; realtime console'da ajan adımlarını izleyin.
-6. Üretilen dosyaları `Workspace` ekranından, metrikleri `History` / `Task Detail` / `Dashboard` ekranlarından inceleyin.
+5. Start with `Run Task`; watch agent steps on the realtime console.
+6. Inspect generated files on the `Workspace` screen and metrics on `History` / `Task Detail` / `Dashboard`.
 
-## Local geliştirme
+## Local development
 
 Backend API:
 
@@ -210,7 +210,7 @@ Backend API:
 dotnet run --project backend/src/OmniAgentConsole.Api/OmniAgentConsole.Api.csproj
 ```
 
-Worker (task execution için gereklidir; API tek başına task çalıştırmaz):
+Worker (required for task execution; the API alone does not run tasks):
 
 ```bash
 dotnet run --project backend/src/OmniAgentConsole.Worker/OmniAgentConsole.Worker.csproj
@@ -233,16 +233,16 @@ cd frontend && npm test          # Vitest unit tests (27)
 cd frontend && npm run build
 ```
 
-## Notlar
+## Notes
 
-- Task execution ayrı worker process'indedir; worker restart'ında yarım kalan task'lar NACK/requeue ile otomatik yeniden koşar. API startup recovery'si yalnız tek-süreç modunda (RabbitMQ yokken) devrededir — ayrı worker topolojisinde API restart'ı canlı task'lara dokunmaz.
-- Prompt/response kayıtlarında `InputSanitizer` temel PII/secret maskeleme uygular; provider raw metadata henüz redact edilmeden saklanır.
-- Credentials API'si raw key döndürmez. Vault açıkken (Docker varsayılanı) provider key'leri `providers/credentials/{id}` secret path'inde saklanır; DB'de yalnız `ApiKeySecretPath` + `KeyLastFour` kalır (startup migrate mevcut düz metin key'leri taşır). Vault kapalı lab modunda legacy `ApiKey` kolonu kullanılır.
-- Multi-provider desteği OpenAI-compatible endpoint'lerle sınırlıdır (NVIDIA NIM, OpenAI, Gemini'nin OpenAI-compatible endpoint'i, Ollama, Custom). Anthropic native API şeması desteklenmez.
-- Provider, `content` boş geldiğinde `reasoning_content`/`reasoning` alanına düşer; reasoning-only modeller artık boş çıktı yerine kullanılabilir sonuç üretir.
-- Schema tamamen EF migration'lardadır (`InitialCreate` + `CredentialsSkillsAndFallbacks` + `SharedLabTaskOwnership` + `CredentialSecretRefs`); idempotent SQL yazılanlar hem sıfır hem yamalı DB'lere temiz uygulanır. Startup kodu veri seed + (Vault açıksa) credential plaintext→secret migrate yapar. Migration üretmek için: `dotnet tool restore && dotnet ef migrations add <Ad> --project backend/src/OmniAgentConsole.Infrastructure --startup-project backend/src/OmniAgentConsole.Api --output-dir Persistence/Migrations`
-- NVIDIA katalog senkronizasyonu context window bilgisi getirmez (`/v1/models` bu alanı sunmaz); kritik modeller için Settings'ten elle girilebilir.
+- Task execution lives in a separate worker process; tasks interrupted by a worker restart re-run automatically via NACK/requeue. API startup recovery only runs in single-process mode (no RabbitMQ) — with a separate-worker topology, an API restart does not touch live tasks.
+- Prompt/response records get basic PII/secret masking via `InputSanitizer`; provider raw metadata is still stored without redaction for now.
+- The Credentials API never returns raw keys. When Vault is available (Docker default), provider keys are stored at `providers/credentials/{id}`; the DB keeps only `ApiKeySecretPath` + `KeyLastFour` (startup migrate moves existing plaintext keys). In lab mode without Vault the legacy `ApiKey` column is used.
+- Multi-provider support is limited to OpenAI-compatible endpoints (NVIDIA NIM, OpenAI, Gemini's OpenAI-compatible endpoint, Ollama, Custom). Anthropic native API schema is not supported.
+- When `content` is empty the provider falls back to `reasoning_content`/`reasoning`; reasoning-only models now produce usable output instead of empty responses.
+- Schema lives entirely in EF migrations (`InitialCreate` + `CredentialsSkillsAndFallbacks` + `SharedLabTaskOwnership` + `CredentialSecretRefs`); idempotent SQL applies cleanly to both fresh and previously patched databases. Startup does data seed + (if Vault is open) credential plaintext→secret migrate. To generate a migration: `dotnet tool restore && dotnet ef migrations add <Name> --project backend/src/OmniAgentConsole.Infrastructure --startup-project backend/src/OmniAgentConsole.Api --output-dir Persistence/Migrations`
+- NVIDIA catalog sync does not return context-window info (`/v1/models` does not expose it); critical models can be entered manually in Settings.
 
-## Yol haritası
+## Roadmap
 
-Yol haritası ve kapanmış bulgu arşivi [docs/ROADMAP.md](docs/ROADMAP.md) dosyasındadır. Tamamlananlar: dual deployment / shared-lab, orchestrator refactor, frontend Vitest specs, credential Vault secret-ref, Reviewer→Coder fix loop.
+The roadmap and closed-findings archive live in [docs/ROADMAP.md](docs/ROADMAP.md). Completed items: dual deployment / shared-lab, orchestrator refactor, frontend Vitest specs, credential Vault secret-ref, Reviewer→Coder fix loop.
