@@ -224,3 +224,38 @@ Açık çekirdek sprint yok.
 7. **Git**: baseline `4fd390c`.
 8. **Docs**: agent.md §21 + §14–15 historical notları; README + in-app Docs senkron.
 9. **Agentic tool loop** (önceki oturum): Coder write_file/read_file/list_files araçlarıyla çok-turlu çalışır; sticky model; graceful finish; fence fallback; `output/` klasörü. Canlı E2E doğrulandı (6 dosya, deepseek→gpt-oss fallback dahil).
+
+---
+
+## 9. Agent Groups + moderated Panel (2026-08-12) — ✅ MVP
+
+**Ürün kararı**: Studio pipeline’dan bağımsız persona grupları + otomatik floor’lu tek tur panel.
+
+| Parça | Durum |
+|--------|--------|
+| Groups CRUD + Role/Stance/persona | ✅ |
+| Panel session GUID, SignalR stream, queue kind | ✅ |
+| Roster briefing + no invent guests | ✅ |
+| Deep links `/groups/{id}`, `/panel/{id}` | ✅ |
+| Key preflight + default credential / Settings dual-write | ✅ |
+| Vault 512M cold-start | ✅ |
+
+**Release notes**: [CHANGELOG.md](../CHANGELOG.md) § 2026-08-12 Panel.
+
+---
+
+## 10. Backlog — öncelikli task’lar (sırayla)
+
+| ID | Task | Kabul | Durum |
+|----|------|--------|--------|
+| **T1** | Vault/key dayanıklılığı: startup’ta `OMNIAGENT_API_KEY` env → Vault seed; Settings/API health banner | Restart sonrası key dolu env ile panel/studio açılır | 🔄 sıradaki |
+| **T2** | Birleşik History: task + panel session listesi, GUID link | `/history` her iki türü gösterir | ⏳ |
+| **T3** | Panel: 2. tur (N rounds) + kullanıcı mesajı (`continue`) | UI’dan rounds; bitince “user follow-up” ile ek tur | ⏳ |
+| **T4** | Panel transcript export (Markdown) | `GET …/transcript` + UI indir | ⏳ |
+| **T5** | Group clone + “Open in Panel” | Clone API/UI; Groups’tan Panel’e deep link | ⏳ |
+| T6 | LLM moderatör / manuel floor | Opsiyonel | 🔮 |
+| T7 | Studio pipeline picker | Opsiyonel | 🔮 |
+| T8 | Shared-lab öğrenci shell sadeleştirme | Opsiyonel | 🔮 |
+| T9 | TTS / sesli panel | Future | 🔮 |
+
+Güncelleme kuralı: her task bitince bu tablo + CHANGELOG + kısa README notu; **push yok** (local commits).

@@ -4,6 +4,8 @@ Web-based, terminal-feel multi-agent studio. Backend is .NET 10, frontend is Ang
 
 You enter a prompt; the agent chain Planner → Research → Coder → Reviewer → (optional single Coder **fix loop**) → Ops Monitor runs, generated code files are written into the `workspace/` folder with a real project structure, and the full flow is watched on a realtime console.
 
+A second product surface — **Groups + Panel** — runs moderated multi-persona discussions (moderator + commentators with For/Against stances), independent of the coding pipeline. See [CHANGELOG.md](CHANGELOG.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
+
 ## Current scope
 
 ### Architecture
@@ -45,6 +47,24 @@ You enter a prompt; the agent chain Planner → Research → Coder → Reviewer 
 - **Swagger / OpenAPI skill**: in the Studio skill library; when selected, Coder emits Swagger UI (`/docs`) + `/openapi.json` + sample request bodies — try them via Workspace tester chips and **Open Swagger**
 - Task history, task detail, dashboard; usage tracking (model, tokens, latency, errors)
 - Agents screen: agent definitions (model, system prompt, provider, credential binding, max tokens) managed from the UI
+
+### Agent Groups & moderated Panel (2026-08-12)
+- **Groups** (`/groups`, `/groups/{guid}`): create a cast of speakers. Each member has:
+  - **Role**: `Moderator` (opens, introduces roster) or `Commentator` (debates)
+  - **Stance**: `Neutral` | `For` | `Against` | `Custom` + optional stance label (thesis)
+  - **Persona** system prompt, model chain, timeout (~1 minute speaking budget)
+- **Panel** (`/panel`, `/panel/{sessionGuid}`): pick a group, set a topic/title → **Start**. Every session is persisted with its own GUID (bookmarkable).
+- Runtime: worker runs a single round in roster order (moderators first). Before speech, a **roster briefing** is written to the stream (who is on stage, missions, stances). Models are instructed not to invent guests and to map stances onto the *actual* topic when labels were written for another debate.
+- Fail-forward: a failed guest does not abort the whole panel; remaining speakers still get the floor.
+- Credentials: panel turns use the member credential or the **default OmniAgent/NVIDIA** credential; Settings key save dual-writes Vault paths used after a Vault **dev-mode** restart.
+- Shared-lab: group config writes are instructor-only; panel create/start stays session-scoped like tasks.
+
+```bash
+# Example flow after stack is up and Settings → OmniAgent API key is saved:
+# 1) Open http://localhost:4210/groups  → define speakers
+# 2) Open http://localhost:4210/panel   → Start with a topic
+# 3) Reopen via http://localhost:4210/panel/{session-guid}
+```
 
 ## Recommended models (NVIDIA NIM free endpoint)
 
@@ -245,4 +265,7 @@ cd frontend && npm run build
 
 ## Roadmap
 
-The roadmap and closed-findings archive live in [docs/ROADMAP.md](docs/ROADMAP.md). Completed items: dual deployment / shared-lab, orchestrator refactor, frontend Vitest specs, credential Vault secret-ref, Reviewer→Coder fix loop.
+The roadmap, backlog, and closed-findings archive live in [docs/ROADMAP.md](docs/ROADMAP.md).  
+Release notes: [CHANGELOG.md](CHANGELOG.md).
+
+Completed (highlights): dual deployment / shared-lab, orchestrator refactor, frontend Vitest, credential Vault secret-ref, Reviewer→Coder fix loop, **Agent Groups + moderated Panel MVP (2026-08-12)**.
