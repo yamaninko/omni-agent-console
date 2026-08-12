@@ -93,6 +93,32 @@
         </a>
       </div>
     </nav>
+
+    <div class="theme-bar" [class.collapsed]="collapsed()">
+      @if (!collapsed()) {
+        <div class="theme-label">
+          <lucide-icon [img]="icons.palette" size="14"></lucide-icon>
+          <span>Theme</span>
+        </div>
+      }
+      <div class="theme-swatches" role="group" aria-label="Color theme">
+        @for (opt of themeOptions; track opt.id) {
+          <button
+            type="button"
+            class="theme-swatch"
+            [class.active]="theme() === opt.id"
+            [style.--swatch]="opt.swatch"
+            [title]="opt.label"
+            [attr.aria-label]="opt.label"
+            (click)="setTheme(opt.id)"
+          >
+            @if (!collapsed()) {
+              <span>{{ opt.label }}</span>
+            }
+          </button>
+        }
+      </div>
+    </div>
   </aside>
 
   <main class="content">

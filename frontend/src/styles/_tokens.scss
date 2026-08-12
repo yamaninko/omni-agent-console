@@ -1,24 +1,92 @@
-// Shared design tokens — dark “terminal / NIM” theme (not a full rebrand).
-:root {
+// Theme tokens: dark (default) · blue · white (light)
+// Applied via <html data-theme="dark|blue|white">
+
+:root,
+html[data-theme='dark'] {
+  color-scheme: dark;
   --oa-bg: #070b10;
   --oa-bg-elevated: #0b1118;
   --oa-bg-panel: #0f1620;
   --oa-bg-sidebar: #0a0f16;
+  --oa-bg-chat: #080d13;
   --oa-border: #1b2a38;
   --oa-border-strong: #243447;
-  --oa-text: #e6edf3;
+  --oa-text: #e8eef5;
   --oa-text-muted: #8ba2b7;
   --oa-text-dim: #7f8fa3;
+  --oa-text-inverse: #0b1118;
   --oa-accent: #76b900;
-  --oa-accent-soft: rgba(118, 185, 0, 0.12);
-  --oa-accent-border: rgba(118, 185, 0, 0.28);
+  --oa-accent-soft: rgba(118, 185, 0, 0.14);
+  --oa-accent-border: rgba(118, 185, 0, 0.32);
   --oa-info: #6db3ff;
-  --oa-info-soft: rgba(64, 156, 255, 0.12);
-  --oa-info-border: rgba(64, 156, 255, 0.3);
+  --oa-info-soft: rgba(64, 156, 255, 0.14);
+  --oa-info-border: rgba(64, 156, 255, 0.32);
   --oa-danger: #ff6b63;
   --oa-danger-soft: rgba(255, 59, 48, 0.12);
-  --oa-danger-border: rgba(255, 59, 48, 0.3);
+  --oa-danger-border: rgba(255, 59, 48, 0.32);
+  --oa-bubble-agent: #121a24;
+  --oa-bubble-user: rgba(118, 185, 0, 0.14);
+  --oa-bubble-briefing: rgba(64, 156, 255, 0.1);
+  --oa-shadow: 0 1px 0 rgba(255, 255, 255, 0.03);
   --oa-radius: 8px;
   --oa-radius-sm: 6px;
   --oa-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --oa-chat-line: 1.65;
+  --oa-chat-size: 14.5px;
+}
+
+html[data-theme='blue'] {
+  color-scheme: dark;
+  --oa-bg: #0a1224;
+  --oa-bg-elevated: #0f1a30;
+  --oa-bg-panel: #152240;
+  --oa-bg-sidebar: #0c1528;
+  --oa-bg-chat: #0b1426;
+  --oa-border: #243a5c;
+  --oa-border-strong: #2f4a72;
+  --oa-text: #e8f0ff;
+  --oa-text-muted: #9bb0d0;
+  --oa-text-dim: #8499bc;
+  --oa-text-inverse: #0a1224;
+  --oa-accent: #3d8bfd;
+  --oa-accent-soft: rgba(61, 139, 253, 0.18);
+  --oa-accent-border: rgba(61, 139, 253, 0.4);
+  --oa-info: #7ec8ff;
+  --oa-info-soft: rgba(126, 200, 255, 0.14);
+  --oa-info-border: rgba(126, 200, 255, 0.35);
+  --oa-danger: #ff7b74;
+  --oa-danger-soft: rgba(255, 100, 90, 0.14);
+  --oa-danger-border: rgba(255, 100, 90, 0.35);
+  --oa-bubble-agent: #162844;
+  --oa-bubble-user: rgba(61, 139, 253, 0.18);
+  --oa-bubble-briefing: rgba(126, 200, 255, 0.1);
+  --oa-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+html[data-theme='white'] {
+  color-scheme: light;
+  --oa-bg: #f4f6f9;
+  --oa-bg-elevated: #ffffff;
+  --oa-bg-panel: #f8fafc;
+  --oa-bg-sidebar: #eef2f7;
+  --oa-bg-chat: #ffffff;
+  --oa-border: #d5dee8;
+  --oa-border-strong: #c0ccd9;
+  --oa-text: #15202b;
+  --oa-text-muted: #5a6b7d;
+  --oa-text-dim: #6b7c8f;
+  --oa-text-inverse: #ffffff;
+  --oa-accent: #5a9600;
+  --oa-accent-soft: rgba(90, 150, 0, 0.12);
+  --oa-accent-border: rgba(90, 150, 0, 0.35);
+  --oa-info: #1a6fd4;
+  --oa-info-soft: rgba(26, 111, 212, 0.1);
+  --oa-info-border: rgba(26, 111, 212, 0.28);
+  --oa-danger: #c62828;
+  --oa-danger-soft: rgba(198, 40, 40, 0.1);
+  --oa-danger-border: rgba(198, 40, 40, 0.28);
+  --oa-bubble-agent: #f0f4f8;
+  --oa-bubble-user: rgba(90, 150, 0, 0.12);
+  --oa-bubble-briefing: rgba(26, 111, 212, 0.08);
+  --oa-shadow: 0 1px 2px rgba(15, 30, 50, 0.06);
 }

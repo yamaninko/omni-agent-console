@@ -23,6 +23,7 @@ Versions are date-based until a formal semver release.
 - **T4** Panel Markdown transcript export (`GET /panels/{id}/transcript` + Export .md).
 - **T5** Group clone API/UI + “Open in Panel” deep link (`?groupId=`).
 - **UI polish** Nav grouped into Build / Debate / Ops; shared design tokens + `.oa-*` kit (no full rebrand).
+- **Themes** Dark / Blue / White switcher (sidebar, `localStorage`); Panel chat typography (line-height, spacing, bubble contrast).
 
 ---
 
