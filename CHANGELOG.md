@@ -1,117 +1,101 @@
 # Changelog
 
-All notable changes to OmniAgent Console are documented here.
+All notable changes to **OmniAgent Console** are documented here.
 
-Format roughly follows [Keep a Changelog](https://keepachangelog.com/).  
-Versions are date-based until a formal semver release.
+Format follows [Keep a Changelog](https://keepachangelog.com/).  
+Versions use date-based tags until formal semver; GitHub release **v0.1.0** marks the first public milestone.
 
 ---
 
 ## [Unreleased]
 
-### Planned (see [docs/ROADMAP.md](docs/ROADMAP.md) § Panel backlog)
+### Planned
 
-- Deeper i18n (page bodies) / richer STT languages
-- Playwright against hosted preview URL (`vars.E2E_BASE_URL`)
-
-### Done on this branch (post-MVP, local commits)
-
-- **F1** Studio / History / Settings **i18n** headers + key labels
-- **F2** Panel STT **language chips** (EN/TR/DE/FR/ES)
-- **F3** `make smoke-e2e` helper for Playwright
-- **E1** Home/Panel/Groups **i18n** surface strings + STT lang from locale
-- **E2** Student **quota card** on Home (`settings.quota` when shared-lab student)
-- **D1** Group **IsTemplate** + student-safe **clone** (shared-lab `/clone` open)
-- **D2** Panel **browser STT** (Web Speech) for inject / follow-up
-- **D3** Shell **EN/TR** i18n toggle (nav labels)
-- **D4** Coder **run_terminal** whitelist sandbox (pytest/npm/dotnet/go/ruff/tsc)
-- **C1** Studio **demo preset chips** + **maxCostUsd** soft budget
-- **C2** Panel **audience inject** mid-run (`POST …/inject`)
-- **N1** Instructor **live sessions** list on Dashboard (tasks + panels, session id, cost)
-- **N1b** Dashboard **Cancel** on live task/panel rows
-- **N2** Playwright **smoke** suite (`frontend/e2e`, optional workflow) + `scripts/set-github-about.sh`
-- **N3** Annotated tag **v0.1.0** (release notes already in `docs/RELEASE_NOTES_v0.1.0.md`)
-- **N4** Real **LLM floor order** when `PANEL_FLOOR_MODE=llm` (moderator model returns JSON name order; heuristic fallback)
-- **N5** `docs/PUBLISH_CHECKLIST.md` for About/Topics/blog
-- **W1** SEO assets, SECURITY/CONTRIBUTING, release notes, blog draft, CI unit tests, good-first-issue template
-- **W2** Demo seed (`POST /api/demo/seed-debate`), Studio presets, panel scorecard, workspace smoke, export ZIP
-- **W3** Student home banner, dashboard cost + live counts, shared-lab quotas, panel ZIP hand-in
-- **W4** Panel floor mode (`Panel:FloorMode` / `PANEL_FLOOR_MODE` = fixed|llm), queue fairness (panel priority)
-- **SEO1** README landing (value prop, Features, Quick start, Use cases, TR özet) + MIT `LICENSE` + `docs/GITHUB_SEO.md`
-- **F1** Panel **audience vote** (“Who convinced you?”) — `POST /api/panels/{id}/vote`, `VotesJson` jsonb + tallies on detail.
-- **F2** Groups **template gallery** — one-click 3-for/1-against and 2v2 cast presets.
-- **F3** Studio **pipeline picker** — `full` | `coder` | `plan-code-review` via `InputContextJson.pipeline` + `TaskPipelinePolicy`.
-- **F4** Task **est. cost** card on detail + cost column on History (sum of model call estimates).
-- **F5** Shared-lab **student nav shell** — settings exposes `sharedLabEnabled` / `isAdmin`; students hide Agents / Dashboard / Settings.
-
-- **T1** Vault/key bootstrap from `OMNIAGENT_API_KEY` on API startup; Panel banner when key missing.
-- **T2** Unified History page: Studio tasks + panel sessions with GUID deep links.
-- **T3** Panel multi-round (1–3) + user follow-up `POST /continue` (extra roster pass).
-- **T4** Panel Markdown transcript export (`GET /panels/{id}/transcript` + Export .md).
-- **T5** Group clone API/UI + “Open in Panel” deep link (`?groupId=`).
-- **UI polish** Nav grouped into Build / Debate / Ops; shared design tokens + `.oa-*` kit (no full rebrand).
-- **Themes** Dark / Blue / White switcher (sidebar, `localStorage`); Panel chat typography (line-height, spacing, bubble contrast).
-- **P1** Panel stream **Conversation / All events** filter (hides model noise by default).
-- **P2** Durable secret mirror: `./data/secrets` volume + `FileSecretStore` behind Vault (survives `-dev` wipe).
-- **P3** Panel **sample topic chips** (group-aware: Anunnaki / remote / default).
-- **P4** **Home** page: quick links, recent activity, first-run checklist (default route).
-- **N1** Panel **auto-scroll** + **is speaking…** bar (floor timer); poll refreshes events mid-run.
-- **N2** Home **API key badge** (configured / not + masked preview when available).
-- **N3** `scripts/smoke-panel.sh` live smoke (group → panel → ≥1 completed turn).
-- **N4** In-app Docs: **Moderated Panel (Debate)** how-to section.
-- **D1** Floor **progress bar** on speaking bar (ticks every second).
-- **D2** **Delete panel** session (`DELETE /api/panels/{id}` + UI).
-- **D3** `make smoke` / `make smoke-long` helpers.
-- **D4** Angular component style budget raised (12kB/20kB) to clear kit warnings.
-- **D5** `docs/PR_BODY.md` for local PR/push readiness (still no push).
-- **E1** Panel **queue/worker-busy** hint while Pending.
-- **E2** Browser **TTS Read** on speeches (+ Stop TTS).
-- **E3** Roster briefing **collapsed by default** (Expand/Collapse).
-- **E4** **Clear finished** bulk delete (`POST /api/panels/bulk-delete`).
+- Hosted Playwright via GitHub `vars.E2E_BASE_URL`
+- Full in-app Docs body translation (tabs already i18n)
+- GitHub About/Topics (requires PAT with metadata scope; see `docs/GITHUB_SEO.md`)
 
 ---
 
-## [2026-08-12] — Moderated Panel & Agent Groups
+## [0.2.0] — 2026-08-13
+
+Product surface after the panel MVP: demos, lab UX, i18n, sandbox tools, SEO packaging.
 
 ### Added
 
-- **Agent Groups** (`/groups`, `/groups/{guid}`): named collections of panel personas independent of Studio pipeline `AgentDefinition`s.
-- **Panel personas** with **Role** (`Moderator` | `Commentator`), **Stance** (`Neutral` | `For` | `Against` | `Custom`), optional **stance label**, model/fallback/timeout, and system prompt (who they are).
-- **Moderated Panel** (`/panel`, `/panel/{sessionGuid}`): user topic → automatic floor order (moderators first) → single-round speeches (~60s generation budget) → SignalR live stream.
-- **Roster briefing** before anyone speaks: console card lists each speaker’s job, persona blurb, and stance so models do not invent co-panelists.
-- **Queue kind** `panel-session` on the shared RabbitMQ / in-memory work queue (worker dispatches Studio tasks vs panel sessions).
-- EF migrations: `AgentGroupsAndPanelSessions`, `PanelMemberRoleAndStance`.
-- Deep links and GUID display for groups, panels, and task history IDs.
-- Settings: saving OmniAgent API key also re-seeds the default NVIDIA credential Vault path (survives partial key loss after Vault wipe).
-- Panel start preflight: clear 400 if no provider API key is configured.
-- Credential resolution fallback: empty per-credential Vault path → `providers/omniagent` / `OMNIAGENT_API_KEY`.
+#### Studio
+- Pipeline picker: `full` | `coder` | `plan-code-review` (`TaskPipelinePolicy`)
+- Demo presets (FastAPI / .NET / Angular) + Home sample Studio links
+- Soft cost budget `maxCostUsd` (stop remaining agents when spent)
+- Coder tool **`run_terminal`** (whitelist: pytest, npm test, dotnet test, go test, ruff, tsc)
+- Workspace smoke summary after task complete (file count / compose / README)
+
+#### Panel & Groups
+- Audience vote (“Who convinced you?”) + tallies
+- Audience **inject** mid-run (`POST /api/panels/{id}/inject`)
+- Score card on complete + **export ZIP** (transcript + meta + scorecard)
+- LLM floor order (`PANEL_FLOOR_MODE=llm`) with heuristic fallback
+- Group **IsTemplate** (instructor library; students **clone**)
+- Cast template gallery (3-for/1-against, 2v2)
+- Browser **STT** mic + language chips (EN/TR/DE/FR/ES); TTS Read (prior)
+- Multi-round, continue, transcript MD, delete / bulk-delete, floor bar, queue hint
+
+#### Shared lab & ops
+- Student nav shell (`sharedLabEnabled` / `isAdmin`)
+- Student **quota card** on Home (concurrent / daily tasks / tokens)
+- Session quotas on task create
+- Dashboard: estimated cost, live session counts, **live list + Cancel**
+- Panel-first queue fairness (in-memory dual channel)
+
+#### Platform & docs
+- Home demo seed (`POST /api/demo/seed-debate`)
+- EN/TR shell + page headers (Home, Studio, Panel, Groups, History, Settings, Dashboard, Workspace, Agents, Docs)
+- Playwright smoke suite + `make smoke-e2e` (system Chrome)
+- CI: backend tests + frontend unit tests
+- MIT LICENSE, SECURITY.md, CONTRIBUTING.md, `docs/RELEASE_NOTES_v0.1.0.md`, `docs/GITHUB_SEO.md`, `docs/PUBLISH_CHECKLIST.md`, blog draft
+- README landing (features table, quick start, use cases, screenshots)
+
+### Changed
+
+- README and CHANGELOG reorganized for public consumption (this release)
+
+---
+
+## [0.1.0] — 2026-08-12
+
+First public milestone tag: [v0.1.0](https://github.com/yamaninko/omni-agent-console/releases/tag/v0.1.0).
+
+### Added
+
+- **Agent Groups** + **Moderated Panel** (roles, stances, roster briefing, SignalR, GUID deep links)
+- Unified **History** (Studio tasks + panels)
+- Panel multi-round + user **continue**
+- Transcript export, group clone, Open in Panel
+- Themes (dark / blue / white), Build/Debate/Ops nav, Home page
+- Vault/key bootstrap from `OMNIAGENT_API_KEY`, durable secret mirror
+- Smoke scripts (`make smoke`)
 
 ### Fixed
 
-- Vault **256M** OOM (exit 137) on cold start → default **512M** (`VAULT_MEM_LIMIT`).
-- Panel turns without `ApiCredentialId` ignored the default NIM credential and reported `API key is not configured` even when Studio credentials existed.
-
-### Changed
-
-- Docker Compose vault memory limit; shared-lab admin-gates `/api/agent-groups` writes.
-- Nav: **Groups**, **Panel**.
-
-### Docs
-
-- README: Groups & Panel section.
-- This changelog.
-- ROADMAP: completed panel MVP + prioritized backlog (T1–T5 and later).
+- Vault OOM cold-start (512M default)
+- Panel credential resolution when member has no `ApiCredentialId`
 
 ---
 
-## [2026-08-12] — README English
+## [2026-07] — Core studio stack
 
-### Changed
+Baseline multi-agent coding console (summarized; detail in [AGENT.md](AGENT.md) and [docs/ROADMAP.md](docs/ROADMAP.md)):
 
-- Full README translation from Turkish to English (setup, architecture, model chains preserved).
+- Planner → Research → Coder (tool loop) → Reviewer → Ops; optional fix loop
+- RabbitMQ at-least-once, Redis cancel/console, shared-lab dual profile
+- Skill library + auto-suggest, model catalog sync, fallback chains
+- Workspace path guard, Vault secret-refs, Angular Vitest
 
 ---
 
-## Earlier (2026-07)
+## Links
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) and [AGENT.md](AGENT.md) for dual deployment, orchestrator refactor, tool loop, Vault secret-refs, frontend Vitest, Reviewer fix loop, and related work.
+- [README](README.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Publish checklist](docs/PUBLISH_CHECKLIST.md)
+- [GitHub releases](https://github.com/yamaninko/omni-agent-console/releases)
