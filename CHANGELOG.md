@@ -11,9 +11,28 @@ Versions use date-based tags until formal semver; GitHub release **v0.1.0** mark
 
 ### Planned
 
-- Hosted Playwright via GitHub `vars.E2E_BASE_URL`
-- Full in-app Docs body translation (tabs already i18n)
-- GitHub About/Topics (requires PAT with metadata scope; see `docs/GITHUB_SEO.md`)
+- Hosted Playwright via GitHub `vars.E2E_BASE_URL` (public UI URL required)
+- Full in-app Docs body translation (headers already i18n)
+- GitHub About **Website** field (blog URL when published; PAT may lack metadata scope)
+
+---
+
+## [0.2.1] — 2026-08-13
+
+### Added
+
+- Dependabot weekly updates (GitHub Actions, frontend npm, backend NuGet)
+- Good first issues for Studio i18n leftovers and Panel floor docs
+- Browser agent playbook for About/Topics, E2E var, blog publish
+
+### Fixed
+
+- README stack line rendered as a broken markdown table
+
+### Docs
+
+- README restructure; CHANGELOG Keep a Changelog layout for 0.2.0 / 0.1.0
+- i18n headers for Dashboard, Workspace, Agents, Docs
 
 ---
 
