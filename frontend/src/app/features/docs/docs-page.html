@@ -1,15 +1,15 @@
 <div class="page">
-  <p class="section-tag">Documentation & Reference</p>
-  <h1>Console Guides & Architecture</h1>
+  <p class="section-tag">{{ t('docs.tag') }}</p>
+  <h1>{{ t('docs.title') }}</h1>
 
   <div class="tabs">
     <button (click)="activeTab.set('user')" [class.active]="activeTab() === 'user'">
       <lucide-icon [img]="icons.book" size="16" style="margin-right: 6px;"></lucide-icon>
-      User Guide
+      {{ t('docs.user') }}
     </button>
     <button (click)="activeTab.set('tech')" [class.active]="activeTab() === 'tech'">
       <lucide-icon [img]="icons.cpu" size="16" style="margin-right: 6px;"></lucide-icon>
-      Architecture & Tech
+      {{ t('docs.tech') }}
     </button>
   </div>
 

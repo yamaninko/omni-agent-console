@@ -1,12 +1,12 @@
 <section class="agents-page">
   <header class="page-header">
     <div>
-      <p class="eyebrow">Studio Configuration</p>
-      <h1>Agents Registry</h1>
+      <p class="eyebrow">{{ t('agents.eyebrow') }}</p>
+      <h1>{{ t('agents.title') }}</h1>
     </div>
     <button class="primary-btn" (click)="startCreation()" [disabled]="saving() || deleting()">
       <lucide-icon [img]="icons.plus" size="16"></lucide-icon>
-      Create New Agent
+      {{ t('agents.create') }}
     </button>
   </header>
 

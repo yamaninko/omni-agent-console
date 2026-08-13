@@ -105,7 +105,27 @@ const DICT: Record<AppLocale, Record<string, string>> = {
     'settings.health': 'Provider health',
     'settings.notChecked': 'Not checked',
     'settings.checkApi': 'Check API',
-    'settings.checking': 'Checking'
+    'settings.checking': 'Checking',
+
+    'dash.eyebrow': 'Dashboard',
+    'dash.title': 'Usage overview',
+    'dash.refresh': 'Refresh',
+    'dash.live': 'Live sessions',
+    'dash.recent': 'Recent tasks',
+    'dash.cancel': 'Cancel',
+
+    'ws.explorer': 'Workspace explorer',
+    'ws.loading': 'Loading workspace…',
+    'ws.refresh': 'Refresh files',
+
+    'agents.eyebrow': 'Studio configuration',
+    'agents.title': 'Agents registry',
+    'agents.create': 'Create new agent',
+
+    'docs.tag': 'Documentation & reference',
+    'docs.title': 'Console guides & architecture',
+    'docs.user': 'User guide',
+    'docs.tech': 'Architecture & tech'
   },
   tr: {
     'nav.home': 'Ana sayfa',
@@ -209,7 +229,27 @@ const DICT: Record<AppLocale, Record<string, string>> = {
     'settings.health': 'Sağlayıcı sağlığı',
     'settings.notChecked': 'Kontrol edilmedi',
     'settings.checkApi': 'API kontrol',
-    'settings.checking': 'Kontrol ediliyor'
+    'settings.checking': 'Kontrol ediliyor',
+
+    'dash.eyebrow': 'Pano',
+    'dash.title': 'Kullanım özeti',
+    'dash.refresh': 'Yenile',
+    'dash.live': 'Canlı oturumlar',
+    'dash.recent': 'Son görevler',
+    'dash.cancel': 'İptal',
+
+    'ws.explorer': 'Çalışma alanı gezgini',
+    'ws.loading': 'Çalışma alanı yükleniyor…',
+    'ws.refresh': 'Dosyaları yenile',
+
+    'agents.eyebrow': 'Stüdyo yapılandırması',
+    'agents.title': 'Ajan kaydı',
+    'agents.create': 'Yeni ajan oluştur',
+
+    'docs.tag': 'Dokümantasyon ve referans',
+    'docs.title': 'Konsol rehberleri ve mimari',
+    'docs.user': 'Kullanıcı rehberi',
+    'docs.tech': 'Mimari ve teknik'
   }
 };
 

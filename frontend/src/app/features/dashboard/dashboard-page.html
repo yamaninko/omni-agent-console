@@ -1,10 +1,10 @@
 <section class="page">
   <header class="page-header">
     <div>
-      <p>Dashboard</p>
-      <h1>Usage overview</h1>
+      <p>{{ t('dash.eyebrow') }}</p>
+      <h1>{{ t('dash.title') }}</h1>
     </div>
-    <button type="button" (click)="loadOverview()" [disabled]="loading()">Refresh</button>
+    <button type="button" (click)="loadOverview()" [disabled]="loading()">{{ t('dash.refresh') }}</button>
   </header>
 
   @if (actionError()) {
@@ -113,8 +113,8 @@
 
     <section class="panel recent">
       <div class="panel-title">
-        <span>Live sessions</span>
-        <code>{{ (data.liveSessions ?? []).length }} active</code>
+        <span>{{ t('dash.live') }}</span>
+        <code>{{ (data.liveSessions ?? []).length }}</code>
       </div>
       @for (row of data.liveSessions ?? []; track row.kind + row.id) {
         <div class="task-row live-row">
@@ -141,7 +141,7 @@
             (click)="cancelLive(row.kind, row.id, $event)"
             title="Cancel"
           >
-            {{ cancellingId() === row.id ? '…' : 'Cancel' }}
+            {{ cancellingId() === row.id ? '…' : t('dash.cancel') }}
           </button>
         </div>
       } @empty {
@@ -151,8 +151,8 @@
 
     <section class="panel recent">
       <div class="panel-title">
-        <span>Recent tasks</span>
-        <code>{{ data.completedTasks }} completed · {{ data.failedTasks }} failed</code>
+        <span>{{ t('dash.recent') }}</span>
+        <code>{{ data.completedTasks }} · {{ data.failedTasks }}</code>
       </div>
       @for (task of data.recentTasks; track task.id) {
         <a class="task-row" [routerLink]="['/tasks', task.id]">

@@ -2,6 +2,7 @@ import { DatePipe } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TaskApiClient } from '../../core/api/task-api-client';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { DashboardOverview } from '../../core/models';
 
 @Component({
@@ -12,6 +13,11 @@ import { DashboardOverview } from '../../core/models';
 })
 export class DashboardPage implements OnInit {
   private readonly api = inject(TaskApiClient);
+  private readonly i18n = inject(I18nService);
+
+  protected t(key: string): string {
+    return this.i18n.t(key);
+  }
   protected readonly overview = signal<DashboardOverview | null>(null);
   protected readonly loading = signal(true);
   protected readonly cancellingId = signal<string | null>(null);

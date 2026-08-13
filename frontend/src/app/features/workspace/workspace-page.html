@@ -4,7 +4,7 @@
     <!-- Sidebar: File Explorer (VS Code Style) -->
     <aside class="explorer-panel">
       <div class="explorer-header">
-        <h2>WORKSPACE EXPLORER</h2>
+        <h2>{{ t('ws.explorer') }}</h2>
         <div class="explorer-actions">
           <button class="icon-btn" type="button" (click)="expandAllFolders()" title="Expand all">
             <lucide-icon [img]="icons.expandAll" size="14"></lucide-icon>
@@ -12,7 +12,7 @@
           <button class="icon-btn" type="button" (click)="collapseAllFolders()" title="Collapse all">
             <lucide-icon [img]="icons.collapseAll" size="14"></lucide-icon>
           </button>
-          <button class="icon-btn" type="button" (click)="refreshFiles()" [disabled]="loading()" title="Refresh Files">
+          <button class="icon-btn" type="button" (click)="refreshFiles()" [disabled]="loading()" [title]="t('ws.refresh')">
             <lucide-icon [img]="icons.refresh" size="14" [class.spin]="loading()"></lucide-icon>
           </button>
         </div>
@@ -20,7 +20,7 @@
 
       <div class="explorer-tree">
         @if (loading() && files().length === 0) {
-          <div class="tree-loading">Loading workspace...</div>
+          <div class="tree-loading">{{ t('ws.loading') }}</div>
         } @else {
           @for (node of getFlatNodes(); track node.path) {
             <div 
