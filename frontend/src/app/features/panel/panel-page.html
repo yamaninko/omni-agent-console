@@ -98,6 +98,9 @@
             <button type="button" class="oa-btn oa-btn-ghost" (click)="downloadTranscript()" title="Download Markdown transcript">
               Export .md
             </button>
+            <button type="button" class="oa-btn oa-btn-ghost" (click)="downloadExportZip()" title="transcript + scorecard + meta ZIP">
+              Export .zip
+            </button>
             @if (canContinue()) {
               <button type="button" class="oa-btn oa-btn-danger" (click)="deletePanel()" title="Delete session">
                 Delete
@@ -123,6 +126,12 @@
             <button class="oa-btn oa-btn-primary" type="button" (click)="continuePanel()" [disabled]="busy()">
               Continue panel
             </button>
+          </div>
+        }
+        @if (session() && scorecardBlurb()) {
+          <div class="scorecard-box">
+            <h3>Score card</h3>
+            <p>{{ scorecardBlurb() }}</p>
           </div>
         }
         @if (session() && canVote()) {

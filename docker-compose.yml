@@ -41,6 +41,10 @@ services:
       OMNIAGENT_API_KEY: ${OMNIAGENT_API_KEY:-}
       Console__ApiKey: ${CONSOLE_API_KEY:-}
       SharedLab__Enabled: ${SHARED_LAB:-false}
+      SharedLab__MaxConcurrentTasksPerSession: ${SHARED_LAB_MAX_CONCURRENT_TASKS:-2}
+      SharedLab__MaxTasksPerDayPerSession: ${SHARED_LAB_MAX_TASKS_PER_DAY:-30}
+      SharedLab__MaxDailyTokensPerSession: ${SHARED_LAB_MAX_DAILY_TOKENS:-500000}
+      Panel__FloorMode: ${PANEL_FLOOR_MODE:-fixed}
       Vault__Enabled: "true"
       Vault__Address: http://vault:8200
       Vault__Token: ${VAULT_DEV_ROOT_TOKEN_ID:-dev-root-token}
@@ -96,6 +100,7 @@ services:
       TaskWatchdog__StallFailureMinutes: ${TASK_WATCHDOG_FAIL_MINUTES:-20}
       Providers__OmniAgent__ApiKeySecretName: ${OMNIAGENT_API_KEY_SECRET_NAME:-secret/providers/omniagent#apiKey}
       OMNIAGENT_API_KEY: ${OMNIAGENT_API_KEY:-}
+      Panel__FloorMode: ${PANEL_FLOOR_MODE:-fixed}
       Vault__Enabled: "true"
       Vault__Address: http://vault:8200
       Vault__Token: ${VAULT_DEV_ROOT_TOKEN_ID:-dev-root-token}

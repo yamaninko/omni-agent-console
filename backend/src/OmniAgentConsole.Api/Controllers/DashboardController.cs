@@ -96,6 +96,15 @@ public sealed class DashboardController : ControllerBase
 
         var successRate = totalRequests == 0 ? 0 : decimal.Round((decimal)successfulRequests / totalRequests * 100, 2);
 
+        var estimatedCost = await dbContext.ModelCallLogs
+            .SumAsync(m => m.EstimatedCost ?? 0m, cancellationToken);
+        var livePanels = await dbContext.PanelSessions.CountAsync(
+            p => p.Status == PanelSessionStatus.Pending || p.Status == PanelSessionStatus.Running,
+            cancellationToken);
+        var liveTasks = runningTasks + await dbContext.TaskRuns.CountAsync(
+            t => t.Status == TaskRunStatus.Pending,
+            cancellationToken);
+
         return Ok(new DashboardOverviewDto(
             totalTasks,
             runningTasks,
@@ -127,7 +136,10 @@ public sealed class DashboardController : ControllerBase
                 x.Total,
                 (long)(x.AverageLatency ?? 0),
                 x.Errors)).ToList(),
-            recentTasks));
+            recentTasks,
+            estimatedCost,
+            livePanels,
+            liveTasks));
     }
 
     [HttpGet("recent-tasks")]

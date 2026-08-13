@@ -129,6 +129,62 @@ public sealed class PanelsController : ControllerBase
         return File(System.Text.Encoding.UTF8.GetBytes(md), "text/markdown; charset=utf-8", fileName);
     }
 
+    /// <summary>ZIP: transcript.md + meta.json + scorecard.md (when available) for hand-in.</summary>
+    [HttpGet("{panelId:guid}/export.zip")]
+    public async Task<IActionResult> ExportZip(Guid panelId, CancellationToken cancellationToken)
+    {
+        var session = await LoadOwnedSessionAsync(panelId, tracking: false, cancellationToken);
+        if (session is null)
+        {
+            return NotFound();
+        }
+
+        var md = BuildTranscriptMarkdown(session);
+        var displayNames = (session.Turns ?? Array.Empty<PanelTurn>())
+            .GroupBy(t => t.MemberId)
+            .ToDictionary(g => g.Key, g => g.First().MemberDisplayName);
+        var votes = PanelVoteStore.ToTallies(PanelVoteStore.Parse(session.VotesJson), displayNames);
+        var turns = (session.Turns ?? Array.Empty<PanelTurn>())
+            .Where(t => t.Status == PanelTurnStatus.Completed)
+            .OrderBy(t => t.TurnOrder)
+            .Select(t => (t.MemberDisplayName, t.Output))
+            .ToList();
+        var scorecard = PanelScorecardBuilder.Build(
+            session.Title, session.Topic, session.Status.ToString(), turns, votes);
+
+        var meta = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            session.Id,
+            session.Title,
+            session.Topic,
+            status = session.Status.ToString(),
+            session.GroupId,
+            groupName = session.Group?.Name,
+            session.CreatedAt,
+            session.CompletedAt,
+            session.TotalTokens,
+            session.TotalLatencyMs,
+            votes
+        });
+
+        using var ms = new System.IO.MemoryStream();
+        using (var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+        {
+            void Add(string name, string content)
+            {
+                var entry = zip.CreateEntry(name);
+                using var w = new System.IO.StreamWriter(entry.Open());
+                w.Write(content);
+            }
+
+            Add("transcript.md", md);
+            Add("meta.json", meta);
+            Add("scorecard.md", scorecard.Markdown);
+        }
+
+        return File(ms.ToArray(), "application/zip", $"panel-{panelId:N}.zip");
+    }
+
     private static string BuildTranscriptMarkdown(PanelSession session)
     {
         var sb = new System.Text.StringBuilder();

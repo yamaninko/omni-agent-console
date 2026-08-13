@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using OmniAgentConsole.Application.Panels;
 using OmniAgentConsole.Application.Providers;
 using OmniAgentConsole.Application.Runtime;
 using OmniAgentConsole.Domain.Entities;
@@ -19,17 +21,21 @@ public sealed class PanelDiscussionService : IPanelDiscussionService
     private readonly IPanelEventService panelEvents;
     private readonly IModelProvider modelProvider;
     private readonly ITokenUsageExtractor tokenUsageExtractor;
+    private readonly string floorMode;
 
     public PanelDiscussionService(
         AgentConsoleDbContext dbContext,
         IPanelEventService panelEvents,
         IModelProvider modelProvider,
-        ITokenUsageExtractor tokenUsageExtractor)
+        ITokenUsageExtractor tokenUsageExtractor,
+        IConfiguration configuration)
     {
         this.dbContext = dbContext;
         this.panelEvents = panelEvents;
         this.modelProvider = modelProvider;
         this.tokenUsageExtractor = tokenUsageExtractor;
+        floorMode = PanelFloorPolicy.NormalizeMode(
+            configuration["Panel:FloorMode"] ?? configuration["PANEL_FLOOR_MODE"]);
     }
 
     public async Task RunSessionAsync(Guid panelSessionId, CancellationToken cancellationToken)
@@ -182,18 +188,26 @@ public sealed class PanelDiscussionService : IPanelDiscussionService
                     break;
                 }
 
-                if (maxRounds > 1 || isContinuation)
+                var roundSpeakers = ApplyFloorOrder(speakers, priorTurns);
+                if (maxRounds > 1 || isContinuation || floorMode == PanelFloorPolicy.Llm)
                 {
                     await panelEvents.WriteAsync(
                         session.Id,
                         null,
                         ConsoleEventType.AgentStep,
-                        $"Round {round} of {maxRounds} — floor order starts.",
-                        JsonSerializer.Serialize(new { kind = "round", round, maxRounds }),
+                        $"Round {round} of {maxRounds} — floor order starts ({floorMode}).",
+                        JsonSerializer.Serialize(new
+                        {
+                            kind = "round",
+                            round,
+                            maxRounds,
+                            floorMode,
+                            order = roundSpeakers.Select(s => s.DisplayName).ToList()
+                        }),
                         cancellationToken);
                 }
 
-                for (var i = 0; i < speakers.Count; i++)
+                for (var i = 0; i < roundSpeakers.Count; i++)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
@@ -203,7 +217,7 @@ public sealed class PanelDiscussionService : IPanelDiscussionService
                         break;
                     }
 
-                    var member = speakers[i];
+                    var member = roundSpeakers[i];
                     var turnOrder = nextTurnOrder++;
                     var ok = await RunTurnAsync(session, member, turnOrder, priorTurns, roster, cancellationToken);
                     if (ok)
@@ -263,9 +277,14 @@ public sealed class PanelDiscussionService : IPanelDiscussionService
                 session.Id,
                 null,
                 anySuccess ? ConsoleEventType.PanelCompleted : ConsoleEventType.TaskFailed,
-                anySuccess ? "Panel completed (single round)." : "Panel failed: no successful turns.",
+                anySuccess ? "Panel completed." : "Panel failed: no successful turns.",
                 null,
                 cancellationToken);
+
+            if (anySuccess)
+            {
+                await WriteScorecardAsync(session, cancellationToken);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -582,6 +601,91 @@ public sealed class PanelDiscussionService : IPanelDiscussionService
 
         session.Turns.Add(turn);
         return false;
+    }
+
+    private IReadOnlyList<AgentGroupMember> ApplyFloorOrder(
+        IReadOnlyList<AgentGroupMember> rosterOrder,
+        IReadOnlyList<(string Speaker, string Content)> priorTurns)
+    {
+        if (floorMode != PanelFloorPolicy.Llm || rosterOrder.Count <= 1)
+        {
+            return rosterOrder;
+        }
+
+        var mods = rosterOrder.Where(m => m.Role == PanelMemberRole.Moderator).ToList();
+        var rest = rosterOrder.Where(m => m.Role != PanelMemberRole.Moderator).ToList();
+
+        // Prefer order mentioned in the latest moderator speech or user follow-up.
+        var hint = priorTurns
+            .LastOrDefault(t =>
+                mods.Any(m => m.DisplayName.Equals(t.Speaker, StringComparison.OrdinalIgnoreCase))
+                || t.Speaker.Equals("User", StringComparison.OrdinalIgnoreCase))
+            .Content;
+
+        if (!string.IsNullOrWhiteSpace(hint))
+        {
+            rest = PanelFloorPolicy.ApplyModeratorOrder(rest, m => m.DisplayName, hint).ToList();
+        }
+        else
+        {
+            // Heuristic "moderator-style" floor: For → Neutral/Custom → Against.
+            rest = rest
+                .OrderBy(m => m.Stance switch
+                {
+                    PanelStance.For => 0,
+                    PanelStance.Neutral => 1,
+                    PanelStance.Custom => 2,
+                    PanelStance.Against => 3,
+                    _ => 4
+                })
+                .ThenBy(m => m.SortOrder)
+                .ThenBy(m => m.DisplayName)
+                .ToList();
+        }
+
+        return mods.Concat(rest).ToList();
+    }
+
+    private async Task WriteScorecardAsync(PanelSession session, CancellationToken cancellationToken)
+    {
+        var turns = await dbContext.PanelTurns
+            .AsNoTracking()
+            .Where(t => t.SessionId == session.Id && t.Status == PanelTurnStatus.Completed)
+            .OrderBy(t => t.TurnOrder)
+            .Select(t => new { t.MemberDisplayName, t.Output })
+            .ToListAsync(cancellationToken);
+
+        var turnEntities = await dbContext.PanelTurns
+            .AsNoTracking()
+            .Where(t => t.SessionId == session.Id)
+            .Select(t => new { t.MemberId, t.MemberDisplayName })
+            .ToListAsync(cancellationToken);
+        var idToName = turnEntities
+            .GroupBy(t => t.MemberId)
+            .ToDictionary(g => g.Key, g => g.First().MemberDisplayName);
+        var votes = PanelVoteStore.ToTallies(PanelVoteStore.Parse(session.VotesJson), idToName);
+
+        var card = PanelScorecardBuilder.Build(
+            session.Title,
+            session.Topic,
+            session.Status.ToString(),
+            turns.Select(t => (t.MemberDisplayName, t.Output)).ToList(),
+            votes);
+
+        await panelEvents.WriteAsync(
+            session.Id,
+            null,
+            ConsoleEventType.AgentStep,
+            card.ClosingBlurb,
+            JsonSerializer.Serialize(new
+            {
+                kind = "scorecard",
+                markdown = card.Markdown,
+                blurb = card.ClosingBlurb,
+                speakers = card.Speakers.Select(s => new { s.Name, s.Turns, s.Chars }),
+                votes = votes.Select(v => new { v.MemberId, v.DisplayName, v.Votes })
+            }),
+            cancellationToken);
     }
 
     private async Task RecalcTotalsAsync(PanelSession session, CancellationToken cancellationToken)

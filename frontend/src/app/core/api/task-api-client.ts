@@ -30,7 +30,9 @@ import {
   UpsertAgentGroupMemberRequest,
   PanelSessionSummary,
   PanelSessionDetail,
-  PanelVoteTally
+  PanelVoteTally,
+  DemoSeedResult,
+  StudioDemoPreset
 } from '../models';
 
 const API_BASE_URL = '/api';
@@ -343,5 +345,19 @@ export class TaskApiClient {
 
   castPanelVote(panelId: string, memberId: string): Observable<PanelVoteTally[]> {
     return this.http.post<PanelVoteTally[]>(`${API_BASE_URL}/panels/${panelId}/vote`, { memberId });
+  }
+
+  exportPanelZip(panelId: string): Observable<Blob> {
+    return this.http.get(`${API_BASE_URL}/panels/${panelId}/export.zip`, { responseType: 'blob' });
+  }
+
+  seedDemoDebate(): Observable<DemoSeedResult> {
+    return this.http.post<DemoSeedResult>(`${API_BASE_URL}/demo/seed-debate`, {});
+  }
+
+  getStudioDemoPreset(id: string = 'fastapi-notes'): Observable<StudioDemoPreset> {
+    return this.http.get<StudioDemoPreset>(`${API_BASE_URL}/demo/studio-preset`, {
+      params: { id }
+    });
   }
 }

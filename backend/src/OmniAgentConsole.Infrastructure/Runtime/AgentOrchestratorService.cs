@@ -283,6 +283,42 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
                 "Task completed",
                 RunTelemetry.BuildTaskPayload(taskRun),
                 cancellationToken);
+
+            // Lightweight "did we produce a project surface?" smoke (no nested Docker).
+            if (!string.IsNullOrWhiteSpace(workspacePath)
+                && WorkspacePathGuard.TryResolve(WorkspaceRoot, workspacePath, out var smokeRoot))
+            {
+                try
+                {
+                    var hasCompose = System.IO.File.Exists(System.IO.Path.Combine(smokeRoot, "docker-compose.yml"))
+                        || System.IO.File.Exists(System.IO.Path.Combine(smokeRoot, "compose.yml"));
+                    var hasReadme = System.IO.File.Exists(System.IO.Path.Combine(smokeRoot, "README.md"));
+                    var fileCount = System.IO.Directory.Exists(smokeRoot)
+                        ? System.IO.Directory.GetFiles(smokeRoot, "*", System.IO.SearchOption.AllDirectories).Length
+                        : 0;
+                    await consoleEvents.WriteAsync(
+                        taskRun.Id,
+                        null,
+                        ConsoleEventType.AgentStep,
+                        $"Workspace smoke: {fileCount} file(s)"
+                        + (hasCompose ? ", docker-compose present" : ", no compose file")
+                        + (hasReadme ? ", README present" : ", no README")
+                        + ". Open Workspace → Project run to Start /health when compose exists.",
+                        System.Text.Json.JsonSerializer.Serialize(new
+                        {
+                            kind = "workspace-smoke",
+                            workspacePath,
+                            fileCount,
+                            hasCompose,
+                            hasReadme
+                        }),
+                        cancellationToken);
+                }
+                catch
+                {
+                    // Non-fatal telemetry only.
+                }
+            }
         }
         catch (OperationCanceledException)
         {

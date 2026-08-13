@@ -253,14 +253,18 @@ Açık çekirdek sprint yok.
 | **T3** | Panel: 2. tur (N rounds) + kullanıcı mesajı (`continue`) | UI’dan rounds; bitince “user follow-up” ile ek tur | ✅ |
 | **T4** | Panel transcript export (Markdown) | `GET …/transcript` + UI indir | ✅ |
 | **T5** | Group clone + “Open in Panel” | Clone API/UI; Groups’tan Panel’e deep link | ✅ |
-| T6 | LLM moderatör / manuel floor | Opsiyonel | 🔮 |
+| T6 | LLM moderatör / floor mode | Opsiyonel | ✅ heuristic+parse (`PANEL_FLOOR_MODE=llm`) |
 | T7 | Studio pipeline picker | Opsiyonel | ✅ `full` / `coder` / `plan-code-review` |
 | T7b | Panel audience vote | Opsiyonel | ✅ |
 | T7c | Group template gallery | Opsiyonel | ✅ 3-1 + 2v2 |
 | T7d | Task cost card | Opsiyonel | ✅ detail + history |
 | T7e | Shared-lab student nav | Opsiyonel | ✅ hide Agents/Dashboard/Settings |
-| T8 | Shared-lab öğrenci shell sadeleştirme | Opsiyonel | 🔮 |
-| T9 | TTS / sesli panel | Future | 🔮 |
+| T8 | Shared-lab öğrenci shell sadeleştirme | Opsiyonel | ✅ Home student banner |
+| T9 | TTS / sesli panel | Future | ✅ browser TTS Read (basic) |
+| T10 | Demo seed + studio presets | | ✅ `/api/demo/*` + Home |
+| T11 | Panel scorecard + export.zip | | ✅ |
+| T12 | Student quotas | | ✅ concurrent/day/tokens |
+| T13 | Queue panel priority | | ✅ in-memory + RabbitMQ priority |
 
 Güncelleme kuralı: her task bitince bu tablo + CHANGELOG + kısa README notu; **push yok** (local commits).
 

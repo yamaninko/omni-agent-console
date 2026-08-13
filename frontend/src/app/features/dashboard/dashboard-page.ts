@@ -41,4 +41,10 @@ export class DashboardPage implements OnInit {
 
     return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
   }
+
+  protected formatCost(usd: number | undefined): string {
+    if (usd === undefined || usd === null || usd <= 0) return '$0';
+    if (usd < 0.01) return `$${usd.toFixed(5)}`;
+    return `$${usd.toFixed(4)}`;
+  }
 }

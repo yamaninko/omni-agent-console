@@ -11,11 +11,17 @@ Versions are date-based until a formal semver release.
 
 ### Planned (see [docs/ROADMAP.md](docs/ROADMAP.md) § Panel backlog)
 
-- LLM-driven moderator floor selection
+- Full multi-turn LLM floor negotiation (beyond heuristic / parse mode)
+- Playwright E2E in CI
+- Audience mid-round inject / STT / full i18n
 
 ### Done on this branch (post-MVP, local commits)
 
-- **SEO1** README landing (value prop, Features, Quick start, Use cases, TR özet) + MIT `LICENSE` + `docs/GITHUB_SEO.md` (About/Topics paste list). Local only until push.
+- **W1** SEO assets, SECURITY/CONTRIBUTING, release notes, blog draft, CI unit tests, good-first-issue template
+- **W2** Demo seed (`POST /api/demo/seed-debate`), Studio presets, panel scorecard, workspace smoke, export ZIP
+- **W3** Student home banner, dashboard cost + live counts, shared-lab quotas, panel ZIP hand-in
+- **W4** Panel floor mode (`Panel:FloorMode` / `PANEL_FLOOR_MODE` = fixed|llm), queue fairness (panel priority)
+- **SEO1** README landing (value prop, Features, Quick start, Use cases, TR özet) + MIT `LICENSE` + `docs/GITHUB_SEO.md`
 - **F1** Panel **audience vote** (“Who convinced you?”) — `POST /api/panels/{id}/vote`, `VotesJson` jsonb + tallies on detail.
 - **F2** Groups **template gallery** — one-click 3-for/1-against and 2v2 cast presets.
 - **F3** Studio **pipeline picker** — `full` | `coder` | `plan-code-review` via `InputContextJson.pipeline` + `TaskPipelinePolicy`.

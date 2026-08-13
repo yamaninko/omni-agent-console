@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-label="OmniAgent Studio preview">
+  <rect width="960" height="540" fill="#0b1118"/>
+  <rect x="0" y="0" width="220" height="540" fill="#080d13"/>
+  <text x="24" y="40" fill="#76b900" font-family="system-ui,sans-serif" font-size="14" font-weight="700">OmniAgent</text>
+  <text x="24" y="62" fill="#8b9aab" font-family="system-ui,sans-serif" font-size="11">Studio</text>
+  <rect x="16" y="90" width="188" height="36" rx="6" fill="#122018" stroke="#76b900"/>
+  <text x="28" y="112" fill="#d6f4bd" font-family="system-ui,sans-serif" font-size="12">Recent tasks</text>
+  <rect x="240" y="24" width="700" height="40" rx="8" fill="#0f1620" stroke="#1b2a38"/>
+  <text x="256" y="48" fill="#8b9aab" font-family="ui-monospace,monospace" font-size="12">Live Console · pipeline: full</text>
+  <rect x="240" y="80" width="700" height="320" rx="10" fill="#0d121a" stroke="#1b2a38"/>
+  <text x="256" y="110" fill="#76b900" font-family="ui-monospace,monospace" font-size="12">[12:01:02] TaskStarted</text>
+  <text x="256" y="132" fill="#c5d0dc" font-family="ui-monospace,monospace" font-size="12">Pipeline: full (Planner → … → Ops)</text>
+  <text x="256" y="154" fill="#c5d0dc" font-family="ui-monospace,monospace" font-size="12">🔧 Wrote app/main.py (886 chars)</text>
+  <text x="256" y="176" fill="#c5d0dc" font-family="ui-monospace,monospace" font-size="12">🔧 Wrote tests/test_health.py</text>
+  <text x="256" y="198" fill="#8b9aab" font-family="ui-monospace,monospace" font-size="12">Reviewer → fix loop skipped (LGTM)</text>
+  <rect x="240" y="420" width="700" height="96" rx="10" fill="#0f1620" stroke="#1b2a38"/>
+  <text x="256" y="450" fill="#8fa3b7" font-family="system-ui,sans-serif" font-size="11" font-weight="700">PROMPT</text>
+  <text x="256" y="478" fill="#e6edf3" font-family="system-ui,sans-serif" font-size="14">Build a FastAPI notes API with /health and tests…</text>
+</svg>

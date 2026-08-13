@@ -10,6 +10,11 @@ namespace OmniAgentConsole.Infrastructure.Runtime;
 
 public sealed class RabbitMqTaskRunQueue : ITaskRunQueue, IAsyncDisposable
 {
+    /// <summary>
+    /// Queue args left empty for backward compatibility with existing brokers.
+    /// Message Priority is still set on publish (effective only if the queue was
+    /// declared with x-max-priority). In-memory queue always prefers panels.
+    /// </summary>
     private static readonly Dictionary<string, object?> QueueArguments = new();
 
     /// <summary>
@@ -54,7 +59,9 @@ public sealed class RabbitMqTaskRunQueue : ITaskRunQueue, IAsyncDisposable
             ContentType = "text/plain",
             MessageId = workId.ToString("D"),
             Persistent = true,
-            Type = type
+            Type = type,
+            // Panels = 8, Studio tasks = 3 (requires x-max-priority on the queue).
+            Priority = kind == QueuedWorkKind.PanelSession ? (byte)8 : (byte)3
         };
 
         // A cached channel can look open while the broker has already gone away,

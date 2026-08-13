@@ -17,7 +17,10 @@ public sealed record DashboardOverviewDto(
     int ErrorCount,
     IReadOnlyList<AgentUsageBreakdownDto> AgentBreakdown,
     IReadOnlyList<ModelUsageBreakdownDto> ModelBreakdown,
-    IReadOnlyList<TaskSummaryDto> RecentTasks);
+    IReadOnlyList<TaskSummaryDto> RecentTasks,
+    decimal EstimatedCostTotal = 0m,
+    int LivePanelSessions = 0,
+    int LiveTaskSessions = 0);
 
 public sealed record AgentUsageBreakdownDto(
     string AgentName,

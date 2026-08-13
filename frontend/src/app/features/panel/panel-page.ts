@@ -117,10 +117,14 @@ export class PanelPage implements OnInit, OnDestroy {
       next: (g) => {
         this.groups.set(g);
         const fromQuery = this.route.snapshot.queryParamMap.get('groupId');
+        const topicQ = this.route.snapshot.queryParamMap.get('topic');
         if (fromQuery && g.some((x) => x.id === fromQuery)) {
           this.selectedGroupId.set(fromQuery);
         } else if (g.length && !this.selectedGroupId()) {
           this.selectedGroupId.set(g[0].id);
+        }
+        if (topicQ?.trim()) {
+          this.topic.set(topicQ.trim());
         }
       }
     });
@@ -259,6 +263,39 @@ export class PanelPage implements OnInit, OnDestroy {
       },
       error: (err) => this.error.set(this.readError(err, 'Transcript download failed'))
     });
+  }
+
+  protected downloadExportZip(): void {
+    const id = this.session()?.id;
+    if (!id) return;
+    this.api.exportPanelZip(id).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `panel-${id}.zip`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      error: (err) => this.error.set(this.readError(err, 'ZIP export failed'))
+    });
+  }
+
+  /** Latest scorecard event (kind=scorecard) if present. */
+  protected scorecardBlurb(): string | null {
+    const events = this.events();
+    for (let i = events.length - 1; i >= 0; i--) {
+      const ev = events[i];
+      if (!ev.payloadJson?.includes('scorecard')) continue;
+      try {
+        const p = JSON.parse(ev.payloadJson) as { kind?: string; blurb?: string };
+        if (p.kind === 'scorecard' && p.blurb) return p.blurb;
+      } catch {
+        /* ignore */
+      }
+      return ev.message;
+    }
+    return null;
   }
 
   protected openRecent(item: PanelSessionSummary): void {

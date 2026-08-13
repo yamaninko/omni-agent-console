@@ -91,6 +91,15 @@ public sealed class TasksController : ControllerBase
             return BadRequest("Prompt is required.");
         }
 
+        if (SessionScoped && CallerSessionId is { } quotaSessionId)
+        {
+            var quotaError = await CheckStudentQuotaAsync(quotaSessionId, cancellationToken);
+            if (quotaError is not null)
+            {
+                return Conflict(quotaError);
+            }
+        }
+
         var taskRun = new TaskRun
         {
             Title = string.IsNullOrWhiteSpace(request.Title) ? CreateTitle(request.Prompt) : request.Title,
@@ -591,6 +600,39 @@ public sealed class TasksController : ControllerBase
     {
         var normalized = prompt.Trim().ReplaceLineEndings(" ");
         return normalized.Length <= 80 ? normalized : string.Concat(normalized.AsSpan(0, 77), "...");
+    }
+
+    private async Task<string?> CheckStudentQuotaAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        var live = await dbContext.TaskRuns.CountAsync(
+            t => t.OwnerSessionId == sessionId
+                 && (t.Status == TaskRunStatus.Pending || t.Status == TaskRunStatus.Running),
+            cancellationToken);
+        if (SessionQuotaPolicy.IsOverConcurrent(live, sharedLab.MaxConcurrentTasksPerSession))
+        {
+            return $"Quota: max {sharedLab.MaxConcurrentTasksPerSession} concurrent task(s) for this session.";
+        }
+
+        var dayStart = DateTimeOffset.UtcNow.Date;
+        var createdToday = await dbContext.TaskRuns.CountAsync(
+            t => t.OwnerSessionId == sessionId && t.CreatedAt >= dayStart,
+            cancellationToken);
+        if (SessionQuotaPolicy.IsOverDailyTasks(createdToday, sharedLab.MaxTasksPerDayPerSession))
+        {
+            return $"Quota: max {sharedLab.MaxTasksPerDayPerSession} task(s) per day for this session.";
+        }
+
+        var tokensToday = await dbContext.ModelCallLogs
+            .Where(m => m.TaskRun != null
+                        && m.TaskRun.OwnerSessionId == sessionId
+                        && m.CreatedAt >= dayStart)
+            .SumAsync(m => (long?)m.TotalTokens, cancellationToken) ?? 0;
+        if (SessionQuotaPolicy.IsOverDailyTokens(tokensToday, sharedLab.MaxDailyTokensPerSession))
+        {
+            return $"Quota: daily token budget ({sharedLab.MaxDailyTokensPerSession}) reached for this session.";
+        }
+
+        return null;
     }
 }
 

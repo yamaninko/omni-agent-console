@@ -9,6 +9,12 @@
 [![Angular](https://img.shields.io/badge/Angular-21-DD0031?logo=angular)](https://angular.dev/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)](https://docs.docker.com/compose/)
 
+### Screenshots
+
+| Studio | Panel |
+|--------|--------|
+| ![Studio console](docs/assets/studio-preview.svg) | ![Panel debate](docs/assets/panel-preview.svg) |
+
 ### What it does
 
 Type a prompt; a specialized agent chain runs end-to-end:

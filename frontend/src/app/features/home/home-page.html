@@ -9,6 +9,14 @@
     </div>
   </header>
 
+  @if (sharedLab() && !isAdmin()) {
+    <div class="oa-alert oa-alert-info student-banner">
+      <strong>Shared lab · student mode.</strong>
+      API keys and agent config are managed by the instructor. Use Studio, Panel, Groups (read), Workspace, and History.
+      Config links (Agents / Settings / Dashboard) are hidden for your session.
+    </div>
+  }
+
   <div
     class="key-badge"
     [class.ok]="apiKeyConfigured() === true"
@@ -16,7 +24,16 @@
     [class.unknown]="apiKeyConfigured() === null"
   >
     <lucide-icon [img]="icons.key" size="16"></lucide-icon>
-    @if (apiKeyConfigured() === true) {
+    @if (sharedLab() && !isAdmin()) {
+      <span>
+        Provider key is
+        @if (apiKeyConfigured() === true) {
+          <strong>ready on the server</strong> — you can run tasks.
+        } @else {
+          <strong>not ready</strong> — ask the instructor to configure Settings.
+        }
+      </span>
+    } @else if (apiKeyConfigured() === true) {
       <span>
         API key
         <strong>configured</strong>
@@ -35,6 +52,22 @@
       <a routerLink="/settings">Fix in Settings</a>
     } @else {
       <span>API key status unknown (backend unreachable?).</span>
+    }
+  </div>
+
+  <div class="demo-row">
+    <button type="button" class="oa-btn oa-btn-primary" (click)="seedSampleDebate()" [disabled]="demoBusy()">
+      <lucide-icon [img]="icons.sparkles" size="16"></lucide-icon>
+      Run sample debate cast
+    </button>
+    <button type="button" class="oa-btn oa-btn-ghost" (click)="openSampleStudio('fastapi-notes')" [disabled]="demoBusy()">
+      Sample Studio · FastAPI
+    </button>
+    <button type="button" class="oa-btn oa-btn-ghost" (click)="openSampleStudio('dotnet-api')" [disabled]="demoBusy()">
+      Sample Studio · .NET API
+    </button>
+    @if (demoMessage()) {
+      <span class="demo-msg">{{ demoMessage() }}</span>
     }
   </div>
 

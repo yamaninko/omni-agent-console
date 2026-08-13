@@ -204,6 +204,28 @@ export interface DashboardOverview {
   agentBreakdown: AgentUsageBreakdown[];
   modelBreakdown: ModelUsageBreakdown[];
   recentTasks: TaskSummary[];
+  estimatedCostTotal?: number;
+  livePanelSessions?: number;
+  liveTaskSessions?: number;
+}
+
+export interface DemoSeedResult {
+  groupId: string;
+  groupName: string;
+  created: boolean;
+  suggestedTopic: string;
+  studioPrompt: string;
+  studioPipeline: string;
+  workspacePath: string;
+}
+
+export interface StudioDemoPreset {
+  id: string;
+  name: string;
+  pipeline: string;
+  workspacePath: string;
+  prompt: string;
+  skillKeywords: string[];
 }
 
 export interface AgentUsageBreakdown {

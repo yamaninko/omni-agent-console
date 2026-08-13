@@ -41,6 +41,18 @@
         <span>Errors</span>
         <strong>{{ data.errorCount }}</strong>
       </div>
+      <div>
+        <span>Est. total cost</span>
+        <strong>{{ formatCost(data.estimatedCostTotal) }}</strong>
+      </div>
+      <div>
+        <span>Live panels</span>
+        <strong>{{ data.livePanelSessions ?? 0 }}</strong>
+      </div>
+      <div>
+        <span>Live tasks</span>
+        <strong>{{ data.liveTaskSessions ?? 0 }}</strong>
+      </div>
     </div>
 
     <section class="grid">

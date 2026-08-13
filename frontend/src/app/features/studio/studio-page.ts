@@ -187,18 +187,40 @@ export class StudioPage implements OnInit, OnDestroy {
 
     this.loadRecentTasks();
 
-    // Load task directly from URL query param if present
-    this.route.queryParams.subscribe(params => {
+    // Load task or demo preset from URL query params.
+    this.route.queryParams.subscribe((params) => {
       const taskId = params['task'];
       if (taskId) {
         if (taskId !== this.activeTaskId()) {
           this.selectRecentTask(taskId, false);
         }
-      } else {
-        this.activeTaskId.set(null);
-        this.activeTask.set(null);
-        this.consoleStream.reset();
-        this.stopStatusPolling();
+        return;
+      }
+
+      const pipeline = params['pipeline'] as 'full' | 'coder' | 'plan-code-review' | undefined;
+      if (pipeline === 'full' || pipeline === 'coder' || pipeline === 'plan-code-review') {
+        this.pipeline.set(pipeline);
+      }
+      if (typeof params['workspace'] === 'string' && params['workspace'].startsWith('/workspace/')) {
+        this.workspacePath.set(params['workspace']);
+        localStorage.setItem('studio_workspace_path', params['workspace']);
+      }
+      if (typeof params['prompt'] === 'string' && params['prompt'].trim()) {
+        this.prompt.set(params['prompt']);
+      }
+      if (params['preset']) {
+        // Skills may load async; retry once they arrive.
+        const apply = () => this.applyPresetSkillKeywords(String(params['preset']));
+        if (this.skills().length > 0) apply();
+        else {
+          const sub = this.api.listSkills().subscribe({
+            next: (skills) => {
+              this.skills.set(skills.filter((s) => s.enabled));
+              apply();
+              sub.unsubscribe();
+            }
+          });
+        }
       }
     });
 
@@ -213,6 +235,26 @@ export class StudioPage implements OnInit, OnDestroy {
     this.skillSuggestDebounce.cancel();
     this.markdownCache.clear();
     this.markdownCacheOrder.length = 0;
+  }
+
+  /** Match skill chips by keyword for demo presets (best-effort). */
+  private applyPresetSkillKeywords(presetId: string): void {
+    const keywordMap: Record<string, string[]> = {
+      'fastapi-notes': ['fastapi', 'python', 'test', 'docker', 'readme', 'health'],
+      'dotnet-api': ['.net', 'asp', 'docker', 'readme', 'health', 'c#'],
+      'angular-dashboard': ['angular', 'readme', 'frontend']
+    };
+    const keys = keywordMap[presetId] ?? [];
+    if (!keys.length) return;
+    const matched = this.skills()
+      .filter((s) => {
+        const hay = `${s.name} ${s.keywords ?? ''} ${s.category}`.toLowerCase();
+        return keys.some((k) => hay.includes(k));
+      })
+      .map((s) => s.id);
+    if (matched.length) {
+      this.manualSkillIds.set(matched);
+    }
   }
 
   protected startTask(): void {

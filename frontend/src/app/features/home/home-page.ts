@@ -1,13 +1,14 @@
 import { DatePipe } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import {
   History,
   KeyRound,
   LucideAngularModule,
   MessagesSquare,
   SquareTerminal,
-  Users
+  Users,
+  Sparkles
 } from 'lucide-angular';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -31,13 +32,15 @@ interface ActivityRow {
 })
 export class HomePage implements OnInit {
   private readonly api = inject(TaskApiClient);
+  private readonly router = inject(Router);
 
   protected readonly icons = {
     studio: SquareTerminal,
     panel: MessagesSquare,
     groups: Users,
     history: History,
-    key: KeyRound
+    key: KeyRound,
+    sparkles: Sparkles
   };
 
   protected readonly loading = signal(true);
@@ -48,12 +51,18 @@ export class HomePage implements OnInit {
   protected readonly taskCount = signal(0);
   protected readonly panelCount = signal(0);
   protected readonly groupCount = signal(0);
+  protected readonly sharedLab = signal(false);
+  protected readonly isAdmin = signal(true);
+  protected readonly demoBusy = signal(false);
+  protected readonly demoMessage = signal<string | null>(null);
 
   ngOnInit(): void {
     this.api.getSettings().subscribe({
       next: (s) => {
         this.apiKeyConfigured.set(!!s.apiKeyConfigured);
         this.secretStore.set(s.secretStore ?? null);
+        this.sharedLab.set(!!s.sharedLabEnabled);
+        this.isAdmin.set(s.isAdmin !== false);
       },
       error: () => this.apiKeyConfigured.set(null)
     });
@@ -107,5 +116,53 @@ export class HomePage implements OnInit {
       configured.find((c) => /omni|nvidia/i.test(c.provider) || /nvidia/i.test(c.name)) ||
       configured[0];
     return preferred.maskedApiKey || (preferred.name ? `${preferred.name} · configured` : 'configured');
+  }
+
+  protected seedSampleDebate(): void {
+    if (this.demoBusy()) return;
+    this.demoBusy.set(true);
+    this.demoMessage.set(null);
+    this.api.seedDemoDebate().subscribe({
+      next: (res) => {
+        this.demoBusy.set(false);
+        this.demoMessage.set(
+          res.created
+            ? `Created “${res.groupName}” — opening Panel…`
+            : `Using existing “${res.groupName}” — opening Panel…`
+        );
+        void this.router.navigate(['/panel'], {
+          queryParams: { groupId: res.groupId, topic: res.suggestedTopic }
+        });
+      },
+      error: (err) => {
+        this.demoBusy.set(false);
+        this.demoMessage.set(err?.error || 'Demo seed failed');
+      }
+    });
+  }
+
+  protected openSampleStudio(presetId: string = 'fastapi-notes'): void {
+    if (this.demoBusy()) return;
+    this.demoBusy.set(true);
+    this.demoMessage.set(null);
+    this.api.getStudioDemoPreset(presetId).subscribe({
+      next: (p) => {
+        this.demoBusy.set(false);
+        void this.router.navigate(['/studio'], {
+          queryParams: {
+            preset: p.id,
+            pipeline: p.pipeline,
+            workspace: p.workspacePath,
+            prompt: p.prompt
+          }
+        });
+      },
+      error: () => {
+        this.demoBusy.set(false);
+        void this.router.navigate(['/studio'], {
+          queryParams: { preset: 'fastapi-notes', pipeline: 'coder' }
+        });
+      }
+    });
   }
 }
