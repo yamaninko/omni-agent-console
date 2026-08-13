@@ -1,6 +1,6 @@
 <section class="page">
-  <p>Settings</p>
-  <h1>Provider and agent configuration</h1>
+  <p>{{ t('settings.title') }}</p>
+  <h1>{{ t('settings.subtitle') }}</h1>
 
   <div class="panel">
     <div class="secret-status">
@@ -8,11 +8,11 @@
       <div>
         <strong>{{ settings()?.secretStore ?? 'Secret store' }}</strong>
         <span>
-          API Key:
+          {{ t('settings.apiKey') }}:
           @if (settings()?.apiKeyConfigured) {
-            configured
+            {{ t('settings.configured') }}
           } @else {
-            not configured
+            {{ t('settings.notConfigured') }}
           }
         </span>
       </div>
@@ -20,18 +20,18 @@
 
     <div class="health-card" [class.healthy]="health()?.healthy" [class.failed]="health() && !health()?.healthy">
       <div>
-        <span>Provider health</span>
+        <span>{{ t('settings.health') }}</span>
         <strong>
           @if (health()) {
             {{ health()?.status }}
           } @else {
-            Not checked
+            {{ t('settings.notChecked') }}
           }
         </strong>
       </div>
       <button class="secondary" type="button" (click)="checkHealth()" [disabled]="checking()">
         <lucide-icon [img]="icons.activity" size="18"></lucide-icon>
-        {{ checking() ? 'Checking' : 'Check API' }}
+        {{ checking() ? t('settings.checking') : t('settings.checkApi') }}
       </button>
     </div>
 

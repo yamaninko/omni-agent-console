@@ -20,7 +20,10 @@
 ## Local smoke after changes
 ```bash
 docker compose up -d --build
-cd frontend && npx playwright install chromium && npm run test:e2e
+make smoke-e2e                    # Playwright against http://localhost:4210 (uses system Chrome)
+# Hosted preview:
+#   make smoke-e2e E2E_BASE_URL=https://your-preview.example
+# GitHub Actions: set repo variable E2E_BASE_URL for .github/workflows/e2e-smoke.yml
 curl -s http://localhost:5080/api/settings | head -c 200
 ```
 

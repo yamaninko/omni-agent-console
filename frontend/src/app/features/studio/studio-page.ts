@@ -3,6 +3,7 @@ import { DatePipe } from '@angular/common';
 import { Bot, CirclePlay, LucideAngularModule, RadioTower, Send, SquareTerminal, Trash2, Plus, History, FileText, RefreshCw, ChevronDown, ChevronRight, Pencil, CheckCircle, AlertCircle, XCircle, Loader } from 'lucide-angular';
 import { Router, ActivatedRoute } from '@angular/router';
 import { TaskApiClient } from '../../core/api/task-api-client';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { ConsoleStreamService } from '../../core/realtime/console-stream.service';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ConsoleEvent, RuntimeAgent, UsageSummary, TaskDetail, TaskSummary, SkillDefinition } from '../../core/models';
@@ -39,6 +40,11 @@ export class StudioPage implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly dialog = inject(DialogService);
+  private readonly i18n = inject(I18nService);
+
+  protected t(key: string): string {
+    return this.i18n.t(key);
+  }
 
   protected readonly icons = {
     bot: Bot,

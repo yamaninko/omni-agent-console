@@ -88,7 +88,14 @@ export class PanelPage implements OnInit, OnDestroy {
     typeof window !== 'undefined'
     && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
   protected readonly sttListening = signal(false);
+  protected readonly sttLangs = this.i18n.sttLangs;
+  protected readonly sttLang = signal(this.i18n.speechLang());
   private sttRecognition: { stop: () => void; abort: () => void } | null = null;
+
+  protected setSttLang(tag: string): void {
+    this.i18n.setSpeechLang(tag);
+    this.sttLang.set(tag);
+  }
 
   protected readonly events = this.stream.events;
 
@@ -293,7 +300,7 @@ export class PanelPage implements OnInit, OnDestroy {
     if (!SpeechRecognitionCtor) return;
 
     const rec = new SpeechRecognitionCtor();
-    rec.lang = this.i18n.speechLang();
+    rec.lang = this.sttLang() || this.i18n.speechLang();
     rec.interimResults = false;
     rec.maxAlternatives = 1;
     this.sttListening.set(true);

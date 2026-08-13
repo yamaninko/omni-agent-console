@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { TaskApiClient } from '../../core/api/task-api-client';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { PanelSessionSummary, TaskSummary } from '../../core/models';
 
 export type HistoryKind = 'task' | 'panel';
@@ -29,10 +30,15 @@ export interface HistoryRow {
 })
 export class TaskHistoryPage implements OnInit {
   private readonly api = inject(TaskApiClient);
+  private readonly i18n = inject(I18nService);
   protected readonly rows = signal<HistoryRow[]>([]);
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly filter = signal<'all' | HistoryKind>('all');
+
+  protected t(key: string): string {
+    return this.i18n.t(key);
+  }
 
   ngOnInit(): void {
     this.load();

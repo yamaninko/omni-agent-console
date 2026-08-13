@@ -66,7 +66,46 @@ const DICT: Record<AppLocale, Record<string, string>> = {
     'groups.templates': 'Templates',
     'groups.markTemplate': 'Mark as template',
     'groups.unmarkTemplate': 'Unmark template',
-    'groups.clone': 'Clone group'
+    'groups.clone': 'Clone group',
+
+    'studio.eyebrow': 'OmniAgent API',
+    'studio.title': 'Agent Console',
+    'studio.running': 'Agent run active',
+    'studio.ready': 'SignalR ready',
+    'studio.recent': 'Recent Tasks',
+    'studio.agents': 'Agents',
+    'studio.console': 'Live Console',
+    'studio.pipeline': 'Pipeline',
+    'studio.presets': 'Demo presets',
+    'studio.maxCost': 'Max est. cost USD (0 = unlimited)',
+    'studio.workspace': 'Workspace path',
+    'studio.skills': 'Skills',
+
+    'history.eyebrow': 'Ops',
+    'history.title': 'History',
+    'history.sub': 'Studio tasks & panel sessions — each row has a permanent GUID deep link.',
+    'history.all': 'All',
+    'history.studio': 'Studio',
+    'history.panels': 'Panels',
+    'history.refresh': 'Refresh',
+    'history.kind': 'Kind',
+    'history.titleCol': 'Title',
+    'history.id': 'ID',
+    'history.status': 'Status',
+    'history.created': 'Created',
+    'history.latency': 'Latency',
+    'history.tokens': 'Tokens',
+    'history.cost': 'Est. cost',
+
+    'settings.title': 'Settings',
+    'settings.subtitle': 'Provider and agent configuration',
+    'settings.apiKey': 'API Key',
+    'settings.configured': 'configured',
+    'settings.notConfigured': 'not configured',
+    'settings.health': 'Provider health',
+    'settings.notChecked': 'Not checked',
+    'settings.checkApi': 'Check API',
+    'settings.checking': 'Checking'
   },
   tr: {
     'nav.home': 'Ana sayfa',
@@ -131,20 +170,80 @@ const DICT: Record<AppLocale, Record<string, string>> = {
     'groups.templates': 'Şablonlar',
     'groups.markTemplate': 'Şablon olarak işaretle',
     'groups.unmarkTemplate': 'Şablonu kaldır',
-    'groups.clone': 'Grubu kopyala'
+    'groups.clone': 'Grubu kopyala',
+
+    'studio.eyebrow': 'OmniAgent API',
+    'studio.title': 'Ajan Konsolu',
+    'studio.running': 'Ajan çalışıyor',
+    'studio.ready': 'SignalR hazır',
+    'studio.recent': 'Son görevler',
+    'studio.agents': 'Ajanlar',
+    'studio.console': 'Canlı konsol',
+    'studio.pipeline': 'Boru hattı',
+    'studio.presets': 'Demo şablonları',
+    'studio.maxCost': 'Maks. tahmini maliyet USD (0 = sınırsız)',
+    'studio.workspace': 'Çalışma dizini',
+    'studio.skills': 'Beceriler',
+
+    'history.eyebrow': 'Operasyon',
+    'history.title': 'Geçmiş',
+    'history.sub': 'Stüdyo görevleri ve panel oturumları — her satırda kalıcı GUID bağlantısı.',
+    'history.all': 'Tümü',
+    'history.studio': 'Stüdyo',
+    'history.panels': 'Paneller',
+    'history.refresh': 'Yenile',
+    'history.kind': 'Tür',
+    'history.titleCol': 'Başlık',
+    'history.id': 'ID',
+    'history.status': 'Durum',
+    'history.created': 'Oluşturma',
+    'history.latency': 'Gecikme',
+    'history.tokens': 'Token',
+    'history.cost': 'Tahmini maliyet',
+
+    'settings.title': 'Ayarlar',
+    'settings.subtitle': 'Sağlayıcı ve ajan yapılandırması',
+    'settings.apiKey': 'API anahtarı',
+    'settings.configured': 'yapılandırıldı',
+    'settings.notConfigured': 'yapılandırılmadı',
+    'settings.health': 'Sağlayıcı sağlığı',
+    'settings.notChecked': 'Kontrol edilmedi',
+    'settings.checkApi': 'API kontrol',
+    'settings.checking': 'Kontrol ediliyor'
   }
 };
+
+/** Optional STT language override (BCP-47). */
+export const STT_LANGS: { id: string; label: string }[] = [
+  { id: 'en-US', label: 'EN' },
+  { id: 'tr-TR', label: 'TR' },
+  { id: 'de-DE', label: 'DE' },
+  { id: 'fr-FR', label: 'FR' },
+  { id: 'es-ES', label: 'ES' }
+];
 
 @Injectable({ providedIn: 'root' })
 export class I18nService {
   private readonly localeSignal = signal<AppLocale>(this.readStored());
+  private readonly speechLangOverride = signal<string | null>(this.readSpeechStored());
 
   readonly locale = this.localeSignal.asReadonly();
   readonly dict = computed(() => DICT[this.localeSignal()]);
+  readonly sttLangs = STT_LANGS;
 
   /** BCP-47 tag for Web Speech / STT. */
   speechLang(): string {
-    return this.localeSignal() === 'tr' ? 'tr-TR' : 'en-US';
+    return this.speechLangOverride() ?? (this.localeSignal() === 'tr' ? 'tr-TR' : 'en-US');
+  }
+
+  setSpeechLang(tag: string | null): void {
+    this.speechLangOverride.set(tag);
+    try {
+      if (tag) localStorage.setItem('oa_stt_lang', tag);
+      else localStorage.removeItem('oa_stt_lang');
+    } catch {
+      /* ignore */
+    }
   }
 
   t(key: string): string {
@@ -168,5 +267,13 @@ export class I18nService {
       /* ignore */
     }
     return 'en';
+  }
+
+  private readSpeechStored(): string | null {
+    try {
+      return localStorage.getItem('oa_stt_lang');
+    } catch {
+      return null;
+    }
   }
 }

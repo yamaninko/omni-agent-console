@@ -1,6 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { Activity, KeyRound, LucideAngularModule, Save, ShieldCheck } from 'lucide-angular';
 import { TaskApiClient } from '../../core/api/task-api-client';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { AgentDefinition, OmniAgentSettings, ProviderHealthStatus, ModelDefinition, ApiCredential, SkillDefinition } from '../../core/models';
 
 @Component({
@@ -11,6 +12,11 @@ import { AgentDefinition, OmniAgentSettings, ProviderHealthStatus, ModelDefiniti
 })
 export class SettingsPage implements OnInit {
   private readonly api = inject(TaskApiClient);
+  private readonly i18n = inject(I18nService);
+
+  protected t(key: string): string {
+    return this.i18n.t(key);
+  }
 
   protected readonly icons = {
     activity: Activity,

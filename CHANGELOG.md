@@ -16,6 +16,9 @@ Versions are date-based until a formal semver release.
 
 ### Done on this branch (post-MVP, local commits)
 
+- **F1** Studio / History / Settings **i18n** headers + key labels
+- **F2** Panel STT **language chips** (EN/TR/DE/FR/ES)
+- **F3** `make smoke-e2e` helper for Playwright
 - **E1** Home/Panel/Groups **i18n** surface strings + STT lang from locale
 - **E2** Student **quota card** on Home (`settings.quota` when shared-lab student)
 - **D1** Group **IsTemplate** + student-safe **clone** (shared-lab `/clone` open)

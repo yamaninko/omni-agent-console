@@ -1,12 +1,12 @@
 <section class="studio-page">
   <header class="page-header">
     <div>
-      <p class="eyebrow">OmniAgent API</p>
-      <h1>Agent Console</h1>
+      <p class="eyebrow">{{ t('studio.eyebrow') }}</p>
+      <h1>{{ t('studio.title') }}</h1>
     </div>
     <div class="status-pill">
       <lucide-icon [img]="icons.realtime" size="16"></lucide-icon>
-      {{ running() ? 'Agent run active' : 'SignalR ready' }}
+      {{ running() ? t('studio.running') : t('studio.ready') }}
     </div>
   </header>
 
@@ -18,7 +18,7 @@
           <div style="display: flex; align-items: center; gap: 8px;">
             <lucide-icon [img]="showRecentTasks() ? icons.chevronDown : icons.chevronRight" size="16" style="color: #76b900;"></lucide-icon>
             <lucide-icon [img]="icons.history" size="18"></lucide-icon>
-            Recent Tasks
+            {{ t('studio.recent') }}
           </div>
           <button class="icon-btn" (click)="loadRecentTasks(); $event.stopPropagation();" title="Reload History" style="background: transparent; border: none; color: #8fa3b7; cursor: pointer; padding: 2px; display: flex; align-items: center; justify-content: center;">
             <lucide-icon [img]="icons.refresh" size="13"></lucide-icon>
@@ -93,7 +93,7 @@
         <div class="panel-title" style="margin-bottom: 12px; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px;" (click)="toggleAgents()">
           <lucide-icon [img]="showAgents() ? icons.chevronDown : icons.chevronRight" size="16" style="color: #76b900;"></lucide-icon>
           <lucide-icon [img]="icons.bot" size="18"></lucide-icon>
-          Agents
+          {{ t('studio.agents') }}
         </div>
         @if (showAgents()) {
           <div class="agent-list" style="overflow-y: auto; max-height: 250px; padding-right: 4px;">
@@ -116,7 +116,7 @@
       <div class="console-toolbar" style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
         <span>
           <lucide-icon [img]="icons.terminal" size="17"></lucide-icon>
-          Live Console
+          {{ t('studio.console') }}
         </span>
         <div style="display: flex; align-items: center; gap: 8px;">
           <code style="font-size: 11px;">{{ activeTaskId() ? activeTaskId()?.substring(0, 8) + '...' : 'new-session' }}</code>
@@ -179,7 +179,7 @@
             <!-- Workspace Path Input -->
             <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
               <label style="color: #8fa3b7; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                Çalışma Dizini (Workspace Path)
+                {{ t('studio.workspace') }}
               </label>
               <div style="display: flex; align-items: center; background: #0d121a; border: 1px solid #1a2636; border-radius: 6px; color: #e6edf3; padding: 0 12px; font-size: 13px; width: 100%;">
                 <span style="color: #5f7892; user-select: none; padding-right: 4px; font-weight: 600;">/workspace/</span>
@@ -195,7 +195,7 @@
 
             <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
               <label style="color: #8fa3b7; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                Pipeline
+                {{ t('studio.pipeline') }}
               </label>
               <select
                 [value]="pipeline()"
@@ -210,7 +210,7 @@
 
             <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
               <label style="color: #8fa3b7; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                Demo presets
+                {{ t('studio.presets') }}
               </label>
               <div style="display: flex; flex-wrap: wrap; gap: 6px;">
                 @for (p of studioPresets; track p.id) {
@@ -228,7 +228,7 @@
 
             <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
               <label style="color: #8fa3b7; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                Max est. cost USD (0 = unlimited)
+                {{ t('studio.maxCost') }}
               </label>
               <input
                 type="number"
