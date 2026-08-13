@@ -1,19 +1,35 @@
 <section class="home-page oa-page">
   <header class="hero">
     <div>
-      <p class="oa-eyebrow">Home</p>
-      <h1 class="oa-title">OmniAgent Console</h1>
-      <p class="oa-sub">
-        Build multi-agent coding tasks in Studio, or run moderated debates in Panel — same stack, two surfaces.
-      </p>
+      <p class="oa-eyebrow">{{ t('home.eyebrow') }}</p>
+      <h1 class="oa-title">{{ t('home.title') }}</h1>
+      <p class="oa-sub">{{ t('home.sub') }}</p>
     </div>
   </header>
 
   @if (sharedLab() && !isAdmin()) {
     <div class="oa-alert oa-alert-info student-banner">
-      <strong>Shared lab · student mode.</strong>
-      API keys and agent config are managed by the instructor. Use Studio, Panel, Groups (read), Workspace, and History.
-      Config links (Agents / Settings / Dashboard) are hidden for your session.
+      {{ t('home.studentBanner') }}
+    </div>
+  }
+
+  @if (quota(); as q) {
+    <div class="quota-card oa-card">
+      <h2>{{ t('home.quota') }}</h2>
+      <div class="quota-grid">
+        <div>
+          <span>{{ t('home.quotaConcurrent') }}</span>
+          <strong>{{ q.usedConcurrent }} / {{ q.maxConcurrent || '∞' }}</strong>
+        </div>
+        <div>
+          <span>{{ t('home.quotaDaily') }}</span>
+          <strong>{{ q.usedDailyTasks }} / {{ q.maxDailyTasks || '∞' }}</strong>
+        </div>
+        <div>
+          <span>{{ t('home.quotaTokens') }}</span>
+          <strong>{{ q.usedDailyTokens }} / {{ q.maxDailyTokens || '∞' }}</strong>
+        </div>
+      </div>
     </div>
   }
 
@@ -26,17 +42,15 @@
     <lucide-icon [img]="icons.key" size="16"></lucide-icon>
     @if (sharedLab() && !isAdmin()) {
       <span>
-        Provider key is
         @if (apiKeyConfigured() === true) {
-          <strong>ready on the server</strong> — you can run tasks.
+          {{ t('home.keyReadyServer') }}
         } @else {
-          <strong>not ready</strong> — ask the instructor to configure Settings.
+          {{ t('home.keyNotReadyServer') }}
         }
       </span>
     } @else if (apiKeyConfigured() === true) {
       <span>
-        API key
-        <strong>configured</strong>
+        {{ t('home.keyOk') }}
         @if (keyPreview()) {
           <code>{{ keyPreview() }}</code>
         }
@@ -44,12 +58,10 @@
           <span class="store">via {{ secretStore() }}</span>
         }
       </span>
-      <a routerLink="/settings">Settings</a>
+      <a routerLink="/settings">{{ t('nav.settings') }}</a>
     } @else if (apiKeyConfigured() === false) {
-      <span>
-        API key <strong>not configured</strong> — Panel/Studio will fail until you save a key.
-      </span>
-      <a routerLink="/settings">Fix in Settings</a>
+      <span>{{ t('home.keyMissing') }}</span>
+      <a routerLink="/settings">{{ t('nav.settings') }}</a>
     } @else {
       <span>API key status unknown (backend unreachable?).</span>
     }
@@ -58,13 +70,13 @@
   <div class="demo-row">
     <button type="button" class="oa-btn oa-btn-primary" (click)="seedSampleDebate()" [disabled]="demoBusy()">
       <lucide-icon [img]="icons.sparkles" size="16"></lucide-icon>
-      Run sample debate cast
+      {{ t('home.demoDebate') }}
     </button>
     <button type="button" class="oa-btn oa-btn-ghost" (click)="openSampleStudio('fastapi-notes')" [disabled]="demoBusy()">
-      Sample Studio · FastAPI
+      {{ t('home.demoFastapi') }}
     </button>
     <button type="button" class="oa-btn oa-btn-ghost" (click)="openSampleStudio('dotnet-api')" [disabled]="demoBusy()">
-      Sample Studio · .NET API
+      {{ t('home.demoDotnet') }}
     </button>
     @if (demoMessage()) {
       <span class="demo-msg">{{ demoMessage() }}</span>
@@ -74,30 +86,30 @@
   <div class="quick-grid">
     <a class="quick-card" routerLink="/studio">
       <lucide-icon [img]="icons.studio" size="22"></lucide-icon>
-      <strong>Studio</strong>
-      <span>Code agents · skills · workspace</span>
+      <strong>{{ t('home.quickStudio') }}</strong>
+      <span>{{ t('home.quickStudioSub') }}</span>
     </a>
     <a class="quick-card" routerLink="/panel">
       <lucide-icon [img]="icons.panel" size="22"></lucide-icon>
-      <strong>Panel</strong>
-      <span>Moderated multi-persona debate</span>
+      <strong>{{ t('home.quickPanel') }}</strong>
+      <span>{{ t('home.quickPanelSub') }}</span>
     </a>
     <a class="quick-card" routerLink="/groups">
       <lucide-icon [img]="icons.groups" size="22"></lucide-icon>
-      <strong>Groups</strong>
-      <span>{{ groupCount() }} cast(s) · roles &amp; stances</span>
+      <strong>{{ t('home.quickGroups') }}</strong>
+      <span>{{ groupCount() }}</span>
     </a>
     <a class="quick-card" routerLink="/history">
       <lucide-icon [img]="icons.history" size="22"></lucide-icon>
-      <strong>History</strong>
-      <span>{{ taskCount() }} tasks · {{ panelCount() }} panels</span>
+      <strong>{{ t('home.quickHistory') }}</strong>
+      <span>{{ taskCount() }} · {{ panelCount() }}</span>
     </a>
   </div>
 
   <div class="oa-card activity">
     <div class="activity-head">
-      <h2>Recent activity</h2>
-      <a routerLink="/history">View all</a>
+      <h2>{{ t('home.activity') }}</h2>
+      <a routerLink="/history">{{ t('home.viewAll') }}</a>
     </div>
     @if (loading()) {
       <p class="empty">Loading…</p>
@@ -120,7 +132,7 @@
   </div>
 
   <div class="checklist oa-card">
-    <h2>First-run checklist</h2>
+    <h2>{{ t('home.checklist') }}</h2>
     <ol>
       <li>Settings → paste NVIDIA / OmniAgent API key → Save (also mirrored to <code>./data/secrets</code>)</li>
       <li>Groups → define speakers (or open Anunnaki Debate)</li>

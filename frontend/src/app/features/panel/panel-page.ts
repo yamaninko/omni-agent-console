@@ -21,6 +21,7 @@ import {
 } from 'lucide-angular';
 import { Subscription, interval, switchMap, takeWhile } from 'rxjs';
 import { TaskApiClient } from '../../core/api/task-api-client';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { ConsoleStreamService } from '../../core/realtime/console-stream.service';
 import {
   AgentGroupSummary,
@@ -41,6 +42,11 @@ export class PanelPage implements OnInit, OnDestroy {
   private readonly stream = inject(ConsoleStreamService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly i18n = inject(I18nService);
+
+  protected t(key: string): string {
+    return this.i18n.t(key);
+  }
   private pollSub?: Subscription;
   private routeSub?: Subscription;
   private tickSub?: Subscription;
@@ -287,7 +293,7 @@ export class PanelPage implements OnInit, OnDestroy {
     if (!SpeechRecognitionCtor) return;
 
     const rec = new SpeechRecognitionCtor();
-    rec.lang = navigator.language || 'en-US';
+    rec.lang = this.i18n.speechLang();
     rec.interimResults = false;
     rec.maxAlternatives = 1;
     this.sttListening.set(true);

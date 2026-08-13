@@ -1,10 +1,10 @@
 <section class="groups-page oa-page">
   <header class="page-header">
     <div>
-      <p class="oa-eyebrow">Debate</p>
-      <h1 class="oa-title">Agent Groups</h1>
+      <p class="oa-eyebrow">{{ t('groups.eyebrow') }}</p>
+      <h1 class="oa-title">{{ t('groups.title') }}</h1>
       <p class="oa-sub">
-        Define who sits on the panel: role, stance, persona mission. Order = speaking order.
+        {{ t('groups.sub') }}
         URL is <code class="oa-mono">/groups/&#123;guid&#125;</code>.
       </p>
     </div>
@@ -59,7 +59,7 @@
 
       <div class="templates">
         <div class="sidebar-header">
-          <h2>Templates</h2>
+          <h2>{{ t('groups.templates') }}</h2>
         </div>
         <p class="template-hint">Clone a cast preset, then edit names/models.</p>
         @for (t of templates; track t.id) {
@@ -117,10 +117,10 @@
             </button>
             @if (selected() && !isCreatingGroup()) {
               <button class="secondary-btn" type="button" (click)="cloneGroup()" [disabled]="saving()">
-                Clone group
+                {{ t('groups.clone') }}
               </button>
               <button class="secondary-btn" type="button" (click)="toggleTemplateFlag()" [disabled]="saving()">
-                {{ selected()!.isTemplate ? 'Unmark template' : 'Mark as template' }}
+                {{ selected()!.isTemplate ? t('groups.unmarkTemplate') : t('groups.markTemplate') }}
               </button>
               <button class="secondary-btn" type="button" (click)="openInPanel()" [disabled]="!!selected()!.isTemplate">
                 Open in Panel

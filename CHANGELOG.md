@@ -16,6 +16,8 @@ Versions are date-based until a formal semver release.
 
 ### Done on this branch (post-MVP, local commits)
 
+- **E1** Home/Panel/Groups **i18n** surface strings + STT lang from locale
+- **E2** Student **quota card** on Home (`settings.quota` when shared-lab student)
 - **D1** Group **IsTemplate** + student-safe **clone** (shared-lab `/clone` open)
 - **D2** Panel **browser STT** (Web Speech) for inject / follow-up
 - **D3** Shell **EN/TR** i18n toggle (nav labels)

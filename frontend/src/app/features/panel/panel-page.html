@@ -1,11 +1,9 @@
 <section class="panel-page oa-page">
   <header class="page-header">
     <div>
-      <p class="oa-eyebrow">Debate</p>
-      <h1 class="oa-title">Panel</h1>
-      <p class="oa-sub">
-        Moderated roster · 1–3 rounds · ~60s generation budget per speaker (free-tier queue wait is separate).
-      </p>
+      <p class="oa-eyebrow">{{ t('panel.eyebrow') }}</p>
+      <h1 class="oa-title">{{ t('panel.title') }}</h1>
+      <p class="oa-sub">{{ t('panel.sub') }}</p>
     </div>
   </header>
 
@@ -115,7 +113,7 @@
         @if (session() && canInject()) {
           <div class="follow-up inject-box">
             <label>
-              Audience inject (live)
+              {{ t('panel.inject') }}
               <textarea
                 rows="2"
                 placeholder="Ask a question mid-debate — next speakers will see it…"
@@ -131,11 +129,11 @@
                   (click)="sttListening() ? stopStt() : startStt('inject')"
                   [disabled]="busy()"
                 >
-                  {{ sttListening() ? 'Stop mic' : '🎤 Mic' }}
+                  {{ sttListening() ? t('panel.micStop') : '🎤 ' + t('panel.mic') }}
                 </button>
               }
               <button class="oa-btn oa-btn-ghost" type="button" (click)="injectAudience()" [disabled]="busy()">
-                Inject question
+                {{ t('panel.injectBtn') }}
               </button>
             </div>
           </div>
@@ -143,7 +141,7 @@
         @if (session() && canContinue()) {
           <div class="follow-up">
             <label>
-              Your follow-up (extra round)
+              {{ t('panel.followUp') }}
               <textarea
                 rows="3"
                 placeholder="Challenge a speaker, reframe the question, ask for evidence…"
@@ -159,11 +157,11 @@
                   (click)="sttListening() ? stopStt() : startStt('followUp')"
                   [disabled]="busy()"
                 >
-                  {{ sttListening() ? 'Stop mic' : '🎤 Mic' }}
+                  {{ sttListening() ? t('panel.micStop') : '🎤 ' + t('panel.mic') }}
                 </button>
               }
               <button class="oa-btn oa-btn-primary" type="button" (click)="continuePanel()" [disabled]="busy()">
-                Continue panel
+                {{ t('panel.continue') }}
               </button>
             </div>
           </div>
@@ -176,7 +174,7 @@
         }
         @if (session() && canVote()) {
           <div class="vote-box">
-            <h3>Who convinced you?</h3>
+            <h3>{{ t('panel.vote') }}</h3>
             <p class="hint">Audience vote — tallies persist on this session.</p>
             <div class="vote-buttons">
               @for (c of voteCandidates(); track c.memberId) {

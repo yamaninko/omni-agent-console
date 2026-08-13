@@ -13,7 +13,8 @@ import {
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { TaskApiClient } from '../../core/api/task-api-client';
-import { ApiCredential, PanelSessionSummary, TaskSummary } from '../../core/models';
+import { I18nService } from '../../core/i18n/i18n.service';
+import { ApiCredential, PanelSessionSummary, StudentQuota, TaskSummary } from '../../core/models';
 
 interface ActivityRow {
   kind: 'task' | 'panel';
@@ -33,6 +34,7 @@ interface ActivityRow {
 export class HomePage implements OnInit {
   private readonly api = inject(TaskApiClient);
   private readonly router = inject(Router);
+  private readonly i18n = inject(I18nService);
 
   protected readonly icons = {
     studio: SquareTerminal,
@@ -53,8 +55,13 @@ export class HomePage implements OnInit {
   protected readonly groupCount = signal(0);
   protected readonly sharedLab = signal(false);
   protected readonly isAdmin = signal(true);
+  protected readonly quota = signal<StudentQuota | null>(null);
   protected readonly demoBusy = signal(false);
   protected readonly demoMessage = signal<string | null>(null);
+
+  protected t(key: string): string {
+    return this.i18n.t(key);
+  }
 
   ngOnInit(): void {
     this.api.getSettings().subscribe({
@@ -63,6 +70,7 @@ export class HomePage implements OnInit {
         this.secretStore.set(s.secretStore ?? null);
         this.sharedLab.set(!!s.sharedLabEnabled);
         this.isAdmin.set(s.isAdmin !== false);
+        this.quota.set(s.quota ?? null);
       },
       error: () => this.apiKeyConfigured.set(null)
     });

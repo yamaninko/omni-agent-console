@@ -262,6 +262,15 @@ export interface ModelUsageBreakdown {
   errorCount: number;
 }
 
+export interface StudentQuota {
+  maxConcurrent: number;
+  usedConcurrent: number;
+  maxDailyTasks: number;
+  usedDailyTasks: number;
+  maxDailyTokens: number;
+  usedDailyTokens: number;
+}
+
 export interface OmniAgentSettings {
   provider: string;
   baseUrl: string;
@@ -275,6 +284,7 @@ export interface OmniAgentSettings {
   sharedLabEnabled?: boolean;
   /** Instructor (console key); students are false when shared-lab is on. */
   isAdmin?: boolean;
+  quota?: StudentQuota | null;
 }
 
 export interface UpdateOmniAgentApiKeyResponse {

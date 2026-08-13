@@ -14,6 +14,7 @@ import {
 } from 'lucide-angular';
 import { Subscription } from 'rxjs';
 import { TaskApiClient } from '../../core/api/task-api-client';
+import { I18nService } from '../../core/i18n/i18n.service';
 import {
   AgentGroupDetail,
   AgentGroupMember,
@@ -52,6 +53,11 @@ export class GroupsPage implements OnInit, OnDestroy {
   private readonly dialog = inject(DialogService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly i18n = inject(I18nService);
+
+  protected t(key: string): string {
+    return this.i18n.t(key);
+  }
   private routeSub?: Subscription;
 
   protected readonly icons = {
