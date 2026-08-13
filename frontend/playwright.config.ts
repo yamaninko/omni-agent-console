@@ -13,6 +13,8 @@ export default defineConfig({
   use: {
     baseURL,
     trace: 'on-first-retry',
+    // Prefer system Chrome when Playwright browser cache is incomplete/version-mismatched.
+    channel: process.env.PW_CHANNEL || 'chrome',
     ...devices['Desktop Chrome']
   }
 });
