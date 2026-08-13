@@ -18,8 +18,11 @@ Versions are date-based until a formal semver release.
 ### Done on this branch (post-MVP, local commits)
 
 - **N1** Instructor **live sessions** list on Dashboard (tasks + panels, session id, cost)
+- **N1b** Dashboard **Cancel** on live task/panel rows
 - **N2** Playwright **smoke** suite (`frontend/e2e`, optional workflow) + `scripts/set-github-about.sh`
 - **N3** Annotated tag **v0.1.0** (release notes already in `docs/RELEASE_NOTES_v0.1.0.md`)
+- **N4** Real **LLM floor order** when `PANEL_FLOOR_MODE=llm` (moderator model returns JSON name order; heuristic fallback)
+- **N5** `docs/PUBLISH_CHECKLIST.md` for About/Topics/blog
 - **W1** SEO assets, SECURITY/CONTRIBUTING, release notes, blog draft, CI unit tests, good-first-issue template
 - **W2** Demo seed (`POST /api/demo/seed-debate`), Studio presets, panel scorecard, workspace smoke, export ZIP
 - **W3** Student home banner, dashboard cost + live counts, shared-lab quotas, panel ZIP hand-in

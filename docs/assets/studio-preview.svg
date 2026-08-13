@@ -13,6 +13,8 @@
   <text x="256" y="154" fill="#c5d0dc" font-family="ui-monospace,monospace" font-size="12">🔧 Wrote app/main.py (886 chars)</text>
   <text x="256" y="176" fill="#c5d0dc" font-family="ui-monospace,monospace" font-size="12">🔧 Wrote tests/test_health.py</text>
   <text x="256" y="198" fill="#8b9aab" font-family="ui-monospace,monospace" font-size="12">Reviewer → fix loop skipped (LGTM)</text>
+  <text x="256" y="220" fill="#8b9aab" font-family="ui-monospace,monospace" font-size="12">Workspace smoke: 8 file(s), docker-compose present</text>
+  <text x="256" y="242" fill="#76b900" font-family="ui-monospace,monospace" font-size="12">Est. cost $0.0042 · pipeline coder</text>
   <rect x="240" y="420" width="700" height="96" rx="10" fill="#0f1620" stroke="#1b2a38"/>
   <text x="256" y="450" fill="#8fa3b7" font-family="system-ui,sans-serif" font-size="11" font-weight="700">PROMPT</text>
   <text x="256" y="478" fill="#e6edf3" font-family="system-ui,sans-serif" font-size="14">Build a FastAPI notes API with /health and tests…</text>

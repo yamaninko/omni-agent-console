@@ -7,6 +7,10 @@
     <button type="button" (click)="loadOverview()" [disabled]="loading()">Refresh</button>
   </header>
 
+  @if (actionError()) {
+    <div class="empty" style="color: #f43f5e; margin-bottom: 12px">{{ actionError() }}</div>
+  }
+
   @if (overview(); as data) {
     <div class="metrics">
       <div>
@@ -113,22 +117,33 @@
         <code>{{ (data.liveSessions ?? []).length }} active</code>
       </div>
       @for (row of data.liveSessions ?? []; track row.kind + row.id) {
-        <a
-          class="task-row"
-          [routerLink]="row.kind === 'panel' ? ['/panel', row.id] : ['/tasks', row.id]"
-        >
-          <code class="kind">{{ row.kind }}</code>
-          <span>{{ row.title }}</span>
-          <code [class]="row.status.toLowerCase()">{{ row.status }}</code>
-          <span>{{ row.createdAt | date: 'HH:mm:ss · MMM d' }}</span>
-          <strong>{{ row.totalTokens }} tok</strong>
-          @if (row.estimatedCost > 0) {
-            <span>{{ formatCost(row.estimatedCost) }}</span>
-          }
-          @if (row.ownerSessionId) {
-            <code class="sid" [title]="row.ownerSessionId">{{ shortSession(row.ownerSessionId) }}</code>
-          }
-        </a>
+        <div class="task-row live-row">
+          <a
+            class="live-link"
+            [routerLink]="row.kind === 'panel' ? ['/panel', row.id] : ['/tasks', row.id]"
+          >
+            <code class="kind">{{ row.kind }}</code>
+            <span>{{ row.title }}</span>
+            <code [class]="row.status.toLowerCase()">{{ row.status }}</code>
+            <span>{{ row.createdAt | date: 'HH:mm:ss · MMM d' }}</span>
+            <strong>{{ row.totalTokens }} tok</strong>
+            @if (row.estimatedCost > 0) {
+              <span>{{ formatCost(row.estimatedCost) }}</span>
+            }
+            @if (row.ownerSessionId) {
+              <code class="sid" [title]="row.ownerSessionId">{{ shortSession(row.ownerSessionId) }}</code>
+            }
+          </a>
+          <button
+            type="button"
+            class="cancel-live"
+            [disabled]="cancellingId() === row.id"
+            (click)="cancelLive(row.kind, row.id, $event)"
+            title="Cancel"
+          >
+            {{ cancellingId() === row.id ? '…' : 'Cancel' }}
+          </button>
+        </div>
       } @empty {
         <div class="empty">No live tasks or panels right now.</div>
       }

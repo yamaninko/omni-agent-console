@@ -188,7 +188,8 @@ public sealed class PanelDiscussionService : IPanelDiscussionService
                     break;
                 }
 
-                var roundSpeakers = ApplyFloorOrder(speakers, priorTurns);
+                var roundSpeakers = await ResolveFloorOrderAsync(
+                    session, speakers, priorTurns, cancellationToken);
                 if (maxRounds > 1 || isContinuation || floorMode == PanelFloorPolicy.Llm)
                 {
                     await panelEvents.WriteAsync(
@@ -603,9 +604,14 @@ public sealed class PanelDiscussionService : IPanelDiscussionService
         return false;
     }
 
-    private IReadOnlyList<AgentGroupMember> ApplyFloorOrder(
+    /// <summary>
+    /// Fixed roster order, or LLM-moderated order for commentators (moderators stay first).
+    /// </summary>
+    private async Task<IReadOnlyList<AgentGroupMember>> ResolveFloorOrderAsync(
+        PanelSession session,
         IReadOnlyList<AgentGroupMember> rosterOrder,
-        IReadOnlyList<(string Speaker, string Content)> priorTurns)
+        IReadOnlyList<(string Speaker, string Content)> priorTurns,
+        CancellationToken cancellationToken)
     {
         if (floorMode != PanelFloorPolicy.Llm || rosterOrder.Count <= 1)
         {
@@ -614,8 +620,111 @@ public sealed class PanelDiscussionService : IPanelDiscussionService
 
         var mods = rosterOrder.Where(m => m.Role == PanelMemberRole.Moderator).ToList();
         var rest = rosterOrder.Where(m => m.Role != PanelMemberRole.Moderator).ToList();
+        if (rest.Count <= 1)
+        {
+            return rosterOrder;
+        }
 
-        // Prefer order mentioned in the latest moderator speech or user follow-up.
+        // Prefer a real model call (moderator persona) for speaking order.
+        try
+        {
+            var chair = mods.FirstOrDefault() ?? rosterOrder[0];
+            var names = string.Join(", ", rest.Select(m => m.DisplayName));
+            var recent = priorTurns.Count == 0
+                ? "(no prior turns)"
+                : string.Join(
+                    "\n",
+                    priorTurns.TakeLast(4).Select(t => $"- {t.Speaker}: {TruncateForFloor(t.Content, 180)}"));
+
+            var messages = new List<ChatMessage>
+            {
+                new(
+                    "system",
+                    "You are the panel moderator. Choose the fairest speaking order for the remaining commentators. "
+                    + "Reply with ONLY a JSON array of exact display names, e.g. [\"Ada\",\"Bob\"]. No prose."),
+                new(
+                    "user",
+                    InputSanitizer.Redact(
+                        $"Topic: {session.Topic}\nRemaining speakers (use these exact names): {names}\n"
+                        + $"Recent context:\n{recent}\n\nReturn JSON array of all remaining names in speaking order."))
+            };
+
+            var modelChain = ModelChainExecutor.BuildModelChain(chair.DefaultModel, chair.FallbackModels);
+            if (modelChain.Count == 0)
+            {
+                return ApplyFloorOrderHeuristic(rosterOrder, priorTurns);
+            }
+
+            var credentialId = await ResolveCredentialIdAsync(chair, cancellationToken);
+            var metadata = new Dictionary<string, string>
+            {
+                ["panelSessionId"] = session.Id.ToString("D"),
+                ["kind"] = "floor-order"
+            };
+            if (credentialId is { } cid && cid != Guid.Empty)
+            {
+                metadata["apiCredentialId"] = cid.ToString("D");
+            }
+
+            var model = modelChain[0];
+            var response = await ExecuteWithRetryAsync(
+                new ModelRequest(
+                    chair.Provider,
+                    model,
+                    messages,
+                    Temperature: 0.2m,
+                    MaxTokens: 200,
+                    TimeoutSeconds: 45,
+                    metadata),
+                retryCount: 0,
+                cancellationToken);
+
+            var suggestion = response.Content?.Trim() ?? string.Empty;
+
+            if (!string.IsNullOrWhiteSpace(suggestion))
+            {
+                rest = PanelFloorPolicy.ApplyModeratorOrder(rest, m => m.DisplayName, suggestion).ToList();
+                await panelEvents.WriteAsync(
+                    session.Id,
+                    null,
+                    ConsoleEventType.AgentStep,
+                    $"LLM floor order ({model}): {string.Join(" → ", rest.Select(m => m.DisplayName))}",
+                    JsonSerializer.Serialize(new
+                    {
+                        kind = "floor-order-llm",
+                        model,
+                        order = rest.Select(m => m.DisplayName).ToList(),
+                        raw = TruncateForFloor(suggestion, 400)
+                    }),
+                    cancellationToken);
+                return mods.Concat(rest).ToList();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            await panelEvents.WriteAsync(
+                session.Id,
+                null,
+                ConsoleEventType.Warning,
+                $"LLM floor order failed ({ex.Message}); using heuristic order.",
+                null,
+                cancellationToken);
+        }
+
+        return ApplyFloorOrderHeuristic(rosterOrder, priorTurns);
+    }
+
+    private static IReadOnlyList<AgentGroupMember> ApplyFloorOrderHeuristic(
+        IReadOnlyList<AgentGroupMember> rosterOrder,
+        IReadOnlyList<(string Speaker, string Content)> priorTurns)
+    {
+        var mods = rosterOrder.Where(m => m.Role == PanelMemberRole.Moderator).ToList();
+        var rest = rosterOrder.Where(m => m.Role != PanelMemberRole.Moderator).ToList();
+
         var hint = priorTurns
             .LastOrDefault(t =>
                 mods.Any(m => m.DisplayName.Equals(t.Speaker, StringComparison.OrdinalIgnoreCase))
@@ -628,7 +737,6 @@ public sealed class PanelDiscussionService : IPanelDiscussionService
         }
         else
         {
-            // Heuristic "moderator-style" floor: For → Neutral/Custom → Against.
             rest = rest
                 .OrderBy(m => m.Stance switch
                 {
@@ -644,6 +752,12 @@ public sealed class PanelDiscussionService : IPanelDiscussionService
         }
 
         return mods.Concat(rest).ToList();
+    }
+
+    private static string TruncateForFloor(string s, int max)
+    {
+        var one = s.Replace('\n', ' ').Trim();
+        return one.Length <= max ? one : one[..(max - 1)] + "…";
     }
 
     private async Task WriteScorecardAsync(PanelSession session, CancellationToken cancellationToken)

@@ -14,6 +14,8 @@ export class DashboardPage implements OnInit {
   private readonly api = inject(TaskApiClient);
   protected readonly overview = signal<DashboardOverview | null>(null);
   protected readonly loading = signal(true);
+  protected readonly cancellingId = signal<string | null>(null);
+  protected readonly actionError = signal<string | null>(null);
 
   ngOnInit(): void {
     this.loadOverview();
@@ -21,6 +23,7 @@ export class DashboardPage implements OnInit {
 
   protected loadOverview(): void {
     this.loading.set(true);
+    this.actionError.set(null);
     this.api.getDashboardOverview().subscribe({
       next: (overview) => {
         this.overview.set(overview);
@@ -30,6 +33,27 @@ export class DashboardPage implements OnInit {
       error: () => {
         this.overview.set(null);
         this.loading.set(false);
+      }
+    });
+  }
+
+  protected cancelLive(kind: string, id: string, event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.cancellingId()) return;
+    if (!confirm(`Cancel this ${kind}?`)) return;
+    this.cancellingId.set(id);
+    this.actionError.set(null);
+    const req =
+      kind === 'panel' ? this.api.cancelPanel(id) : this.api.cancelTask(id);
+    req.subscribe({
+      next: () => {
+        this.cancellingId.set(null);
+        this.loadOverview();
+      },
+      error: (err) => {
+        this.cancellingId.set(null);
+        this.actionError.set(err?.error || err?.message || 'Cancel failed');
       }
     });
   }

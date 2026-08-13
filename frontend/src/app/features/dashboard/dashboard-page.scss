@@ -140,6 +140,42 @@ strong {
   text-decoration: none;
 }
 
+.task-row.live-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  grid-template-columns: none;
+}
+
+.live-link {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 56px minmax(120px, 1.2fr) 90px 130px 80px auto auto;
+  gap: 10px;
+  align-items: center;
+  color: inherit;
+  text-decoration: none;
+}
+
+.cancel-live {
+  flex-shrink: 0;
+  margin-right: 12px;
+  border: 1px solid #4a1f24;
+  background: rgba(244, 63, 94, 0.12);
+  color: #ffb4b4;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cancel-live:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
 .task-row:hover {
   background: #101823;
 }
