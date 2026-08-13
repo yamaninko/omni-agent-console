@@ -47,4 +47,8 @@ export class DashboardPage implements OnInit {
     if (usd < 0.01) return `$${usd.toFixed(5)}`;
     return `$${usd.toFixed(4)}`;
   }
+
+  protected shortSession(id: string): string {
+    return (id || '').replace(/-/g, '').slice(0, 8);
+  }
 }

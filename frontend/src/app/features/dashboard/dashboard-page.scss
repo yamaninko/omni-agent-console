@@ -77,6 +77,17 @@ strong {
   color: #76b900;
 }
 
+.task-row .kind {
+  color: #76b900;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.task-row .sid {
+  font-size: 10px;
+  color: #6db3ff;
+}
+
 .breakdown {
   border: 1px solid #13202c;
   border-radius: 8px;

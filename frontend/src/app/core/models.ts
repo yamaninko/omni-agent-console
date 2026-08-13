@@ -207,6 +207,18 @@ export interface DashboardOverview {
   estimatedCostTotal?: number;
   livePanelSessions?: number;
   liveTaskSessions?: number;
+  liveSessions?: LiveSessionRow[];
+}
+
+export interface LiveSessionRow {
+  kind: 'task' | 'panel' | string;
+  id: string;
+  title: string;
+  status: string;
+  createdAt: string;
+  ownerSessionId?: string | null;
+  totalTokens: number;
+  estimatedCost: number;
 }
 
 export interface DemoSeedResult {

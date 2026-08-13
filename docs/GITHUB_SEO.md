@@ -4,6 +4,15 @@ Local guide for making **OmniAgent Console** easier to find on Google and GitHub
 Code changes land in git; **About / Topics** on github.com need the web UI or `gh`
 (this machine may not have `gh` installed).
 
+## Script (when `gh auth login` or `GH_TOKEN` has `repo` metadata scope)
+
+```bash
+chmod +x scripts/set-github-about.sh
+./scripts/set-github-about.sh yamaninko/omni-agent-console
+```
+
+Note: a fine-grained or push-only token may return **403** on description/topics even if `git push` works. Use a classic PAT with `public_repo` or full `repo` scope, or set About in the web UI.
+
 ## Paste into GitHub → About (no code push required)
 
 **Description** (≤350 chars):

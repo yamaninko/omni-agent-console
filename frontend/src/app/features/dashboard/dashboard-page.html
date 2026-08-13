@@ -109,6 +109,33 @@
 
     <section class="panel recent">
       <div class="panel-title">
+        <span>Live sessions</span>
+        <code>{{ (data.liveSessions ?? []).length }} active</code>
+      </div>
+      @for (row of data.liveSessions ?? []; track row.kind + row.id) {
+        <a
+          class="task-row"
+          [routerLink]="row.kind === 'panel' ? ['/panel', row.id] : ['/tasks', row.id]"
+        >
+          <code class="kind">{{ row.kind }}</code>
+          <span>{{ row.title }}</span>
+          <code [class]="row.status.toLowerCase()">{{ row.status }}</code>
+          <span>{{ row.createdAt | date: 'HH:mm:ss · MMM d' }}</span>
+          <strong>{{ row.totalTokens }} tok</strong>
+          @if (row.estimatedCost > 0) {
+            <span>{{ formatCost(row.estimatedCost) }}</span>
+          }
+          @if (row.ownerSessionId) {
+            <code class="sid" [title]="row.ownerSessionId">{{ shortSession(row.ownerSessionId) }}</code>
+          }
+        </a>
+      } @empty {
+        <div class="empty">No live tasks or panels right now.</div>
+      }
+    </section>
+
+    <section class="panel recent">
+      <div class="panel-title">
         <span>Recent tasks</span>
         <code>{{ data.completedTasks }} completed · {{ data.failedTasks }} failed</code>
       </div>

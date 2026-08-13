@@ -105,6 +105,62 @@ public sealed class DashboardController : ControllerBase
             t => t.Status == TaskRunStatus.Pending,
             cancellationToken);
 
+        var liveTaskRows = await dbContext.TaskRuns
+            .AsNoTracking()
+            .Where(t => t.Status == TaskRunStatus.Pending || t.Status == TaskRunStatus.Running)
+            .OrderByDescending(t => t.CreatedAt)
+            .Take(20)
+            .Select(t => new
+            {
+                t.Id,
+                t.Title,
+                Status = t.Status.ToString(),
+                t.CreatedAt,
+                t.OwnerSessionId,
+                t.TotalTokens,
+                Cost = t.ModelCallLogs.Sum(m => m.EstimatedCost ?? 0m)
+            })
+            .ToListAsync(cancellationToken);
+
+        var livePanelRows = await dbContext.PanelSessions
+            .AsNoTracking()
+            .Where(p => p.Status == PanelSessionStatus.Pending || p.Status == PanelSessionStatus.Running)
+            .OrderByDescending(p => p.CreatedAt)
+            .Take(20)
+            .Select(p => new
+            {
+                p.Id,
+                Title = p.Title,
+                Status = p.Status.ToString(),
+                p.CreatedAt,
+                p.OwnerSessionId,
+                p.TotalTokens
+            })
+            .ToListAsync(cancellationToken);
+
+        var liveSessions = liveTaskRows
+            .Select(t => new LiveSessionDto(
+                "task",
+                t.Id,
+                t.Title,
+                t.Status,
+                t.CreatedAt,
+                t.OwnerSessionId,
+                t.TotalTokens,
+                t.Cost))
+            .Concat(livePanelRows.Select(p => new LiveSessionDto(
+                "panel",
+                p.Id,
+                p.Title,
+                p.Status,
+                p.CreatedAt,
+                p.OwnerSessionId,
+                p.TotalTokens,
+                0m)))
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(30)
+            .ToList();
+
         return Ok(new DashboardOverviewDto(
             totalTasks,
             runningTasks,
@@ -139,7 +195,8 @@ public sealed class DashboardController : ControllerBase
             recentTasks,
             estimatedCost,
             livePanels,
-            liveTasks));
+            liveTasks,
+            liveSessions));
     }
 
     [HttpGet("recent-tasks")]

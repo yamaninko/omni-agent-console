@@ -20,7 +20,20 @@ public sealed record DashboardOverviewDto(
     IReadOnlyList<TaskSummaryDto> RecentTasks,
     decimal EstimatedCostTotal = 0m,
     int LivePanelSessions = 0,
-    int LiveTaskSessions = 0);
+    int LiveTaskSessions = 0,
+    /// <summary>Instructor view: currently live Studio tasks and panel sessions.</summary>
+    IReadOnlyList<LiveSessionDto>? LiveSessions = null);
+
+/// <summary>A running/pending task or panel for the instructor dashboard.</summary>
+public sealed record LiveSessionDto(
+    string Kind,
+    Guid Id,
+    string Title,
+    string Status,
+    DateTimeOffset CreatedAt,
+    string? OwnerSessionId,
+    int TotalTokens,
+    decimal EstimatedCost);
 
 public sealed record AgentUsageBreakdownDto(
     string AgentName,
