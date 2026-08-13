@@ -94,7 +94,8 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
         var taskStopwatch = Stopwatch.StartNew();
         var previousOutputs = new List<AgentOutput>();
 
-        var (workspacePath, requestedSkillIds, pipelineKey) = AgentPromptBuilder.ParseTaskContext(taskRun.InputContextJson);
+        var (workspacePath, requestedSkillIds, pipelineKey, maxCostUsd) =
+            AgentPromptBuilder.ParseTaskContext(taskRun.InputContextJson);
         var pipeline = TaskPipelinePolicy.Resolve(pipelineKey);
         var appliedSkills = await dbContext.SkillDefinitions
             .AsNoTracking()
@@ -186,7 +187,8 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
                 taskRun.Id,
                 null,
                 ConsoleEventType.AgentStep,
-                $"Pipeline: {pipelineKey} ({string.Join(" → ", pipeline)}).",
+                $"Pipeline: {pipelineKey} ({string.Join(" → ", pipeline)})."
+                + (maxCostUsd is { } cap ? $" Max cost budget: ${cap:F4}." : string.Empty),
                 null,
                 cancellationToken);
 
@@ -199,6 +201,24 @@ public sealed class AgentOrchestratorService : IAgentOrchestratorService
                 }
 
                 cancellationToken.ThrowIfCancellationRequested();
+
+                if (maxCostUsd is { } budget)
+                {
+                    var spent = await dbContext.ModelCallLogs
+                        .Where(m => m.TaskRunId == taskRun.Id)
+                        .SumAsync(m => m.EstimatedCost ?? 0m, cancellationToken);
+                    if (spent >= budget)
+                    {
+                        await consoleEvents.WriteAsync(
+                            taskRun.Id,
+                            null,
+                            ConsoleEventType.Warning,
+                            $"Cost budget reached (${spent:F5} ≥ ${budget:F4}). Stopping remaining agents.",
+                            null,
+                            cancellationToken);
+                        break;
+                    }
+                }
 
                 if (!definitions.TryGetValue(agentType, out var agentDefinition))
                 {

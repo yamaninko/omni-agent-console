@@ -11,12 +11,13 @@ Versions are date-based until a formal semver release.
 
 ### Planned (see [docs/ROADMAP.md](docs/ROADMAP.md) § Panel backlog)
 
-- Full multi-turn LLM floor negotiation (beyond heuristic / parse mode)
-- Playwright E2E in CI
-- Audience mid-round inject / STT / full i18n
+- STT / full i18n / run_terminal sandbox
+- Playwright E2E against hosted preview URL (workflow ready)
 
 ### Done on this branch (post-MVP, local commits)
 
+- **C1** Studio **demo preset chips** + **maxCostUsd** soft budget
+- **C2** Panel **audience inject** mid-run (`POST …/inject`)
 - **N1** Instructor **live sessions** list on Dashboard (tasks + panels, session id, cost)
 - **N1b** Dashboard **Cancel** on live task/panel rows
 - **N2** Playwright **smoke** suite (`frontend/e2e`, optional workflow) + `scripts/set-github-about.sh`

@@ -218,6 +218,9 @@ public sealed class PanelDiscussionService : IPanelDiscussionService
                         break;
                     }
 
+                    // Audience mid-round injects (UserMessage with kind=inject) join priorTurns.
+                    await AbsorbInjectedUserMessagesAsync(session.Id, priorTurns, cancellationToken);
+
                     var member = roundSpeakers[i];
                     var turnOrder = nextTurnOrder++;
                     var ok = await RunTurnAsync(session, member, turnOrder, priorTurns, roster, cancellationToken);
@@ -758,6 +761,56 @@ public sealed class PanelDiscussionService : IPanelDiscussionService
     {
         var one = s.Replace('\n', ' ').Trim();
         return one.Length <= max ? one : one[..(max - 1)] + "…";
+    }
+
+    /// <summary>
+    /// Pull new audience injects (and follow-ups) not already mirrored into priorTurns.
+    /// </summary>
+    private async Task AbsorbInjectedUserMessagesAsync(
+        Guid sessionId,
+        List<(string Speaker, string Content)> priorTurns,
+        CancellationToken cancellationToken)
+    {
+        var userMessages = await dbContext.PanelConsoleEvents
+            .AsNoTracking()
+            .Where(e => e.PanelSessionId == sessionId && e.EventType == ConsoleEventType.UserMessage)
+            .OrderBy(e => e.CreatedAt)
+            .Select(e => new { e.Message, e.PayloadJson })
+            .ToListAsync(cancellationToken);
+
+        foreach (var um in userMessages)
+        {
+            if (string.IsNullOrWhiteSpace(um.Message))
+            {
+                continue;
+            }
+
+            // Avoid duplicating the same content already in priorTurns.
+            if (priorTurns.Any(p =>
+                    p.Speaker.Equals("User", StringComparison.OrdinalIgnoreCase)
+                    && p.Content.Equals(um.Message, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            // Prefer inject/followUp payload; plain topic UserMessage is usually already at start.
+            var isInject = um.PayloadJson is not null
+                && (um.PayloadJson.Contains("inject", StringComparison.OrdinalIgnoreCase)
+                    || um.PayloadJson.Contains("followUp", StringComparison.OrdinalIgnoreCase));
+            if (!isInject)
+            {
+                continue;
+            }
+
+            priorTurns.Add(("User", um.Message));
+            await panelEvents.WriteAsync(
+                sessionId,
+                null,
+                ConsoleEventType.AgentStep,
+                "Audience inject absorbed for upcoming speakers.",
+                JsonSerializer.Serialize(new { kind = "inject-absorbed" }),
+                cancellationToken);
+        }
     }
 
     private async Task WriteScorecardAsync(PanelSession session, CancellationToken cancellationToken)

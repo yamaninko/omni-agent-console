@@ -112,6 +112,22 @@
             }
           </div>
         }
+        @if (session() && canInject()) {
+          <div class="follow-up inject-box">
+            <label>
+              Audience inject (live)
+              <textarea
+                rows="2"
+                placeholder="Ask a question mid-debate — next speakers will see it…"
+                [value]="injectMsg()"
+                (input)="injectMsg.set($any($event.target).value)"
+              ></textarea>
+            </label>
+            <button class="oa-btn oa-btn-ghost" type="button" (click)="injectAudience()" [disabled]="busy()">
+              Inject question
+            </button>
+          </div>
+        }
         @if (session() && canContinue()) {
           <div class="follow-up">
             <label>

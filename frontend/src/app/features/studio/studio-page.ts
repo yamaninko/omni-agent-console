@@ -87,6 +87,13 @@ export class StudioPage implements OnInit, OnDestroy {
       hint: 'No Research or Ops Monitor'
     }
   ];
+  /** Soft USD budget (0 = unlimited). Stored in InputContextJson.maxCostUsd. */
+  protected readonly maxCostUsd = signal(0);
+  protected readonly studioPresets = [
+    { id: 'fastapi-notes', label: 'FastAPI notes' },
+    { id: 'dotnet-api', label: '.NET API' },
+    { id: 'angular-dashboard', label: 'Angular dash' }
+  ];
   protected readonly skills = signal<SkillDefinition[]>([]);
   /** Skills grouped by category for the Studio chip panel (Frontend first). */
   protected readonly skillsByCategory = computed(() => {
@@ -237,6 +244,26 @@ export class StudioPage implements OnInit, OnDestroy {
     this.markdownCacheOrder.length = 0;
   }
 
+  protected applyStudioPreset(presetId: string): void {
+    this.api.getStudioDemoPreset(presetId).subscribe({
+      next: (p) => {
+        const pipe = p.pipeline as 'full' | 'coder' | 'plan-code-review';
+        if (pipe === 'full' || pipe === 'coder' || pipe === 'plan-code-review') {
+          this.pipeline.set(pipe);
+        }
+        if (p.workspacePath?.startsWith('/workspace/')) {
+          this.workspacePath.set(p.workspacePath);
+          localStorage.setItem('studio_workspace_path', p.workspacePath);
+        }
+        if (p.prompt?.trim()) {
+          this.prompt.set(p.prompt);
+        }
+        this.applyPresetSkillKeywords(p.id);
+      },
+      error: () => this.applyPresetSkillKeywords(presetId)
+    });
+  }
+
   /** Match skill chips by keyword for demo presets (best-effort). */
   private applyPresetSkillKeywords(presetId: string): void {
     const keywordMap: Record<string, string[]> = {
@@ -277,6 +304,10 @@ export class StudioPage implements OnInit, OnDestroy {
     };
     if (skillIds.length > 0) {
       context['skillIds'] = skillIds;
+    }
+    const budget = this.maxCostUsd();
+    if (budget > 0) {
+      context['maxCostUsd'] = budget;
     }
     const contextJson = JSON.stringify(context);
 

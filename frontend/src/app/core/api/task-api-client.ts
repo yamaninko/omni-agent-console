@@ -325,6 +325,10 @@ export class TaskApiClient {
     return this.http.post(`${API_BASE_URL}/panels/${panelId}/continue`, { message, extraRounds });
   }
 
+  injectPanelMessage(panelId: string, message: string): Observable<unknown> {
+    return this.http.post(`${API_BASE_URL}/panels/${panelId}/inject`, { message });
+  }
+
   cancelPanel(panelId: string): Observable<unknown> {
     return this.http.post(`${API_BASE_URL}/panels/${panelId}/cancel`, {});
   }

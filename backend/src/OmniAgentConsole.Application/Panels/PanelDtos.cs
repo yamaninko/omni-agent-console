@@ -69,6 +69,9 @@ public sealed record CreatePanelSessionRequest(
 
 public sealed record ContinuePanelRequest(string Message, int ExtraRounds = 1);
 
+/// <summary>Audience question injected while a panel is live (next turns see it in context).</summary>
+public sealed record InjectPanelMessageRequest(string Message);
+
 public sealed record CastPanelVoteRequest(Guid MemberId);
 
 public sealed record PanelVoteTallyDto(Guid MemberId, string DisplayName, int Votes);

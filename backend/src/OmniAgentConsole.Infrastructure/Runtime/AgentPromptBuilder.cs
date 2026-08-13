@@ -124,15 +124,17 @@ internal static class AgentPromptBuilder
     }
 
     // Context JSON is user-controlled; unknown properties and malformed ids are ignored.
-    public static (string? WorkspacePath, List<Guid> SkillIds, string Pipeline) ParseTaskContext(string? inputContextJson)
+    public static (string? WorkspacePath, List<Guid> SkillIds, string Pipeline, decimal? MaxCostUsd) ParseTaskContext(
+        string? inputContextJson)
     {
         string? workspacePath = null;
         var skillIds = new List<Guid>();
         var pipeline = TaskPipelinePolicy.Full;
+        decimal? maxCostUsd = null;
 
         if (string.IsNullOrWhiteSpace(inputContextJson))
         {
-            return (workspacePath, skillIds, pipeline);
+            return (workspacePath, skillIds, pipeline, maxCostUsd);
         }
 
         try
@@ -160,10 +162,19 @@ internal static class AgentPromptBuilder
             {
                 pipeline = TaskPipelinePolicy.Normalize(pipelineProp.GetString());
             }
+
+            // Soft budget: stop before the next agent when estimated cost exceeds this USD amount.
+            if (doc.RootElement.TryGetProperty("maxCostUsd", out var costProp)
+                && costProp.ValueKind == JsonValueKind.Number
+                && costProp.TryGetDecimal(out var budget)
+                && budget > 0)
+            {
+                maxCostUsd = budget;
+            }
         }
         catch { }
 
-        return (workspacePath, skillIds, pipeline);
+        return (workspacePath, skillIds, pipeline, maxCostUsd);
     }
 
     public static string? BuildSkillsBlock(IReadOnlyList<SkillDefinition> skills)

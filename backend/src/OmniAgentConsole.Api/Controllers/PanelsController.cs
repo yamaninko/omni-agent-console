@@ -334,6 +334,44 @@ public sealed class PanelsController : ControllerBase
     }
 
     /// <summary>
+    /// Mid-run audience inject: persists a UserMessage so the live worker picks it up
+    /// before the next speaker turn (does not requeue).
+    /// </summary>
+    [HttpPost("{panelId:guid}/inject")]
+    public async Task<IActionResult> Inject(
+        Guid panelId,
+        [FromBody] InjectPanelMessageRequest request,
+        CancellationToken cancellationToken)
+    {
+        var session = await LoadOwnedSessionAsync(panelId, tracking: true, cancellationToken);
+        if (session is null)
+        {
+            return NotFound();
+        }
+
+        if (session.Status is not (PanelSessionStatus.Running or PanelSessionStatus.Pending))
+        {
+            return Conflict("Inject only works while the panel is live; use Continue after it finishes.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Message))
+        {
+            return BadRequest("Message is required.");
+        }
+
+        var message = InputSanitizer.Redact(request.Message.Trim());
+        dbContext.PanelConsoleEvents.Add(new PanelConsoleEvent
+        {
+            PanelSessionId = panelId,
+            EventType = ConsoleEventType.UserMessage,
+            Message = message,
+            PayloadJson = System.Text.Json.JsonSerializer.Serialize(new { kind = "inject" })
+        });
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return Accepted(new { id = panelId, injected = true });
+    }
+
+    /// <summary>
     /// After a finished panel, inject a user follow-up and run one more roster pass
     /// (keeps prior turns as transcript context).
     /// </summary>

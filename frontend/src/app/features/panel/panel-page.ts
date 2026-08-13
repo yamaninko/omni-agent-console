@@ -65,6 +65,8 @@ export class PanelPage implements OnInit, OnDestroy {
   protected readonly title = signal('');
   protected readonly maxRounds = signal(1);
   protected readonly followUp = signal('');
+  /** Mid-run audience inject (only while Pending/Running). */
+  protected readonly injectMsg = signal('');
   protected readonly session = signal<PanelSessionDetail | null>(null);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -239,6 +241,33 @@ export class PanelPage implements OnInit, OnDestroy {
       error: (err) => {
         this.busy.set(false);
         this.error.set(this.readError(err, 'Continue failed'));
+      }
+    });
+  }
+
+  protected canInject(): boolean {
+    const s = this.session()?.status;
+    return s === 'Running' || s === 'Pending';
+  }
+
+  protected injectAudience(): void {
+    const id = this.session()?.id;
+    const message = this.injectMsg().trim();
+    if (!id || !message) {
+      this.error.set('Write an audience question to inject.');
+      return;
+    }
+    this.busy.set(true);
+    this.error.set(null);
+    this.api.injectPanelMessage(id, message).subscribe({
+      next: () => {
+        this.busy.set(false);
+        this.injectMsg.set('');
+        this.reloadSession(id);
+      },
+      error: (err) => {
+        this.busy.set(false);
+        this.error.set(this.readError(err, 'Inject failed'));
       }
     });
   }
