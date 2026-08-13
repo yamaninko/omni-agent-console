@@ -2,7 +2,7 @@
 
 **Multi-agent AI studio** for coding pipelines and **moderated panel debates**.
 
-|.NET 10 API + Worker | Angular 21 UI | Docker Compose | OpenAI-compatible LLMs (NVIDIA NIM by default)|
+**.NET 10** API + Worker · **Angular 21** UI · **Docker Compose** · OpenAI-compatible LLMs (**NVIDIA NIM** by default)
 
 [Features](#features) · [Quick start](#quick-start) · [Use cases](#use-cases) · [Architecture](#architecture) · [Docs](#documentation) · [Changelog](CHANGELOG.md)
 
