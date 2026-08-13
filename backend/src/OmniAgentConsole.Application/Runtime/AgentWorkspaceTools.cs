@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using OmniAgentConsole.Application.Providers;
 
@@ -18,6 +20,7 @@ public sealed class AgentWorkspaceTools
 
     private readonly string workspaceRoot;
     private readonly List<string> writtenFiles = [];
+    private int terminalRuns;
 
     public AgentWorkspaceTools(string workspaceRoot)
     {
@@ -25,6 +28,8 @@ public sealed class AgentWorkspaceTools
     }
 
     public IReadOnlyList<string> WrittenFiles => writtenFiles;
+
+    public const int MaxTerminalRunsPerTask = 6;
 
     public static IReadOnlyList<ToolDefinition> Definitions { get; } =
     [
@@ -63,6 +68,18 @@ public sealed class AgentWorkspaceTools
                 "path": { "type": "string", "description": "Optional subdirectory to list; omit for the workspace root." }
               }
             }
+            """),
+        new ToolDefinition(
+            "run_terminal",
+            "Run a WHITELISTED test/lint command in the workspace (pytest, npm test, dotnet test, go test, ruff check, tsc --noEmit). No shell operators.",
+            """
+            {
+              "type": "object",
+              "properties": {
+                "command": { "type": "string", "description": "Exact allow-listed command, e.g. pytest or npm test" }
+              },
+              "required": ["command"]
+            }
             """)
     ];
 
@@ -88,8 +105,91 @@ public sealed class AgentWorkspaceTools
             "write_file" => WriteFile(ReadStringArg(args, "path"), ReadStringArg(args, "content")),
             "read_file" => ReadFile(ReadStringArg(args, "path")),
             "list_files" => ListFiles(ReadStringArg(args, "path")),
-            _ => ToolExecutionResult.Failure($"Unknown tool: {toolName}. Available tools: write_file, read_file, list_files.")
+            "run_terminal" => RunTerminal(ReadStringArg(args, "command")),
+            _ => ToolExecutionResult.Failure(
+                $"Unknown tool: {toolName}. Available tools: write_file, read_file, list_files, run_terminal.")
         };
+    }
+
+    private ToolExecutionResult RunTerminal(string? command)
+    {
+        var reject = TerminalSandboxPolicy.RejectReason(command);
+        if (reject is not null)
+        {
+            return ToolExecutionResult.Failure(reject);
+        }
+
+        if (terminalRuns >= MaxTerminalRunsPerTask)
+        {
+            return ToolExecutionResult.Failure(
+                $"run_terminal budget exhausted ({MaxTerminalRunsPerTask} runs/task). Summarize and finish.");
+        }
+
+        terminalRuns++;
+        var cmd = command!.Trim();
+
+        try
+        {
+            // Invoke via /bin/sh -c only after whitelist validation (no metacharacters allowed).
+            var psi = new ProcessStartInfo
+            {
+                FileName = "/bin/sh",
+                ArgumentList = { "-c", cmd },
+                WorkingDirectory = workspaceRoot,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            // Avoid inheriting host secrets into model-visible output where possible.
+            psi.Environment["PYTHONUNBUFFERED"] = "1";
+
+            using var process = new Process { StartInfo = psi };
+            var stdout = new StringBuilder();
+            var stderr = new StringBuilder();
+            process.OutputDataReceived += (_, e) =>
+            {
+                if (e.Data is not null && stdout.Length < TerminalSandboxPolicy.MaxOutputChars)
+                {
+                    stdout.AppendLine(e.Data);
+                }
+            };
+            process.ErrorDataReceived += (_, e) =>
+            {
+                if (e.Data is not null && stderr.Length < TerminalSandboxPolicy.MaxOutputChars)
+                {
+                    stderr.AppendLine(e.Data);
+                }
+            };
+
+            if (!process.Start())
+            {
+                return ToolExecutionResult.Failure("Failed to start process.");
+            }
+
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            var finished = process.WaitForExit(TerminalSandboxPolicy.DefaultTimeoutSeconds * 1000);
+            if (!finished)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { /* ignore */ }
+                return ToolExecutionResult.Failure(
+                    $"Command timed out after {TerminalSandboxPolicy.DefaultTimeoutSeconds}s: {cmd}");
+            }
+
+            process.WaitForExit();
+            var combined = $"exit={process.ExitCode}\n--- stdout ---\n{stdout}\n--- stderr ---\n{stderr}";
+            if (combined.Length > TerminalSandboxPolicy.MaxOutputChars)
+            {
+                combined = combined[..TerminalSandboxPolicy.MaxOutputChars] + "\n[truncated]";
+            }
+
+            return ToolExecutionResult.Ok(combined, null);
+        }
+        catch (Exception ex)
+        {
+            return ToolExecutionResult.Failure($"run_terminal failed: {ex.Message}");
+        }
     }
 
     private ToolExecutionResult WriteFile(string? path, string? content)

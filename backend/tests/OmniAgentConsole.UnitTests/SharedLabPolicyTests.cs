@@ -72,6 +72,7 @@ public sealed class SharedLabPolicyTests
     [InlineData("POST", "/api/tasks", false)]
     [InlineData("DELETE", "/api/workspace", false)]
     [InlineData("GET", "/api/skills", false)]
+    [InlineData("POST", "/api/agent-groups/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/clone", false)]
     public void IsAdminGated_LocksConfigurationWritesOnly(string method, string path, bool expected)
     {
         Assert.Equal(expected, SharedLabPolicy.IsAdminGated(method, path));

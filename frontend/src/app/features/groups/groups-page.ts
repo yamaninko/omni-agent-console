@@ -344,13 +344,35 @@ export class GroupsPage implements OnInit, OnDestroy {
     this.api.cloneAgentGroup(id).subscribe({
       next: (detail) => {
         this.saving.set(false);
-        this.success.set('Group cloned.');
+        this.success.set('Group cloned (editable student copy).');
         this.reloadGroups();
         void this.router.navigate(['/groups', detail.id]);
       },
       error: (err) => {
         this.saving.set(false);
         this.error.set(err?.error || 'Clone failed');
+      }
+    });
+  }
+
+  protected toggleTemplateFlag(): void {
+    const sel = this.selected();
+    if (!sel) return;
+    this.saving.set(true);
+    this.api.setAgentGroupTemplate(sel.id, !sel.isTemplate).subscribe({
+      next: (detail) => {
+        this.saving.set(false);
+        this.selected.set(detail);
+        this.success.set(
+          detail.isTemplate
+            ? 'Marked as instructor template (read-only cast).'
+            : 'Template flag cleared — group is editable.'
+        );
+        this.reloadGroups();
+      },
+      error: (err) => {
+        this.saving.set(false);
+        this.error.set(err?.error || 'Could not update template flag');
       }
     });
   }

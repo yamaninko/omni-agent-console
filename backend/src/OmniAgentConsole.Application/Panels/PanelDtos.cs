@@ -8,7 +8,8 @@ public sealed record AgentGroupSummaryDto(
     string? Description,
     int MemberCount,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? UpdatedAt);
+    DateTimeOffset? UpdatedAt,
+    bool IsTemplate = false);
 
 public sealed record AgentGroupMemberDto(
     Guid Id,
@@ -36,7 +37,10 @@ public sealed record AgentGroupDetailDto(
     string? Description,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt,
-    IReadOnlyList<AgentGroupMemberDto> Members);
+    IReadOnlyList<AgentGroupMemberDto> Members,
+    bool IsTemplate = false);
+
+public sealed record SetGroupTemplateRequest(bool IsTemplate);
 
 public sealed record CreateAgentGroupRequest(string Name, string? Description);
 

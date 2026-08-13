@@ -127,7 +127,8 @@ public sealed class AgentWorkspaceToolsTests : IDisposable
         var result = tools.Execute("delete_everything", "{}");
 
         Assert.False(result.Success);
-        Assert.Contains("write_file, read_file, list_files", result.Output);
+        Assert.Contains("write_file", result.Output);
+        Assert.Contains("run_terminal", result.Output);
     }
 
     [Fact]
@@ -155,13 +156,29 @@ public sealed class AgentWorkspaceToolsTests : IDisposable
     }
 
     [Fact]
-    public void Definitions_ContainAllThreeToolsWithValidSchemas()
+    public void Definitions_ContainAllToolsWithValidSchemas()
     {
-        Assert.Equal(3, AgentWorkspaceTools.Definitions.Count);
+        Assert.Equal(4, AgentWorkspaceTools.Definitions.Count);
         foreach (var definition in AgentWorkspaceTools.Definitions)
         {
             using var schema = JsonDocument.Parse(definition.ParametersJsonSchema);
             Assert.Equal("object", schema.RootElement.GetProperty("type").GetString());
         }
+    }
+
+    [Fact]
+    public void RunTerminal_RejectsShellMetacharacters()
+    {
+        var result = tools.Execute("run_terminal", Args(new { command = "pytest; rm -rf /" }));
+        Assert.False(result.Success);
+        Assert.Contains("forbidden", result.Output, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void RunTerminal_AllowsPytestPattern()
+    {
+        Assert.True(TerminalSandboxPolicy.IsAllowed("pytest"));
+        Assert.True(TerminalSandboxPolicy.IsAllowed("python -m pytest tests/"));
+        Assert.False(TerminalSandboxPolicy.IsAllowed("curl http://evil"));
     }
 }

@@ -84,6 +84,13 @@ public static class SharedLabPolicy
             return false;
         }
 
+        // Students may clone instructor template casts (POST …/clone).
+        if (normalized.StartsWith("/api/agent-groups/", StringComparison.Ordinal)
+            && normalized.EndsWith("/clone", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
         return normalized.StartsWith("/api/credentials", StringComparison.Ordinal)
             || normalized.StartsWith("/api/agents", StringComparison.Ordinal)
             || normalized.StartsWith("/api/agent-groups", StringComparison.Ordinal)

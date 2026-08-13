@@ -123,9 +123,21 @@
                 (input)="injectMsg.set($any($event.target).value)"
               ></textarea>
             </label>
-            <button class="oa-btn oa-btn-ghost" type="button" (click)="injectAudience()" [disabled]="busy()">
-              Inject question
-            </button>
+            <div class="oa-actions">
+              @if (sttSupported) {
+                <button
+                  class="oa-btn oa-btn-ghost"
+                  type="button"
+                  (click)="sttListening() ? stopStt() : startStt('inject')"
+                  [disabled]="busy()"
+                >
+                  {{ sttListening() ? 'Stop mic' : '🎤 Mic' }}
+                </button>
+              }
+              <button class="oa-btn oa-btn-ghost" type="button" (click)="injectAudience()" [disabled]="busy()">
+                Inject question
+              </button>
+            </div>
           </div>
         }
         @if (session() && canContinue()) {
@@ -139,9 +151,21 @@
                 (input)="followUp.set($any($event.target).value)"
               ></textarea>
             </label>
-            <button class="oa-btn oa-btn-primary" type="button" (click)="continuePanel()" [disabled]="busy()">
-              Continue panel
-            </button>
+            <div class="oa-actions">
+              @if (sttSupported) {
+                <button
+                  class="oa-btn oa-btn-ghost"
+                  type="button"
+                  (click)="sttListening() ? stopStt() : startStt('followUp')"
+                  [disabled]="busy()"
+                >
+                  {{ sttListening() ? 'Stop mic' : '🎤 Mic' }}
+                </button>
+              }
+              <button class="oa-btn oa-btn-primary" type="button" (click)="continuePanel()" [disabled]="busy()">
+                Continue panel
+              </button>
+            </div>
           </div>
         }
         @if (session() && scorecardBlurb()) {

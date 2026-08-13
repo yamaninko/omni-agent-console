@@ -78,6 +78,11 @@ export class PanelPage implements OnInit, OnDestroy {
   protected readonly ttsSpeaking = signal(false);
   protected readonly ttsSupported =
     typeof window !== 'undefined' && typeof window.speechSynthesis !== 'undefined';
+  protected readonly sttSupported =
+    typeof window !== 'undefined'
+    && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window);
+  protected readonly sttListening = signal(false);
+  private sttRecognition: { stop: () => void; abort: () => void } | null = null;
 
   protected readonly events = this.stream.events;
 
@@ -270,6 +275,56 @@ export class PanelPage implements OnInit, OnDestroy {
         this.error.set(this.readError(err, 'Inject failed'));
       }
     });
+  }
+
+  /** Browser Web Speech API → inject or follow-up field. */
+  protected startStt(target: 'inject' | 'followUp'): void {
+    if (!this.sttSupported || this.sttListening()) return;
+    const SpeechRecognitionCtor =
+      (window as unknown as { SpeechRecognition?: new () => any; webkitSpeechRecognition?: new () => any })
+        .SpeechRecognition ||
+      (window as unknown as { webkitSpeechRecognition?: new () => any }).webkitSpeechRecognition;
+    if (!SpeechRecognitionCtor) return;
+
+    const rec = new SpeechRecognitionCtor();
+    rec.lang = navigator.language || 'en-US';
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    this.sttListening.set(true);
+    this.sttRecognition = rec;
+    rec.onresult = (ev: { results: { [i: number]: { [j: number]: { transcript: string } } } }) => {
+      const text = ev.results?.[0]?.[0]?.transcript?.trim();
+      if (!text) return;
+      if (target === 'inject') {
+        this.injectMsg.update((m) => (m ? `${m} ${text}` : text));
+      } else {
+        this.followUp.update((m) => (m ? `${m} ${text}` : text));
+      }
+    };
+    rec.onerror = () => {
+      this.sttListening.set(false);
+      this.sttRecognition = null;
+    };
+    rec.onend = () => {
+      this.sttListening.set(false);
+      this.sttRecognition = null;
+    };
+    try {
+      rec.start();
+    } catch {
+      this.sttListening.set(false);
+      this.sttRecognition = null;
+    }
+  }
+
+  protected stopStt(): void {
+    try {
+      this.sttRecognition?.stop();
+    } catch {
+      /* ignore */
+    }
+    this.sttListening.set(false);
+    this.sttRecognition = null;
   }
 
   protected canContinue(): boolean {

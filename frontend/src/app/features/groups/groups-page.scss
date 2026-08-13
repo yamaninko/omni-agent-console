@@ -195,6 +195,17 @@
   border-radius: 999px;
 }
 
+.tpl-badge {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #76b900;
+  border: 1px solid rgba(118, 185, 0, 0.35);
+  border-radius: 999px;
+  padding: 1px 6px;
+  vertical-align: middle;
+}
+
 .main {
   overflow: auto;
   display: flex;

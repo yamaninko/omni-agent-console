@@ -31,7 +31,8 @@ public sealed class AgentGroupsController : ControllerBase
                 x.Description,
                 x.Members.Count,
                 x.CreatedAt,
-                x.UpdatedAt))
+                x.UpdatedAt,
+                x.IsTemplate))
             .ToListAsync(cancellationToken);
 
         return Ok(groups);
@@ -95,11 +96,37 @@ public sealed class AgentGroupsController : ControllerBase
             return BadRequest("Name is required.");
         }
 
+        if (group.IsTemplate)
+        {
+            return Conflict("Template groups are read-only. Clone the template first, then edit the copy.");
+        }
+
         group.Name = request.Name.Trim();
         group.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
         group.UpdatedAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        return Ok(ToDetail(group));
+    }
+
+    /// <summary>Mark/unmark as instructor template cast (students clone, don't mutate).</summary>
+    [HttpPost("{groupId:guid}/set-template")]
+    public async Task<ActionResult<AgentGroupDetailDto>> SetTemplate(
+        Guid groupId,
+        [FromBody] SetGroupTemplateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var group = await dbContext.AgentGroups
+            .Include(x => x.Members)
+            .FirstOrDefaultAsync(x => x.Id == groupId, cancellationToken);
+        if (group is null)
+        {
+            return NotFound();
+        }
+
+        group.IsTemplate = request.IsTemplate;
+        group.UpdatedAt = DateTimeOffset.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
         return Ok(ToDetail(group));
     }
 
@@ -118,8 +145,9 @@ public sealed class AgentGroupsController : ControllerBase
 
         var clone = new AgentGroup
         {
-            Name = $"{source.Name} (copy)",
-            Description = source.Description
+            Name = source.IsTemplate ? $"{source.Name} (student copy)" : $"{source.Name} (copy)",
+            Description = source.Description,
+            IsTemplate = false
         };
         dbContext.AgentGroups.Add(clone);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -166,6 +194,11 @@ public sealed class AgentGroupsController : ControllerBase
             return NotFound();
         }
 
+        if (group.IsTemplate)
+        {
+            return Conflict("Unmark as template before deleting, or keep it as the instructor library cast.");
+        }
+
         var hasSessions = await dbContext.PanelSessions.AnyAsync(
             x => x.GroupId == groupId,
             cancellationToken);
@@ -192,6 +225,11 @@ public sealed class AgentGroupsController : ControllerBase
         if (group is null)
         {
             return NotFound();
+        }
+
+        if (group.IsTemplate)
+        {
+            return Conflict("Template groups are read-only. Clone first.");
         }
 
         if (group.Members.Count >= PanelDiscussionPolicy.MaxMembersPerGroup)
@@ -234,6 +272,13 @@ public sealed class AgentGroupsController : ControllerBase
             return NotFound();
         }
 
+        var groupGate = await dbContext.AgentGroups.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == groupId, cancellationToken);
+        if (groupGate?.IsTemplate == true)
+        {
+            return Conflict("Template groups are read-only. Clone first.");
+        }
+
         var validationError = ValidateMember(request);
         if (validationError is not null)
         {
@@ -262,6 +307,13 @@ public sealed class AgentGroupsController : ControllerBase
             return NotFound();
         }
 
+        var groupGate = await dbContext.AgentGroups.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == groupId, cancellationToken);
+        if (groupGate?.IsTemplate == true)
+        {
+            return Conflict("Template groups are read-only. Clone first.");
+        }
+
         dbContext.AgentGroupMembers.Remove(member);
         var group = await dbContext.AgentGroups.FirstAsync(x => x.Id == groupId, cancellationToken);
         group.UpdatedAt = DateTimeOffset.UtcNow;
@@ -282,6 +334,11 @@ public sealed class AgentGroupsController : ControllerBase
         if (group is null)
         {
             return NotFound();
+        }
+
+        if (group.IsTemplate)
+        {
+            return Conflict("Template groups are read-only. Clone first.");
         }
 
         var ids = request.MemberIdsInOrder ?? Array.Empty<Guid>();
@@ -388,7 +445,8 @@ public sealed class AgentGroupsController : ControllerBase
             group.Description,
             group.CreatedAt,
             group.UpdatedAt,
-            members);
+            members,
+            group.IsTemplate);
     }
 
     private static AgentGroupMemberDto ToMemberDto(AgentGroupMember member) =>

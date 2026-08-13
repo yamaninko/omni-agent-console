@@ -6,7 +6,7 @@
         @if (!collapsed()) {
           <div>
             <span class="brand-title">{{ title() }}</span>
-            <span class="brand-subtitle">Multi-Agent Studio</span>
+            <span class="brand-subtitle">{{ t('brand.subtitle') }}</span>
           </div>
         }
       </div>
@@ -22,35 +22,35 @@
 
     <nav class="nav">
       <div class="nav-section">
-        <a routerLink="/home" routerLinkActive="active" [title]="collapsed() ? 'Home' : ''">
+        <a routerLink="/home" routerLinkActive="active" [title]="collapsed() ? t('nav.home') : ''">
           <lucide-icon [img]="icons.home" size="18"></lucide-icon>
           @if (!collapsed()) {
-            <span>Home</span>
+            <span>{{ t('nav.home') }}</span>
           }
         </a>
       </div>
 
       <div class="nav-section">
         @if (!collapsed()) {
-          <div class="nav-label">Build</div>
+          <div class="nav-label">{{ t('nav.build') }}</div>
         }
-        <a routerLink="/studio" routerLinkActive="active" [title]="collapsed() ? 'Studio' : ''">
+        <a routerLink="/studio" routerLinkActive="active" [title]="collapsed() ? t('nav.studio') : ''">
           <lucide-icon [img]="icons.studio" size="18"></lucide-icon>
           @if (!collapsed()) {
-            <span>Studio</span>
+            <span>{{ t('nav.studio') }}</span>
           }
         </a>
-        <a routerLink="/workspace" routerLinkActive="active" [title]="collapsed() ? 'Workspace' : ''">
+        <a routerLink="/workspace" routerLinkActive="active" [title]="collapsed() ? t('nav.workspace') : ''">
           <lucide-icon [img]="icons.workspace" size="18"></lucide-icon>
           @if (!collapsed()) {
-            <span>Workspace</span>
+            <span>{{ t('nav.workspace') }}</span>
           }
         </a>
         @if (showAdminNav()) {
-          <a routerLink="/agents" routerLinkActive="active" [title]="collapsed() ? 'Agents' : ''">
+          <a routerLink="/agents" routerLinkActive="active" [title]="collapsed() ? t('nav.agents') : ''">
             <lucide-icon [img]="icons.bot" size="18"></lucide-icon>
             @if (!collapsed()) {
-              <span>Agents</span>
+              <span>{{ t('nav.agents') }}</span>
             }
           </a>
         }
@@ -58,50 +58,50 @@
 
       <div class="nav-section">
         @if (!collapsed()) {
-          <div class="nav-label">Debate</div>
+          <div class="nav-label">{{ t('nav.debate') }}</div>
         }
-        <a routerLink="/groups" routerLinkActive="active" [title]="collapsed() ? 'Groups' : ''">
+        <a routerLink="/groups" routerLinkActive="active" [title]="collapsed() ? t('nav.groups') : ''">
           <lucide-icon [img]="icons.groups" size="18"></lucide-icon>
           @if (!collapsed()) {
-            <span>Groups</span>
+            <span>{{ t('nav.groups') }}</span>
           }
         </a>
-        <a routerLink="/panel" routerLinkActive="active" [title]="collapsed() ? 'Panel' : ''">
+        <a routerLink="/panel" routerLinkActive="active" [title]="collapsed() ? t('nav.panel') : ''">
           <lucide-icon [img]="icons.panel" size="18"></lucide-icon>
           @if (!collapsed()) {
-            <span>Panel</span>
+            <span>{{ t('nav.panel') }}</span>
           }
         </a>
       </div>
 
       <div class="nav-section">
         @if (!collapsed()) {
-          <div class="nav-label">Ops</div>
+          <div class="nav-label">{{ t('nav.ops') }}</div>
         }
-        <a routerLink="/history" routerLinkActive="active" [title]="collapsed() ? 'History' : ''">
+        <a routerLink="/history" routerLinkActive="active" [title]="collapsed() ? t('nav.history') : ''">
           <lucide-icon [img]="icons.history" size="18"></lucide-icon>
           @if (!collapsed()) {
-            <span>History</span>
+            <span>{{ t('nav.history') }}</span>
           }
         </a>
         @if (showAdminNav()) {
-          <a routerLink="/dashboard" routerLinkActive="active" [title]="collapsed() ? 'Dashboard' : ''">
+          <a routerLink="/dashboard" routerLinkActive="active" [title]="collapsed() ? t('nav.dashboard') : ''">
             <lucide-icon [img]="icons.dashboard" size="18"></lucide-icon>
             @if (!collapsed()) {
-              <span>Dashboard</span>
+              <span>{{ t('nav.dashboard') }}</span>
             }
           </a>
-          <a routerLink="/settings" routerLinkActive="active" [title]="collapsed() ? 'Settings' : ''">
+          <a routerLink="/settings" routerLinkActive="active" [title]="collapsed() ? t('nav.settings') : ''">
             <lucide-icon [img]="icons.settings" size="18"></lucide-icon>
             @if (!collapsed()) {
-              <span>Settings</span>
+              <span>{{ t('nav.settings') }}</span>
             }
           </a>
         }
-        <a routerLink="/docs" routerLinkActive="active" [title]="collapsed() ? 'Docs' : ''">
+        <a routerLink="/docs" routerLinkActive="active" [title]="collapsed() ? t('nav.docs') : ''">
           <lucide-icon [img]="icons.docs" size="18"></lucide-icon>
           @if (!collapsed()) {
-            <span>Docs</span>
+            <span>{{ t('nav.docs') }}</span>
           }
         </a>
       </div>
@@ -111,7 +111,7 @@
       @if (!collapsed()) {
         <div class="theme-label">
           <lucide-icon [img]="icons.palette" size="14"></lucide-icon>
-          <span>Theme</span>
+          <span>{{ t('nav.theme') }}</span>
         </div>
       }
       <div class="theme-swatches" role="group" aria-label="Color theme">
@@ -130,6 +130,10 @@
             }
           </button>
         }
+      </div>
+      <div class="lang-row" role="group" [attr.aria-label]="t('lang.label')">
+        <button type="button" class="lang-btn" [class.active]="locale() === 'en'" (click)="setLocale('en')">EN</button>
+        <button type="button" class="lang-btn" [class.active]="locale() === 'tr'" (click)="setLocale('tr')">TR</button>
       </div>
     </div>
   </aside>

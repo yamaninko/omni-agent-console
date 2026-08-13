@@ -11,11 +11,15 @@ Versions are date-based until a formal semver release.
 
 ### Planned (see [docs/ROADMAP.md](docs/ROADMAP.md) § Panel backlog)
 
-- STT / full i18n / run_terminal sandbox
-- Playwright E2E against hosted preview URL (workflow ready)
+- Deeper i18n (page bodies) / richer STT languages
+- Playwright against hosted preview URL (`vars.E2E_BASE_URL`)
 
 ### Done on this branch (post-MVP, local commits)
 
+- **D1** Group **IsTemplate** + student-safe **clone** (shared-lab `/clone` open)
+- **D2** Panel **browser STT** (Web Speech) for inject / follow-up
+- **D3** Shell **EN/TR** i18n toggle (nav labels)
+- **D4** Coder **run_terminal** whitelist sandbox (pytest/npm/dotnet/go/ruff/tsc)
 - **C1** Studio **demo preset chips** + **maxCostUsd** soft budget
 - **C2** Panel **audience inject** mid-run (`POST …/inject`)
 - **N1** Instructor **live sessions** list on Dashboard (tasks + panels, session id, cost)

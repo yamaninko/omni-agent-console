@@ -370,6 +370,7 @@ export interface AgentGroupSummary {
   memberCount: number;
   createdAt: string;
   updatedAt?: string | null;
+  isTemplate?: boolean;
 }
 
 /** Panel role: moderator opens; commentators debate with a stance. */
@@ -406,6 +407,7 @@ export interface AgentGroupDetail {
   createdAt: string;
   updatedAt?: string | null;
   members: AgentGroupMember[];
+  isTemplate?: boolean;
 }
 
 export interface UpsertAgentGroupMemberRequest {

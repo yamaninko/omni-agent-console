@@ -264,6 +264,12 @@ export class TaskApiClient {
     return this.http.post<AgentGroupDetail>(`${API_BASE_URL}/agent-groups/${groupId}/clone`, {});
   }
 
+  setAgentGroupTemplate(groupId: string, isTemplate: boolean): Observable<AgentGroupDetail> {
+    return this.http.post<AgentGroupDetail>(`${API_BASE_URL}/agent-groups/${groupId}/set-template`, {
+      isTemplate
+    });
+  }
+
   addGroupMember(groupId: string, request: UpsertAgentGroupMemberRequest): Observable<AgentGroupMember> {
     return this.http.post<AgentGroupMember>(`${API_BASE_URL}/agent-groups/${groupId}/members`, request);
   }
