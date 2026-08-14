@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, computed, inject, signal, viewChild } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import {
@@ -17,7 +17,9 @@ import {
   Send,
   ChevronsDown,
   ChevronsUp,
-  Wrench
+  Wrench,
+  FolderPlus,
+  Upload
 } from 'lucide-angular';
 import { TaskApiClient } from '../../core/api/task-api-client';
 import { I18nService } from '../../core/i18n/i18n.service';
@@ -70,8 +72,22 @@ export class WorkspacePage implements OnInit, OnDestroy {
     send: Send,
     expandAll: ChevronsDown,
     collapseAll: ChevronsUp,
-    wrench: Wrench
+    wrench: Wrench,
+    folderPlus: FolderPlus,
+    upload: Upload
   };
+
+  /** Add project panel (copy host folder / browser upload / empty). */
+  protected readonly showAddProject = signal(true);
+  protected readonly newFolderName = signal('');
+  protected readonly importProjectName = signal('');
+  protected readonly addProjectBusy = signal(false);
+  protected readonly addProjectMessage = signal<string | null>(null);
+  protected readonly addProjectError = signal<string | null>(null);
+  protected readonly hostImportEnabled = signal(false);
+  protected readonly hostImportSources = signal<{ name: string; path: string }[]>([]);
+  protected readonly selectedHostSource = signal('');
+  private readonly folderInput = viewChild<ElementRef<HTMLInputElement>>('folderInput');
 
   protected readonly files = signal<WorkspaceNode[]>([]);
   protected readonly selectedFilePath = signal<string | null>(null);
@@ -133,13 +149,64 @@ export class WorkspacePage implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.refreshFiles();
+    this.loadHostImportSources();
+  }
+
+  protected loadHostImportSources(): void {
+    this.api.listWorkspaceImportSources().subscribe({
+      next: (res) => {
+        this.hostImportEnabled.set(!!res.enabled);
+        // Only show names the API accepts as project folder names.
+        const okName = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+        this.hostImportSources.set((res.sources || []).filter((s) => okName.test(s.name)));
+      },
+      error: () => {
+        this.hostImportEnabled.set(false);
+        this.hostImportSources.set([]);
+      }
+    });
+  }
+
+  protected onHostSourceChange(event: Event): void {
+    const v = (event.target as HTMLSelectElement).value;
+    this.selectedHostSource.set(v);
+    if (v && !this.importProjectName().trim()) {
+      this.importProjectName.set(v);
+    }
+  }
+
+  protected copyFromHost(): void {
+    const source = this.selectedHostSource().trim();
+    if (!source || this.addProjectBusy()) {
+      return;
+    }
+    const name = this.importProjectName().trim() || source;
+    this.addProjectBusy.set(true);
+    this.addProjectError.set(null);
+    this.addProjectMessage.set(this.t('ws.addCopying').replace('{name}', source));
+
+    this.api.importWorkspaceFromHost(source, name).subscribe({
+      next: (res) => {
+        this.addProjectBusy.set(false);
+        this.addProjectMessage.set(
+          this.t('ws.addCopied')
+            .replace('{name}', res.path)
+            .replace('{written}', String(res.filesWritten))
+        );
+        this.refreshFiles(res.path);
+      },
+      error: (err) => {
+        this.addProjectBusy.set(false);
+        this.addProjectError.set(this.extractApiError(err, this.t('ws.addCopyFailed')));
+      }
+    });
   }
 
   ngOnDestroy(): void {
     this.stopStatusPoll();
   }
 
-  protected refreshFiles(): void {
+  protected refreshFiles(selectPath?: string | null): void {
     this.loading.set(true);
     this.api.getWorkspaceFiles().subscribe({
       next: (nodes) => {
@@ -153,13 +220,154 @@ export class WorkspacePage implements OnInit, OnDestroy {
             kept.add(path);
           }
         }
+        if (selectPath) {
+          kept.add(selectPath);
+        }
         this.expandedFolders.set(kept);
+        if (selectPath) {
+          this.selectProject(selectPath);
+        }
       },
       error: () => {
         this.files.set([]);
         this.loading.set(false);
       }
     });
+  }
+
+  protected toggleAddProject(): void {
+    this.showAddProject.update((v) => !v);
+    this.addProjectError.set(null);
+    this.addProjectMessage.set(null);
+  }
+
+  protected onNewFolderNameInput(event: Event): void {
+    this.newFolderName.set((event.target as HTMLInputElement).value);
+  }
+
+  protected onImportProjectNameInput(event: Event): void {
+    this.importProjectName.set((event.target as HTMLInputElement).value);
+  }
+
+  protected createEmptyFolder(): void {
+    const name = this.newFolderName().trim();
+    if (!name || this.addProjectBusy()) {
+      return;
+    }
+    this.addProjectBusy.set(true);
+    this.addProjectError.set(null);
+    this.addProjectMessage.set(null);
+    this.api.createWorkspaceFolder(name).subscribe({
+      next: (res) => {
+        this.addProjectBusy.set(false);
+        this.addProjectMessage.set(this.t('ws.addCreated').replace('{name}', res.path || name));
+        this.newFolderName.set('');
+        this.refreshFiles(res.path || name);
+      },
+      error: (err) => {
+        this.addProjectBusy.set(false);
+        this.addProjectError.set(this.extractApiError(err, this.t('ws.addCreateFailed')));
+      }
+    });
+  }
+
+  protected pickFolderToImport(): void {
+    this.folderInput()?.nativeElement?.click();
+  }
+
+  protected onFolderPicked(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const list = input.files;
+    if (!list || list.length === 0) {
+      return;
+    }
+
+    const files = Array.from(list);
+    // Skip heavy/junk paths client-side before upload.
+    const skipSeg = new Set([
+      'node_modules',
+      '.git',
+      'dist',
+      'build',
+      'out',
+      'target',
+      'bin',
+      'obj',
+      '.venv',
+      'venv',
+      '__pycache__',
+      '.next',
+      '.angular',
+      'coverage'
+    ]);
+    const filtered = files.filter((f) => {
+      const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
+      const parts = rel.replace(/\\/g, '/').split('/');
+      return !parts.some((p) => skipSeg.has(p));
+    });
+
+    // Default project name from first path segment of the selected folder.
+    const firstRel =
+      (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath || files[0].name;
+    const top = firstRel.replace(/\\/g, '/').split('/').filter(Boolean)[0] || 'project';
+    let name = this.importProjectName().trim() || top;
+    // Sanitize to match backend pattern roughly.
+    name = name
+      .replace(/[^A-Za-z0-9._-]+/g, '-')
+      .replace(/^[^A-Za-z0-9]+/, '')
+      .slice(0, 64);
+    if (!name) {
+      this.addProjectError.set(this.t('ws.addBadName'));
+      input.value = '';
+      return;
+    }
+    this.importProjectName.set(name);
+
+    if (filtered.length === 0) {
+      this.addProjectError.set(this.t('ws.addNoFiles'));
+      input.value = '';
+      return;
+    }
+
+    if (filtered.length > 500) {
+      this.addProjectError.set(this.t('ws.addTooMany').replace('{n}', String(filtered.length)));
+      input.value = '';
+      return;
+    }
+
+    this.addProjectBusy.set(true);
+    this.addProjectError.set(null);
+    this.addProjectMessage.set(this.t('ws.addImporting').replace('{n}', String(filtered.length)));
+
+    this.api.importWorkspaceProject(name, filtered).subscribe({
+      next: (res) => {
+        this.addProjectBusy.set(false);
+        this.addProjectMessage.set(
+          this.t('ws.addImported')
+            .replace('{name}', res.path)
+            .replace('{written}', String(res.filesWritten))
+            .replace('{skipped}', String(res.filesSkipped))
+        );
+        input.value = '';
+        this.refreshFiles(res.path);
+      },
+      error: (err) => {
+        this.addProjectBusy.set(false);
+        this.addProjectError.set(this.extractApiError(err, this.t('ws.addImportFailed')));
+        input.value = '';
+      }
+    });
+  }
+
+  private extractApiError(err: unknown, fallback: string): string {
+    const e = err as { error?: { error?: string; title?: string; message?: string } | string };
+    if (typeof e?.error === 'string' && e.error.trim()) {
+      return e.error;
+    }
+    if (e?.error && typeof e.error === 'object') {
+      return e.error.error || e.error.title || e.error.message || fallback;
+    }
+    return fallback;
   }
 
   /** Expand every folder in the tree. */

@@ -6,6 +6,9 @@
       <div class="explorer-header">
         <h2>{{ t('ws.explorer') }}</h2>
         <div class="explorer-actions">
+          <button class="icon-btn" type="button" (click)="toggleAddProject()" [title]="t('ws.addProject')" [class.active-add]="showAddProject()">
+            <lucide-icon [img]="icons.folderPlus" size="14"></lucide-icon>
+          </button>
           <button class="icon-btn" type="button" (click)="expandAllFolders()" title="Expand all">
             <lucide-icon [img]="icons.expandAll" size="14"></lucide-icon>
           </button>
@@ -17,6 +20,91 @@
           </button>
         </div>
       </div>
+
+      @if (showAddProject()) {
+        <div class="add-project-panel">
+          <div class="add-project-title">{{ t('ws.addProject') }}</div>
+          <p class="add-project-hint">{{ t('ws.addHint') }}</p>
+
+          @if (hostImportEnabled()) {
+            <label class="add-project-label">{{ t('ws.addFromHost') }}</label>
+            <select
+              class="add-project-input add-project-select"
+              [value]="selectedHostSource()"
+              (change)="onHostSourceChange($event)"
+              [disabled]="addProjectBusy()"
+            >
+              <option value="">{{ t('ws.addHostPlaceholder') }}</option>
+              @for (s of hostImportSources(); track s.name) {
+                <option [value]="s.name">{{ s.name }}</option>
+              }
+            </select>
+            <div class="add-project-row">
+              <input
+                type="text"
+                class="add-project-input"
+                [value]="importProjectName()"
+                (input)="onImportProjectNameInput($event)"
+                [placeholder]="t('ws.addImportNamePlaceholder')"
+                [disabled]="addProjectBusy()"
+              />
+            </div>
+            <button
+              type="button"
+              class="add-project-btn add-project-btn--wide add-project-btn--primary"
+              (click)="copyFromHost()"
+              [disabled]="addProjectBusy() || !selectedHostSource()"
+            >
+              <lucide-icon [img]="icons.folderPlus" size="14"></lucide-icon>
+              {{ t('ws.addCopyToWorkspace') }}
+            </button>
+            @if (hostImportSources().length === 0) {
+              <p class="add-project-hint add-project-hint--sm">{{ t('ws.addHostEmpty') }}</p>
+            }
+            <div class="add-project-divider">{{ t('ws.addOr') }}</div>
+          }
+
+          <label class="add-project-label">{{ t('ws.addImport') }}</label>
+          <button type="button" class="add-project-btn add-project-btn--wide" (click)="pickFolderToImport()" [disabled]="addProjectBusy()">
+            <lucide-icon [img]="icons.upload" size="14"></lucide-icon>
+            {{ t('ws.addPickFolder') }}
+          </button>
+          <input
+            #folderInput
+            type="file"
+            hidden
+            multiple
+            webkitdirectory
+            directory
+            (change)="onFolderPicked($event)"
+          />
+          <p class="add-project-hint add-project-hint--sm">{{ t('ws.addImportLimits') }}</p>
+
+          <div class="add-project-divider">{{ t('ws.addOr') }}</div>
+
+          <label class="add-project-label">{{ t('ws.addEmpty') }}</label>
+          <div class="add-project-row">
+            <input
+              type="text"
+              class="add-project-input"
+              [value]="newFolderName()"
+              (input)="onNewFolderNameInput($event)"
+              [placeholder]="t('ws.addNamePlaceholder')"
+              [disabled]="addProjectBusy()"
+            />
+            <button type="button" class="add-project-btn" (click)="createEmptyFolder()" [disabled]="addProjectBusy() || !newFolderName().trim()">
+              {{ t('ws.addCreate') }}
+            </button>
+          </div>
+
+          @if (addProjectError()) {
+            <div class="add-project-msg add-project-msg--error">{{ addProjectError() }}</div>
+          }
+          @if (addProjectMessage()) {
+            <div class="add-project-msg">{{ addProjectMessage() }}</div>
+          }
+        </div>
+      }
 
       <div class="explorer-tree">
         @if (loading() && files().length === 0) {
@@ -50,7 +138,10 @@
               </button>
             </div>
           } @empty {
-            <div class="tree-empty">Workspace is empty. Create a task to generate files.</div>
+            <div class="tree-empty">
+              {{ t('ws.empty') }}
+              <button type="button" class="tree-empty-btn" (click)="showAddProject.set(true)">{{ t('ws.addProject') }}</button>
+            </div>
           }
         }
       </div>
@@ -122,10 +213,10 @@
                   Open Swagger
                 </button>
               }
+              <button type="button" class="run-btn secondary" (click)="openInStudio()" title="Studio’da bu proje üzerinde task çalıştır">
+                Open in Studio
+              </button>
               @if (lastStartFailed()) {
-                <button type="button" class="run-btn secondary" (click)="openInStudio()" title="Studio’da bu proje üzerinde task çalıştır">
-                  Open in Studio
-                </button>
                 <button type="button" class="run-btn secondary" (click)="fixPackagingWithAi()" [disabled]="fixBusy()">
                   <lucide-icon [img]="icons.wrench" size="14"></lucide-icon>
                   {{ fixBusy() ? 'Opening fix task…' : 'Fix packaging with AI' }}
@@ -134,6 +225,11 @@
             </div>
           } @else {
             <p class="run-hint">{{ project.message || 'Select a project folder that contains Dockerfile or docker-compose.yml.' }}</p>
+            <div class="run-actions" style="margin-top: 8px;">
+              <button type="button" class="run-btn secondary" (click)="openInStudio()" title="Studio’da bu proje üzerinde task çalıştır">
+                Open in Studio
+              </button>
+            </div>
           }
 
           @if (projectMessage()) {

@@ -1,6 +1,6 @@
 import { Component, OnDestroy, OnInit, computed, inject, signal, effect, ViewChild, ElementRef } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { Bot, CirclePlay, LucideAngularModule, RadioTower, Send, SquareTerminal, Trash2, Plus, History, FileText, RefreshCw, ChevronDown, ChevronRight, Pencil, CheckCircle, AlertCircle, XCircle, Loader } from 'lucide-angular';
+import { Bot, CirclePlay, LucideAngularModule, RadioTower, Send, SquareTerminal, Trash2, Plus, History, FileText, RefreshCw, ChevronDown, ChevronRight, Pencil, CheckCircle, AlertCircle, XCircle, Loader, FolderClosed } from 'lucide-angular';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { TaskApiClient } from '../../core/api/task-api-client';
 import { I18nService } from '../../core/i18n/i18n.service';
@@ -63,7 +63,8 @@ export class StudioPage implements OnInit, OnDestroy {
     checkCircle: CheckCircle,
     alertCircle: AlertCircle,
     xCircle: XCircle,
-    loader: Loader
+    loader: Loader,
+    folder: FolderClosed
   };
 
   protected readonly prompt = signal('');
@@ -73,6 +74,8 @@ export class StudioPage implements OnInit, OnDestroy {
   protected readonly workspacePath = signal('/workspace/proje');
   /** Top-level folders under /workspace from the API (existing projects). */
   protected readonly workspaceProjects = signal<string[]>([]);
+  protected readonly projectsLoading = signal(false);
+  protected readonly projectsLoadError = signal<string | null>(null);
   /**
    * When true, task context includes existingProject so agents edit in place
    * instead of greenfield scaffolding.
@@ -262,17 +265,32 @@ export class StudioPage implements OnInit, OnDestroy {
 
   /** Top-level dirs under /workspace for the project picker. */
   protected loadWorkspaceProjects(): void {
+    this.projectsLoading.set(true);
+    this.projectsLoadError.set(null);
     this.api.getWorkspaceFiles().subscribe({
       next: (nodes) => {
-        const dirs = (nodes || [])
-          .filter((n) => n.isDirectory)
-          .map((n) => n.name || n.path?.replace(/^\/+/, '').split('/')[0] || '')
+        const list = Array.isArray(nodes) ? nodes : [];
+        const dirs = list
+          .filter((n) => {
+            const anyNode = n as { isDirectory?: boolean; IsDirectory?: boolean };
+            return anyNode?.isDirectory === true || anyNode?.IsDirectory === true;
+          })
+          .map((n) => {
+            const anyNode = n as { name?: string; Name?: string; path?: string; Path?: string };
+            const name = anyNode.name || anyNode.Name || '';
+            const path = anyNode.path || anyNode.Path || '';
+            return (name || path.replace(/^\/+/, '').split('/')[0] || '').trim();
+          })
           .filter((n) => !!n && !n.startsWith('.'))
           .sort((a, b) => a.localeCompare(b));
-        // Dedupe
         this.workspaceProjects.set([...new Set(dirs)]);
+        this.projectsLoading.set(false);
       },
-      error: () => this.workspaceProjects.set([])
+      error: () => {
+        this.workspaceProjects.set([]);
+        this.projectsLoading.set(false);
+        this.projectsLoadError.set(this.t('studio.projectLoadError'));
+      }
     });
   }
 
@@ -289,6 +307,14 @@ export class StudioPage implements OnInit, OnDestroy {
     if (this.workspaceProjects().includes(name) || folderOrPath.startsWith('/workspace/')) {
       this.bindExistingProject.set(true);
       localStorage.setItem('studio_bind_existing', '1');
+    }
+  }
+
+  /** Chip click: bind folder and switch to new-task form if a history task is open. */
+  protected pickProjectFolder(folder: string): void {
+    this.selectWorkspaceProject(folder);
+    if (this.activeTaskId() !== null && !this.pending() && !this.running()) {
+      this.startNewTask();
     }
   }
 

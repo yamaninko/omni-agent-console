@@ -38,6 +38,8 @@ builder.Services.AddCors(options =>
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.Configure<OmniAgentConsole.Application.Configuration.SharedLabOptions>(
     builder.Configuration.GetSection(OmniAgentConsole.Application.Configuration.SharedLabOptions.SectionName));
+builder.Services.Configure<OmniAgentConsole.Application.Configuration.WorkspaceImportOptions>(
+    builder.Configuration.GetSection(OmniAgentConsole.Application.Configuration.WorkspaceImportOptions.SectionName));
 
 var redisConnection = builder.Configuration.GetConnectionString("Redis");
 if (!string.IsNullOrWhiteSpace(redisConnection))

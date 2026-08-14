@@ -27,7 +27,7 @@ Pipelines: `full` | `coder` | `plan-code-review`. UI language: **EN / TR**. Shar
 
 ### Türkçe özet
 
-Çoklu ajanlı stüdyo: kod pipeline’ı ve moderasyonlu AI panelleri. .NET 10 + Angular 21 + Docker. OpenAI-uyumlu API (NVIDIA NIM). Sınıf için shared-lab; öğrenci kotası ve şablon cast kopyalama desteklenir.
+Çoklu ajanlı stüdyo: kod pipeline’ı ve moderasyonlu AI panelleri. .NET 10 + Angular 21 + Docker. OpenAI-uyumlu API (NVIDIA NIM). Mevcut projeyi `HOST_IMPORT_DIR` veya tarayıcıdan **workspace’e kopyalayıp** Studio’da üzerinde task çalıştırma. Sınıf için shared-lab; öğrenci kotası ve şablon cast kopyalama desteklenir.
 
 ---
 
@@ -36,6 +36,7 @@ Pipelines: `full` | `coder` | `plan-code-review`. UI language: **EN / TR**. Shar
 | Area | Highlights |
 |------|------------|
 | **Coding studio** | Multi-agent pipeline, tool loop, skills auto-suggest, presets, cost budget, workspace runner |
+| **Existing projects** | Copy host/browser folders into `workspace/`; Studio bind + edit-in-place (`existingProject`) |
 | **Debate panel** | Groups, roles/stances, templates, multi-round, inject, vote, scorecard, ZIP export, STT/TTS |
 | **Models** | NIM catalog sync, per-agent fallbacks, estimated cost |
 | **Lab** | Session isolation, student nav, quotas, instructor templates + live dashboard cancel |
@@ -66,7 +67,10 @@ docker compose up -d --build
 
 1. **Settings** → paste API key → Save (or bootstrap via `.env`).
 2. **Home** → sample debate cast **or** Studio preset.
-3. **Existing project:** Workspace → pick folder → **Open in Studio**, *or* Studio → project dropdown → enable “Work on this existing project” → prompt → Run.
+3. **Add / work on an existing project** (files are **copied** into `./workspace`):
+   - Set `HOST_IMPORT_DIR` in `.env` to your projects root (e.g. `/Users/you/projects`), then `docker compose up -d --build`.
+   - **Workspace** → **Add project** → pick host folder → **Copy into workspace** (or browser **Choose folder & copy**).
+   - Select the folder → **Open in Studio**, *or* Studio left list → pick project → prompt → **Run Task** (edit-in-place; not a greenfield rebuild).
 4. **Groups** → cast (Mark as template for lab) → **Panel** → Start.
 5. Optional: `PANEL_FLOOR_MODE=llm` for model-driven speaker order.
 
@@ -118,8 +122,18 @@ backend/src/OmniAgentConsole.Infrastructure  # EF, queue, providers, runtime
 backend/src/OmniAgentConsole.Worker          # Queue consumer
 backend/tests/OmniAgentConsole.UnitTests
 frontend/                                    # Angular 21
-workspace/                                   # agent outputs (gitignored)
+workspace/                                   # agent outputs + imported projects (gitignored)
+data/host-import/                            # default empty HOST_IMPORT_DIR stub (optional)
 ```
+
+### Workspace import env
+
+| Variable | Purpose |
+|----------|---------|
+| `HOST_IMPORT_DIR` | Host path mounted read-only as `/host-import` — top-level folders appear in Workspace **Copy from host** |
+| `WORKSPACE_IMPORT_ENABLED` | `true` (default) enables host list/copy APIs |
+
+Browser upload does not need `HOST_IMPORT_DIR`; host copy is the faster path for large local trees.
 
 ### Recommended models (NVIDIA NIM free tier)
 

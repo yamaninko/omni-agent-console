@@ -170,6 +170,68 @@ export class TaskApiClient {
     return this.http.get<{ content: string }>(`${API_BASE_URL}/workspace/file`, { params: { path } });
   }
 
+  createWorkspaceFolder(name: string): Observable<{ name: string; path: string }> {
+    return this.http.post<{ name: string; path: string }>(`${API_BASE_URL}/workspace/folders`, { name });
+  }
+
+  /**
+   * Import a local folder tree into /workspace/{projectName}.
+   * files: File objects from &lt;input webkitdirectory&gt;; relative paths from webkitRelativePath.
+   */
+  importWorkspaceProject(projectName: string, files: File[]): Observable<{
+    path: string;
+    filesWritten: number;
+    filesSkipped: number;
+    bytesWritten: number;
+    skipSamples: string[];
+  }> {
+    const form = new FormData();
+    form.append('projectName', projectName);
+    for (const file of files) {
+      const rel =
+        (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+      form.append('files', file, rel);
+    }
+    return this.http.post<{
+      path: string;
+      filesWritten: number;
+      filesSkipped: number;
+      bytesWritten: number;
+      skipSamples: string[];
+    }>(`${API_BASE_URL}/workspace/import`, form);
+  }
+
+  listWorkspaceImportSources(): Observable<{
+    enabled: boolean;
+    hostRoot: string;
+    sources: { name: string; path: string }[];
+  }> {
+    return this.http.get<{
+      enabled: boolean;
+      hostRoot: string;
+      sources: { name: string; path: string }[];
+    }>(`${API_BASE_URL}/workspace/import-sources`);
+  }
+
+  importWorkspaceFromHost(source: string, projectName?: string): Observable<{
+    path: string;
+    filesWritten: number;
+    filesSkipped: number;
+    bytesWritten: number;
+    skipSamples: string[];
+  }> {
+    return this.http.post<{
+      path: string;
+      filesWritten: number;
+      filesSkipped: number;
+      bytesWritten: number;
+      skipSamples: string[];
+    }>(`${API_BASE_URL}/workspace/import-from-host`, {
+      source,
+      projectName: projectName || source
+    });
+  }
+
   deleteWorkspaceNode(path: string): Observable<void> {
     return this.http.delete<void>(`${API_BASE_URL}/workspace`, { params: { path } });
   }

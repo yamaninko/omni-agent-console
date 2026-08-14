@@ -11,9 +11,19 @@ Versions use date-based tags until formal semver; GitHub release **v0.1.0** mark
 
 ### Added
 
-- Studio **project picker**: list `/workspace` folders, bind existing project (`existingProject` in task context)
-- Workspace **Open in Studio** → Studio with workspace + existing bind
-- Agents treat bound projects like edit mode (list/read before write; no greenfield rebuild)
+#### Workspace — add / copy existing projects
+- **Add project** panel on Workspace explorer (open by default)
+- **Copy from host**: list folders under `HOST_IMPORT_DIR` (compose mount `/host-import`) → server-side copy into `./workspace/{name}`
+- **Browser folder upload**: webkitdirectory import → multipart copy into workspace
+- **Empty folder** create (`POST /api/workspace/folders`)
+- Limits & safety: max ~500 files / 2 MiB each / 50 MiB total; skip `node_modules`, `.git`, `dist`, …
+- Env: `HOST_IMPORT_DIR`, `WORKSPACE_IMPORT_ENABLED` (see `.env.example`)
+
+#### Studio — bind existing project
+- Left-sidebar **project list** (always visible): pick folder → bind path + edit-in-place mode
+- Task context `existingProject: true`; agents list/read before write (no greenfield rebuild)
+- Workspace **Open in Studio** always available (not only after failed docker start)
+- Path row + dropdown backup picker; layout fixes (no overlapping console / folder strip)
 
 ### Planned
 

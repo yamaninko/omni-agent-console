@@ -60,6 +60,9 @@ services:
       WorkspaceRunner__MaxConcurrent: ${WORKSPACE_RUNNER_MAX_CONCURRENT:-3}
       WorkspaceRunner__BuildTimeoutSeconds: ${WORKSPACE_RUNNER_BUILD_TIMEOUT:-300}
       WorkspaceRunner__HealthProbeHost: ${WORKSPACE_RUNNER_HEALTH_HOST:-host.docker.internal}
+      # Host folders listed/copied into /workspace (Workspace "Add project").
+      WorkspaceImport__Enabled: ${WORKSPACE_IMPORT_ENABLED:-true}
+      WorkspaceImport__HostRoot: /host-import
     ports:
       - "${BACKEND_HOST_PORT:-5080}:8080"
     extra_hosts:
@@ -76,6 +79,8 @@ services:
     volumes:
       - ./workspace:/workspace
       - ./data/secrets:/var/omni/secrets
+      # Read-only host projects root — set HOST_IMPORT_DIR in .env (default: empty stub).
+      - ${HOST_IMPORT_DIR:-./data/host-import}:/host-import:ro
       # Allow the API to start student/demo stacks generated under /workspace.
       - /var/run/docker.sock:/var/run/docker.sock
 

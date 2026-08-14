@@ -11,9 +11,57 @@
   </header>
 
   <div class="studio-grid">
-    <aside class="agent-panel" style="display: flex; flex-direction: column; height: 100%; overflow: hidden; gap: 16px; padding: 16px;">
+    <aside class="agent-panel studio-sidebar">
+      <!-- Workspace project folders (always visible) -->
+      <div class="sidebar-projects">
+        <div class="panel-title sidebar-projects__title">
+          <div class="sidebar-projects__label">
+            <lucide-icon [img]="icons.folder" size="16"></lucide-icon>
+            {{ t('studio.projectPick') }}
+          </div>
+          <button type="button" class="icon-btn" (click)="loadWorkspaceProjects()" [title]="t('studio.projectRefresh')" [disabled]="projectsLoading()">
+            <lucide-icon [img]="icons.refresh" size="13" [class.spin]="projectsLoading()"></lucide-icon>
+          </button>
+        </div>
+        <p class="sidebar-projects__hint">{{ t('studio.projectHint') }}</p>
+        @if (projectsLoadError()) {
+          <div class="sidebar-projects__msg sidebar-projects__msg--error">{{ projectsLoadError() }}</div>
+        } @else if (projectsLoading() && workspaceProjects().length === 0) {
+          <div class="sidebar-projects__msg">{{ t('studio.projectLoading') }}</div>
+        } @else if (workspaceProjects().length === 0) {
+          <div class="sidebar-projects__msg">{{ t('studio.projectEmpty') }}</div>
+        } @else {
+          <div class="sidebar-project-list">
+            @for (p of workspaceProjects(); track p) {
+              <button
+                type="button"
+                class="sidebar-project-item"
+                [class.active]="selectedProjectFolder() === p"
+                (click)="pickProjectFolder(p)"
+                [title]="'/workspace/' + p"
+              >
+                <lucide-icon [img]="icons.folder" size="14"></lucide-icon>
+                <span>{{ p }}</span>
+              </button>
+            }
+          </div>
+        }
+        <label class="sidebar-projects__check">
+          <input type="checkbox" [checked]="bindExistingProject()" (change)="onBindExistingChange($event)" />
+          <span>{{ t('studio.bindExistingShort') }}</span>
+        </label>
+        @if (isBoundExisting()) {
+          <div class="sidebar-projects__bound">
+            <code>{{ workspacePath() }}</code>
+          </div>
+        }
+        <a routerLink="/workspace" class="sidebar-projects__link">{{ t('studio.openWorkspace') }} →</a>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
       <!-- Recent Runs History -->
-      <div style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+      <div class="sidebar-history">
         <div class="panel-title" style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" (click)="toggleRecentTasks()">
           <div style="display: flex; align-items: center; gap: 8px;">
             <lucide-icon [img]="showRecentTasks() ? icons.chevronDown : icons.chevronRight" size="16" style="color: #76b900;"></lucide-icon>
@@ -85,18 +133,17 @@
         }
       </div>
 
-      <!-- Divider -->
-      <div style="border-top: 1px solid #1a2532; margin: 0 -16px;"></div>
+      <div class="sidebar-divider"></div>
 
-      <!-- Active Agents List -->
-      <div style="display: flex; flex-direction: column; min-height: 0;">
-        <div class="panel-title" style="margin-bottom: 12px; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px;" (click)="toggleAgents()">
+      <!-- Active Agents List (collapsed by default space-wise) -->
+      <div class="sidebar-agents">
+        <div class="panel-title" style="margin-bottom: 8px; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px;" (click)="toggleAgents()">
           <lucide-icon [img]="showAgents() ? icons.chevronDown : icons.chevronRight" size="16" style="color: #76b900;"></lucide-icon>
           <lucide-icon [img]="icons.bot" size="18"></lucide-icon>
           {{ t('studio.agents') }}
         </div>
         @if (showAgents()) {
-          <div class="agent-list" style="overflow-y: auto; max-height: 250px; padding-right: 4px;">
+          <div class="agent-list sidebar-agents__list">
             @for (agent of agents(); track agent.type) {
               <div class="agent-row">
                 <span class="agent-dot"></span>
@@ -173,70 +220,42 @@
         }
       </div>
 
+      <div class="console-bottom">
       @if (activeTaskId() === null) {
         <div class="prompt-box">
           <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
-            <!-- Bind existing project from workspace/ -->
+            @if (isBoundExisting()) {
+              <div class="bound-banner">
+                {{ t('studio.boundHint') }} <code>{{ workspacePath() }}</code>
+                <span class="bound-banner__hint">{{ t('studio.projectSidebarHint') }}</span>
+              </div>
+            }
+
+            <!-- Workspace Path Input (also filled by left sidebar folder pick) -->
             <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
               <label style="color: #8fa3b7; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                {{ t('studio.projectPick') }}
+                {{ t('studio.workspace') }}
               </label>
-              <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <div class="workspace-path-row">
+                <span class="workspace-path-prefix">/workspace/</span>
+                <input
+                  type="text"
+                  [value]="getWorkspaceSubfolder()"
+                  (input)="updateWorkspaceSubfolder($event)"
+                  placeholder="projem"
+                  class="workspace-path-input"
+                />
                 <select
+                  class="workspace-path-select"
                   [value]="selectedProjectFolder()"
                   (change)="onProjectPickerChange($event)"
-                  style="flex: 1; min-width: 160px; background: #0d121a; border: 1px solid #1a2636; border-radius: 6px; color: #e6edf3; padding: 8px 12px; font-size: 13px; outline: none;"
+                  [attr.aria-label]="t('studio.projectPick')"
                 >
                   <option value="">{{ t('studio.projectPickPlaceholder') }}</option>
                   @for (p of workspaceProjects(); track p) {
                     <option [value]="p">{{ p }}</option>
                   }
                 </select>
-                <button
-                  type="button"
-                  class="secondary"
-                  style="min-height: 36px; height: auto; padding: 6px 10px; font-size: 11px; margin: 0;"
-                  (click)="loadWorkspaceProjects()"
-                  [title]="t('studio.projectRefresh')"
-                >
-                  {{ t('studio.projectRefresh') }}
-                </button>
-                <a
-                  routerLink="/workspace"
-                  style="font-size: 12px; color: #76b900; text-decoration: none; white-space: nowrap;"
-                >
-                  {{ t('studio.openWorkspace') }}
-                </a>
-              </div>
-              <label style="display: flex; align-items: center; gap: 8px; color: #8fa3b7; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none;">
-                <input
-                  type="checkbox"
-                  [checked]="bindExistingProject()"
-                  (change)="onBindExistingChange($event)"
-                />
-                {{ t('studio.bindExisting') }}
-              </label>
-              @if (isBoundExisting()) {
-                <div style="font-size: 12px; color: #76b900; background: rgba(118,185,0,0.08); border: 1px solid rgba(118,185,0,0.25); border-radius: 6px; padding: 8px 10px;">
-                  {{ t('studio.boundHint') }} <code style="color: #d6f4bd;">{{ workspacePath() }}</code>
-                </div>
-              }
-            </div>
-
-            <!-- Workspace Path Input -->
-            <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
-              <label style="color: #8fa3b7; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                {{ t('studio.workspace') }}
-              </label>
-              <div style="display: flex; align-items: center; background: #0d121a; border: 1px solid #1a2636; border-radius: 6px; color: #e6edf3; padding: 0 12px; font-size: 13px; width: 100%;">
-                <span style="color: #5f7892; user-select: none; padding-right: 4px; font-weight: 600;">/workspace/</span>
-                <input
-                  type="text"
-                  [value]="getWorkspaceSubfolder()"
-                  (input)="updateWorkspaceSubfolder($event)"
-                  placeholder="projem (Docker'daki ./workspace klasörüne eşlenir)"
-                  style="background: transparent; border: none; color: #e6edf3; padding: 8px 0; font-size: 13px; width: 100%; outline: none;"
-                />
               </div>
             </div>
 
@@ -436,6 +455,7 @@
           </div>
         }
       }
+      </div>
     </main>
 
     <aside class="metrics-panel" style="display: flex; flex-direction: column; gap: 20px; padding: 16px;">
