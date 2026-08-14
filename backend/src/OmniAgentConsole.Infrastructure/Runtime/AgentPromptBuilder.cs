@@ -24,11 +24,12 @@ internal static class AgentPromptBuilder
         string? roleInstructionOverride = null)
     {
         var isContinuation = TaskContinuationContext.IsContinuation(taskRun.InputContextJson);
+        var existingWorkspace = TaskContinuationContext.IsExistingWorkspaceMode(taskRun.InputContextJson);
 
         var systemPromptParts = new List<string>
         {
             agentDefinition.SystemPrompt.Trim(),
-            roleInstructionOverride ?? GetRoleInstruction(agentDefinition.Type, isContinuation)
+            roleInstructionOverride ?? GetRoleInstruction(agentDefinition.Type, existingWorkspace)
         };
 
         if (!string.IsNullOrWhiteSpace(skillsBlock))
@@ -40,13 +41,17 @@ internal static class AgentPromptBuilder
         // the model ignores optional skills (seen with Angular/React marketing sites).
         systemPromptParts.Add(BuildMandatoryPackagingBlock());
 
-        if (isContinuation)
+        if (existingWorkspace)
         {
             systemPromptParts.Add(
-                "This is a FOLLOW-UP turn on an existing workspace session. " +
-                "Prefer reading and editing existing files over recreating the project from scratch. " +
-                "Only change what the current follow-up requires; preserve unrelated existing work. " +
-                "If packaging files (Dockerfile, docker-compose.yml) already exist and still fit, keep them.");
+                (isContinuation
+                    ? "This is a FOLLOW-UP turn on an existing workspace session. "
+                    : "The user bound an EXISTING project folder in the workspace. ") +
+                "Start with list_files (and read_file for key files) before writing. " +
+                "Prefer editing existing files over recreating the project from scratch. " +
+                "Only change what the current task requires; preserve unrelated existing work. " +
+                "If packaging files (Dockerfile, docker-compose.yml) already exist and still fit, keep them. " +
+                "Do not invent a second project root inside the bound workspacePath.");
         }
 
         systemPromptParts.Add("Respond in the same language as the user prompt unless the user asks otherwise. Keep output concise and actionable.");
@@ -54,7 +59,7 @@ internal static class AgentPromptBuilder
         var systemPrompt = string.Join("\n\n", systemPromptParts);
 
         var userBuilder = new StringBuilder();
-        userBuilder.AppendLine(isContinuation ? "User task (current follow-up):" : "User task:");
+        userBuilder.AppendLine(existingWorkspace ? "User task (on existing project):" : "User task:");
         userBuilder.AppendLine(taskRun.InputPrompt.Trim());
 
         var promptHistory = TaskContinuationContext.GetPromptHistory(taskRun.InputContextJson);
@@ -89,7 +94,7 @@ internal static class AgentPromptBuilder
 
         userBuilder.AppendLine();
         userBuilder.AppendLine("Current agent objective:");
-        userBuilder.AppendLine(objectiveOverride ?? GetObjective(agentDefinition.Type, isContinuation));
+        userBuilder.AppendLine(objectiveOverride ?? GetObjective(agentDefinition.Type, existingWorkspace));
 
         return
         [

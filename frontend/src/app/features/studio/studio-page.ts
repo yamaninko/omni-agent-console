@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit, computed, inject, signal, effect, ViewChild, ElementRef } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { Bot, CirclePlay, LucideAngularModule, RadioTower, Send, SquareTerminal, Trash2, Plus, History, FileText, RefreshCw, ChevronDown, ChevronRight, Pencil, CheckCircle, AlertCircle, XCircle, Loader } from 'lucide-angular';
-import { Router, ActivatedRoute } from '@angular/router';
+import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { TaskApiClient } from '../../core/api/task-api-client';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { ConsoleStreamService } from '../../core/realtime/console-stream.service';
@@ -29,7 +29,7 @@ import {
 
 @Component({
   selector: 'app-studio-page',
-  imports: [DatePipe, LucideAngularModule],
+  imports: [DatePipe, LucideAngularModule, RouterLink],
   templateUrl: './studio-page.html',
   styleUrl: './studio-page.scss'
 })
@@ -71,6 +71,13 @@ export class StudioPage implements OnInit, OnDestroy {
   protected readonly promptPlaceholder = 'Bu API dokumanina gore client SDK tasarla.';
   protected readonly followUpPlaceholder = 'Devam et: örn. login sayfasına şifre sıfırlama ekle…';
   protected readonly workspacePath = signal('/workspace/proje');
+  /** Top-level folders under /workspace from the API (existing projects). */
+  protected readonly workspaceProjects = signal<string[]>([]);
+  /**
+   * When true, task context includes existingProject so agents edit in place
+   * instead of greenfield scaffolding.
+   */
+  protected readonly bindExistingProject = signal(true);
   /**
    * Studio agent chain: full | coder | plan-code-review
    * Stored in InputContextJson.pipeline and resolved by TaskPipelinePolicy.
@@ -179,6 +186,13 @@ export class StudioPage implements OnInit, OnDestroy {
       }
       this.workspacePath.set(savedPath);
     }
+    const savedBind = localStorage.getItem('studio_bind_existing');
+    if (savedBind === '0' || savedBind === 'false') {
+      this.bindExistingProject.set(false);
+    }
+
+    this.loadWorkspaceProjects();
+
     this.api.listRuntimeAgents().subscribe({
       next: (agents) => this.agents.set(agents),
       error: () => this.agents.set(this.fallbackAgents())
@@ -215,8 +229,11 @@ export class StudioPage implements OnInit, OnDestroy {
         this.pipeline.set(pipeline);
       }
       if (typeof params['workspace'] === 'string' && params['workspace'].startsWith('/workspace/')) {
-        this.workspacePath.set(params['workspace']);
-        localStorage.setItem('studio_workspace_path', params['workspace']);
+        this.selectWorkspaceProject(params['workspace']);
+      }
+      if (params['existing'] === '1' || params['existing'] === 'true') {
+        this.bindExistingProject.set(true);
+        localStorage.setItem('studio_bind_existing', '1');
       }
       if (typeof params['prompt'] === 'string' && params['prompt'].trim()) {
         this.prompt.set(params['prompt']);
@@ -241,6 +258,58 @@ export class StudioPage implements OnInit, OnDestroy {
       next: (usage) => this.usage.set(usage),
       error: () => this.usage.set(null)
     });
+  }
+
+  /** Top-level dirs under /workspace for the project picker. */
+  protected loadWorkspaceProjects(): void {
+    this.api.getWorkspaceFiles().subscribe({
+      next: (nodes) => {
+        const dirs = (nodes || [])
+          .filter((n) => n.isDirectory)
+          .map((n) => n.name || n.path?.replace(/^\/+/, '').split('/')[0] || '')
+          .filter((n) => !!n && !n.startsWith('.'))
+          .sort((a, b) => a.localeCompare(b));
+        // Dedupe
+        this.workspaceProjects.set([...new Set(dirs)]);
+      },
+      error: () => this.workspaceProjects.set([])
+    });
+  }
+
+  protected selectWorkspaceProject(folderOrPath: string): void {
+    const name = folderOrPath
+      .replace(/^\/workspace\/?/i, '')
+      .replace(/^\/+|\/+$/g, '')
+      .split('/')[0];
+    if (!name) return;
+    const full = `/workspace/${name}`;
+    this.workspacePath.set(full);
+    localStorage.setItem('studio_workspace_path', full);
+    // Selecting an existing folder implies bind-existing (user can uncheck).
+    if (this.workspaceProjects().includes(name) || folderOrPath.startsWith('/workspace/')) {
+      this.bindExistingProject.set(true);
+      localStorage.setItem('studio_bind_existing', '1');
+    }
+  }
+
+  protected onProjectPickerChange(event: Event): void {
+    const v = (event.target as HTMLSelectElement).value;
+    if (!v) return;
+    this.selectWorkspaceProject(v);
+  }
+
+  protected onBindExistingChange(event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.bindExistingProject.set(checked);
+    localStorage.setItem('studio_bind_existing', checked ? '1' : '0');
+  }
+
+  protected selectedProjectFolder(): string {
+    return this.getWorkspaceSubfolder();
+  }
+
+  protected isBoundExisting(): boolean {
+    return this.bindExistingProject() && this.workspaceProjects().includes(this.selectedProjectFolder());
   }
 
   ngOnDestroy(): void {
@@ -308,6 +377,10 @@ export class StudioPage implements OnInit, OnDestroy {
       workspacePath: workspace,
       pipeline: this.pipeline()
     };
+    // Bound existing folder → agents list/read first and edit in place.
+    if (this.bindExistingProject() && this.workspaceProjects().includes(this.getWorkspaceSubfolder())) {
+      context['existingProject'] = true;
+    }
     if (skillIds.length > 0) {
       context['skillIds'] = skillIds;
     }

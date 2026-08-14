@@ -35,4 +35,20 @@ public sealed class TaskContinuationContextTests
         Assert.False(TaskContinuationContext.IsContinuation("{not-json"));
         Assert.False(TaskContinuationContext.IsContinuation("""{"workspacePath":"/workspace/x"}"""));
     }
+
+    [Fact]
+    public void IsExistingWorkspaceMode_true_for_existingProject_flag()
+    {
+        Assert.True(TaskContinuationContext.IsExistingWorkspaceMode(
+            """{"workspacePath":"/workspace/fastapi","existingProject":true}"""));
+        Assert.False(TaskContinuationContext.IsExistingWorkspaceMode(
+            """{"workspacePath":"/workspace/fastapi"}"""));
+    }
+
+    [Fact]
+    public void IsExistingWorkspaceMode_true_when_continuation()
+    {
+        Assert.True(TaskContinuationContext.IsExistingWorkspaceMode(
+            """{"isContinuation":true,"workspacePath":"/workspace/x"}"""));
+    }
 }

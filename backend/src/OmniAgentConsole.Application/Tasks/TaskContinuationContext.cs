@@ -11,6 +11,8 @@ public static class TaskContinuationContext
 {
     public const string IsContinuationProperty = "isContinuation";
     public const string PromptHistoryProperty = "promptHistory";
+    /// <summary>True when the user bound an existing workspace folder (edit, not greenfield).</summary>
+    public const string ExistingProjectProperty = "existingProject";
 
     public static string Merge(string? existingContextJson, string previousPrompt, string followUpPrompt)
     {
@@ -50,6 +52,34 @@ public static class TaskContinuationContext
         {
             using var doc = JsonDocument.Parse(inputContextJson);
             return doc.RootElement.TryGetProperty(IsContinuationProperty, out var flag)
+                   && flag.ValueKind is JsonValueKind.True;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Follow-up turns OR first task on a bound existing project — agents should
+    /// list/read before write and not rebuild from scratch.
+    /// </summary>
+    public static bool IsExistingWorkspaceMode(string? inputContextJson)
+    {
+        if (IsContinuation(inputContextJson))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(inputContextJson))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(inputContextJson);
+            return doc.RootElement.TryGetProperty(ExistingProjectProperty, out var flag)
                    && flag.ValueKind is JsonValueKind.True;
         }
         catch

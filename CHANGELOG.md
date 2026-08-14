@@ -9,6 +9,12 @@ Versions use date-based tags until formal semver; GitHub release **v0.1.0** mark
 
 ## [Unreleased]
 
+### Added
+
+- Studio **project picker**: list `/workspace` folders, bind existing project (`existingProject` in task context)
+- Workspace **Open in Studio** → Studio with workspace + existing bind
+- Agents treat bound projects like edit mode (list/read before write; no greenfield rebuild)
+
 ### Planned
 
 - Hosted Playwright via GitHub `vars.E2E_BASE_URL` (public UI URL required)

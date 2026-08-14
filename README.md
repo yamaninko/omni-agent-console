@@ -66,8 +66,9 @@ docker compose up -d --build
 
 1. **Settings** → paste API key → Save (or bootstrap via `.env`).
 2. **Home** → sample debate cast **or** Studio preset.
-3. **Groups** → cast (Mark as template for lab) → **Panel** → Start.
-4. Optional: `PANEL_FLOOR_MODE=llm` for model-driven speaker order.
+3. **Existing project:** Workspace → pick folder → **Open in Studio**, *or* Studio → project dropdown → enable “Work on this existing project” → prompt → Run.
+4. **Groups** → cast (Mark as template for lab) → **Panel** → Start.
+5. Optional: `PANEL_FLOOR_MODE=llm` for model-driven speaker order.
 
 ```bash
 make smoke              # panel API smoke (key + ≥1 group)

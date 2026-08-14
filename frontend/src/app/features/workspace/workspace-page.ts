@@ -274,6 +274,30 @@ export class WorkspacePage implements OnInit, OnDestroy {
   }
 
   /**
+   * Open Studio bound to this project folder so the next prompt edits in place.
+   */
+  protected openInStudio(): void {
+    const info = this.projectInfo();
+    const focus = this.projectFocusPath();
+    let folder = info?.projectRoot;
+    if (!folder || folder === '.') {
+      folder = (focus || '').replace(/^\/+|\/+$/g, '').split('/')[0] || '';
+    }
+    if (!folder) {
+      this.projectMessage.set('Select a project folder first.');
+      return;
+    }
+    const workspacePath = `/workspace/${folder}`;
+    void this.router.navigate(['/studio'], {
+      queryParams: {
+        workspace: workspacePath,
+        existing: '1',
+        pipeline: 'coder'
+      }
+    });
+  }
+
+  /**
    * Opens a new Studio task that asks the Coder to fix Docker packaging using
    * the last Start error log (e.g. missing package-lock.json COPY).
    */
@@ -295,7 +319,12 @@ export class WorkspacePage implements OnInit, OnDestroy {
           ''
         ) || '/workspace';
         const prompt = this.buildPackagingFixPrompt(info.projectRoot, log);
-        const contextJson = JSON.stringify({ workspacePath, skillIds });
+        const contextJson = JSON.stringify({
+          workspacePath,
+          skillIds,
+          existingProject: true,
+          pipeline: 'coder'
+        });
 
         this.api.createTask(prompt, contextJson).subscribe({
           next: (task) => {

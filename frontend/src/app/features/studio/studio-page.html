@@ -176,6 +176,53 @@
       @if (activeTaskId() === null) {
         <div class="prompt-box">
           <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+            <!-- Bind existing project from workspace/ -->
+            <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
+              <label style="color: #8fa3b7; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+                {{ t('studio.projectPick') }}
+              </label>
+              <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <select
+                  [value]="selectedProjectFolder()"
+                  (change)="onProjectPickerChange($event)"
+                  style="flex: 1; min-width: 160px; background: #0d121a; border: 1px solid #1a2636; border-radius: 6px; color: #e6edf3; padding: 8px 12px; font-size: 13px; outline: none;"
+                >
+                  <option value="">{{ t('studio.projectPickPlaceholder') }}</option>
+                  @for (p of workspaceProjects(); track p) {
+                    <option [value]="p">{{ p }}</option>
+                  }
+                </select>
+                <button
+                  type="button"
+                  class="secondary"
+                  style="min-height: 36px; height: auto; padding: 6px 10px; font-size: 11px; margin: 0;"
+                  (click)="loadWorkspaceProjects()"
+                  [title]="t('studio.projectRefresh')"
+                >
+                  {{ t('studio.projectRefresh') }}
+                </button>
+                <a
+                  routerLink="/workspace"
+                  style="font-size: 12px; color: #76b900; text-decoration: none; white-space: nowrap;"
+                >
+                  {{ t('studio.openWorkspace') }}
+                </a>
+              </div>
+              <label style="display: flex; align-items: center; gap: 8px; color: #8fa3b7; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none;">
+                <input
+                  type="checkbox"
+                  [checked]="bindExistingProject()"
+                  (change)="onBindExistingChange($event)"
+                />
+                {{ t('studio.bindExisting') }}
+              </label>
+              @if (isBoundExisting()) {
+                <div style="font-size: 12px; color: #76b900; background: rgba(118,185,0,0.08); border: 1px solid rgba(118,185,0,0.25); border-radius: 6px; padding: 8px 10px;">
+                  {{ t('studio.boundHint') }} <code style="color: #d6f4bd;">{{ workspacePath() }}</code>
+                </div>
+              }
+            </div>
+
             <!-- Workspace Path Input -->
             <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
               <label style="color: #8fa3b7; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
