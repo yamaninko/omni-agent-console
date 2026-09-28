@@ -11,6 +11,9 @@ Versions use date-based tags until formal semver; GitHub release **v0.1.0** mark
 
 ### Added
 
+#### Panel docs
+- Documented fixed vs LLM floor order in the in-app Docs, including `PANEL_FLOOR_MODE=llm` / `Panel:FloorMode` and heuristic fallback stream behavior.
+
 #### Workspace — add / copy existing projects
 - **Add project** panel on Workspace explorer (open by default)
 - **Copy from host**: list folders under `HOST_IMPORT_DIR` (compose mount `/host-import`) → server-side copy into `./workspace/{name}`
