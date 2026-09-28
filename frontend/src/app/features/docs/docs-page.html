@@ -112,7 +112,18 @@
           </li>
           <li>Roster briefing is <strong>collapsed by default</strong> — expand when you need the cast card.</li>
         </ul>
-        <h3>3. Keys &amp; durability</h3>
+        <h3>3. Floor order mode</h3>
+        <p>
+          By default, Panel uses the fixed roster order: moderators speak first, then commentators follow
+          their group sort order. Set <code>PANEL_FLOOR_MODE=llm</code> (or <code>Panel:FloorMode</code>)
+          to let the moderator model choose the commentator order for each round from the recent transcript.
+        </p>
+        <p>
+          When LLM floor mode succeeds, the stream shows an <em>LLM floor order</em> event with the selected
+          speaker sequence. If the model call fails or returns an unusable order, Panel continues with a
+          warning and falls back to the built-in heuristic order instead of stopping the session.
+        </p>
+        <h3>4. Keys &amp; durability</h3>
         <p>
           Settings → OmniAgent / NVIDIA API key is required. Keys are written to Vault and mirrored under
           <code>./data/secrets</code> so a Vault <code>-dev</code> restart does not wipe lab credentials.
